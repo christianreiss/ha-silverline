@@ -113,6 +113,7 @@
       }
     },
     "binary_sensor": {
+      "compressor_running": { "name": "Compressor" },
       "water_pump": { "name": "Water pump" },
       "fault_water_flow": { "name": "Water flow fault" },
       "fault_antifreeze": { "name": "Antifreeze fault" },

@@ -52,7 +52,8 @@ async def test_firmware_capability_filter_skips_missing_dps(
     PC-SLP090N) should produce: 1 climate, 1 power switch, 1 target-
     temperature number, 2 selects (preset + operating_mode), 1 fault-
     code sensor, 1 temperature-delta sensor (depends only on DPs 2+3),
-    and 5 fault binary sensors — and nothing else. The 10 diagnostic
+    the compressor-running binary sensor (DPs 1+4 always present), and
+    5 fault binary sensors — and nothing else. The 10 diagnostic
     temperature/frequency/eev/fan sensors and the water-pump binary
     sensor (DPs 101-111) must NOT register."""
     mock_client_factory.get_status = AsyncMock(return_value=state_minimal_firmware)
@@ -70,6 +71,7 @@ async def test_firmware_capability_filter_skips_missing_dps(
     assert entity_ids == [
         "binary_sensor.pool_heatpump_antifreeze_fault",
         "binary_sensor.pool_heatpump_communication_fault",
+        "binary_sensor.pool_heatpump_compressor",
         "binary_sensor.pool_heatpump_high_pressure_fault",
         "binary_sensor.pool_heatpump_low_pressure_fault",
         "binary_sensor.pool_heatpump_water_flow_fault",
@@ -87,20 +89,20 @@ async def test_full_firmware_registers_everything(
     hass: HomeAssistant, init_integration: MockConfigEntry
 ) -> None:
     """When the device exposes the full DP set (state_pool_running has
-    1-13 + 101-111), all 23 entities register. Guards against the
+    1-13 + 101-111), all 24 entities register. Guards against the
     capability filter accidentally dropping entities on full firmware.
 
-    The 23 count: 1 climate, 12 sensors (10 diagnostic + fault_code +
-    temperature_delta), 6 binary_sensors (water_pump + 5 fault bits),
-    1 switch (power), 1 number (target_temperature), 2 selects
-    (preset_mode + operating_mode)."""
+    The 24 count: 1 climate, 12 sensors (10 diagnostic + fault_code +
+    temperature_delta), 7 binary_sensors (water_pump + 5 fault bits +
+    compressor_running), 1 switch (power), 1 number (target_temperature),
+    2 selects (preset_mode + operating_mode)."""
     registry = er.async_get(hass)
     entity_ids = sorted(
         e.entity_id
         for e in registry.entities.values()
         if e.config_entry_id == init_integration.entry_id
     )
-    assert len(entity_ids) == 23
+    assert len(entity_ids) == 24
 
 
 async def test_async_setup_starts_discovery_task(

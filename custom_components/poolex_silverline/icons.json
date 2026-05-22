@@ -26,6 +26,13 @@
       "fault_code": { "default": "mdi:alert-circle-outline" }
     },
     "binary_sensor": {
+      "compressor_running": {
+        "default": "mdi:engine",
+        "state": {
+          "on": "mdi:engine",
+          "off": "mdi:engine-off"
+        }
+      },
       "water_pump": { "default": "mdi:water-pump" },
       "fault_water_flow": { "default": "mdi:water-alert" },
       "fault_antifreeze": { "default": "mdi:snowflake-alert" },

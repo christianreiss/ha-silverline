@@ -10,6 +10,7 @@ from homeassistant.components.binary_sensor import (
     BinarySensorEntity,
     BinarySensorEntityDescription,
 )
+from homeassistant.components.climate.const import HVACAction
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -17,6 +18,7 @@ from pysilverline import DeviceState
 
 from .coordinator import SilverlineConfigEntry, SilverlineCoordinator
 from .entity import SilverlineEntity
+from .util import compute_hvac_action
 
 PARALLEL_UPDATES = 0
 
@@ -27,6 +29,20 @@ def _bit(state: DeviceState, position: int) -> bool | None:
     return bool(state.fault & (1 << position))
 
 
+def _compressor_active(state: DeviceState) -> bool | None:
+    """True iff the heat pump is actively heating or cooling right now.
+
+    We share the hvac_action computation with the climate entity so the
+    "Compressor" binary sensor flips in lockstep with the climate card.
+    `last_direction` is irrelevant here — it only matters for OFF→mode
+    mapping, which always reports OFF (i.e. False) regardless.
+    """
+    action = compute_hvac_action(state, None)
+    if action is None:
+        return None
+    return action in (HVACAction.HEATING, HVACAction.COOLING)
+
+
 @dataclass(frozen=True, kw_only=True)
 class SilverlineBinarySensorDescription(BinarySensorEntityDescription):
     value_fn: Callable[[DeviceState], bool | None]
@@ -35,6 +51,16 @@ class SilverlineBinarySensorDescription(BinarySensorEntityDescription):
 
 
 BINARY_SENSORS: tuple[SilverlineBinarySensorDescription, ...] = (
+    SilverlineBinarySensorDescription(
+        key="compressor_running",
+        translation_key="compressor_running",
+        device_class=BinarySensorDeviceClass.RUNNING,
+        value_fn=_compressor_active,
+        # DP 1 (power) + DP 4 (mode) are present on every firmware we've
+        # ever seen — including the minimal PC-SLP090N. The DP 108
+        # (actual_frequency) refinement is opportunistic.
+        dp_keys=("1", "4"),
+    ),
     SilverlineBinarySensorDescription(
         key="water_pump",
         translation_key="water_pump",

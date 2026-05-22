@@ -36,6 +36,7 @@ from .const import (
 )
 from .coordinator import SilverlineConfigEntry, SilverlineCoordinator
 from .entity import SilverlineEntity
+from .util import compute_hvac_action
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -163,60 +164,18 @@ class SilverlineClimate(SilverlineEntity, ClimateEntity, RestoreEntity):
 
         Without this, HA can't distinguish "in heat mode and actively
         heating" from "in heat mode but target reached, idle now" — both
-        render the same. We fall back to inferring from temp_current vs
-        temp_set when the firmware doesn't expose compressor frequency
-        (DP 108 is absent on the minimal Poolex variant).
+        render the same. The computation lives in `util.compute_hvac_action`
+        so the binary_sensor.compressor_running entity can reuse it.
         """
         state = self.coordinator.data
-        if state is None or state.power is None:
+        if state is None:
             return None
-        if not state.power:
-            return HVACAction.OFF
-        mode = self.hvac_mode
-        if mode is None:
+        # Preserve the "unknown mode → unknown action" semantic the entity
+        # owns: our hvac_mode property returns None when DP 4 carries a
+        # string we don't decode; surface that as None too, not IDLE.
+        if state.power and self.hvac_mode is None:
             return None
-        # Authoritative when DP 108 is present (Brustec/Steinbach firmware).
-        # actual_frequency == 0 means the compressor is parked; non-zero
-        # means it's running and pulling power in the active direction.
-        freq = state.actual_frequency
-        active = freq > 0 if isinstance(freq, int) else None
-        current = state.temp_current
-        target = state.temp_set
-
-        def _heat_or_idle() -> HVACAction:
-            if active is True:
-                return HVACAction.HEATING
-            if active is False:
-                return HVACAction.IDLE
-            if current is not None and target is not None:
-                return HVACAction.HEATING if current < target else HVACAction.IDLE
-            return HVACAction.IDLE
-
-        def _cool_or_idle() -> HVACAction:
-            if active is True:
-                return HVACAction.COOLING
-            if active is False:
-                return HVACAction.IDLE
-            if current is not None and target is not None:
-                return HVACAction.COOLING if current > target else HVACAction.IDLE
-            return HVACAction.IDLE
-
-        if mode == HVACMode.HEAT:
-            return _heat_or_idle()
-        if mode == HVACMode.COOL:
-            return _cool_or_idle()
-        if mode == HVACMode.HEAT_COOL:
-            # Auto: pick the direction from the temp delta sign.
-            if current is None or target is None:
-                return HVACAction.IDLE
-            if active is False:
-                return HVACAction.IDLE
-            if current < target:
-                return HVACAction.HEATING
-            if current > target:
-                return HVACAction.COOLING
-            return HVACAction.IDLE
-        return HVACAction.IDLE
+        return compute_hvac_action(state, self._last_direction)
 
     @property
     def min_temp(self) -> float:
