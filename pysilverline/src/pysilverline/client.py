@@ -357,45 +357,68 @@ class SilverlineClient:
             )
 
     async def _reconnect_loop(self) -> None:
-        """Walk the backoff schedule trying to reopen the socket."""
-        # Close the dead writer so the next connect() succeeds cleanly.
-        if self._writer is not None:
-            try:
-                self._writer.close()
-                await self._writer.wait_closed()
-            except OSError:
-                pass
-        self._reader = None
-        self._writer = None
-        # Reap the dead reader/heartbeat tasks before kicking new ones.
-        for task_attr in ("_reader_task", "_heartbeat_task"):
-            task: asyncio.Task[None] | None = getattr(self, task_attr)
-            if task and not task.done():
-                task.cancel()
-                try:
-                    await task
-                except (asyncio.CancelledError, Exception):  # noqa: BLE001
-                    pass
-            setattr(self, task_attr, None)
+        """Walk the backoff schedule trying to reopen the socket.
 
-        for delay in _RECONNECT_BACKOFF:
-            if self._closing:
+        The body runs inside a ``try/finally`` that clears
+        ``self._reconnect_task`` on exit. Without that, a peer that drops
+        the freshly reconnected socket *before this coroutine returns*
+        would have its ``_on_connection_dropped`` signal suppressed —
+        that callback bails when ``self._reconnect_task`` is still
+        running, leaving the client dead with no scheduled retry.
+        """
+        try:
+            # Close the dead writer so the next connect() succeeds cleanly.
+            if self._writer is not None:
+                try:
+                    self._writer.close()
+                    await self._writer.wait_closed()
+                except OSError:
+                    pass
+            self._reader = None
+            self._writer = None
+            # Reap the dead reader/heartbeat tasks before kicking new ones.
+            for task_attr in ("_reader_task", "_heartbeat_task"):
+                task: asyncio.Task[None] | None = getattr(self, task_attr)
+                if task and not task.done():
+                    task.cancel()
+                    try:
+                        await task
+                    except (asyncio.CancelledError, Exception):  # noqa: BLE001
+                        pass
+                setattr(self, task_attr, None)
+
+            for delay in _RECONNECT_BACKOFF:
+                if self._closing:
+                    return
+                await asyncio.sleep(delay)
+                if self._closing:
+                    return
+                try:
+                    await self.connect()
+                except CannotConnect as err:
+                    _LOGGER.debug("reconnect attempt failed: %s", err)
+                    continue
+                # connect() notifies True; refresh state so listeners see
+                # fresh DPs. If the brand-new socket already died (the peer
+                # closed it mid-reconnect, and our own reader fired
+                # _on_connection_dropped while we were still the current
+                # reconnect task — so the schedule check below was a no-op),
+                # roll over to the next backoff iteration instead of
+                # returning to a dead connection.
+                try:
+                    await self.get_status()
+                except (CannotConnect, InvalidAuth) as err:
+                    _LOGGER.debug("post-reconnect refresh failed: %s", err)
+                if not self.connected:
+                    continue
                 return
-            await asyncio.sleep(delay)
-            if self._closing:
-                return
-            try:
-                await self.connect()
-            except CannotConnect as err:
-                _LOGGER.debug("reconnect attempt failed: %s", err)
-                continue
-            # connect() notifies True; refresh state so listeners see fresh DPs.
-            try:
-                await self.get_status()
-            except (CannotConnect, InvalidAuth) as err:
-                _LOGGER.debug("post-reconnect refresh failed: %s", err)
-            return
-        _LOGGER.error(
-            "exhausted reconnect backoff to %s; giving up until next connect()",
-            self.host,
-        )
+            _LOGGER.error(
+                "exhausted reconnect backoff to %s; giving up until next connect()",
+                self.host,
+            )
+        finally:
+            # Clearing this here is what makes back-to-back drops keep
+            # triggering reconnects: any drop signal that arrives after
+            # this point sees no active reconnect task and schedules a
+            # fresh one via _on_connection_dropped.
+            self._reconnect_task = None

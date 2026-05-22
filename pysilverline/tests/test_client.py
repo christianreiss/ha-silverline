@@ -345,6 +345,59 @@ async def test_reconnect_on_peer_close(monkeypatch: pytest.MonkeyPatch) -> None:
         await server.wait_closed()
 
 
+async def test_back_to_back_drops_keep_triggering_reconnects(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A server that drops every connection must keep re-triggering reconnects.
+
+    Regression test for the race where the new socket dies *before*
+    ``_reconnect_loop`` returns: at that instant the reconnect task is
+    still the current task, so ``_on_connection_dropped`` suppresses the
+    drop signal. Without resetting ``self._reconnect_task`` to ``None``
+    on exit, no further reconnect is ever scheduled. With the fix in
+    place, three connections happen well inside one second.
+    """
+    import pysilverline.client as client_mod
+    monkeypatch.setattr(client_mod, "_RECONNECT_BACKOFF", (0.02, 0.02, 0.02))
+
+    connection_count = 0
+
+    async def drop_immediately(
+        reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> None:
+        nonlocal connection_count
+        connection_count += 1
+        # Close the writer before reading anything; the client will see EOF.
+        writer.close()
+        try:
+            await writer.wait_closed()
+        except OSError:
+            pass
+
+    server = await asyncio.start_server(drop_immediately, "127.0.0.1", 0)
+    port = server.sockets[0].getsockname()[1]
+    try:
+        client = SilverlineClient(
+            host="127.0.0.1", port=port,
+            device_id=DEVICE_ID, local_key=KEY,
+            request_timeout=0.2,
+        )
+        await client.connect()
+        try:
+            for _ in range(50):
+                if connection_count >= 3:
+                    break
+                await asyncio.sleep(0.02)
+            assert connection_count >= 3, (
+                f"reconnect chain stalled: connection_count={connection_count}"
+            )
+        finally:
+            await client.disconnect()
+    finally:
+        server.close()
+        await server.wait_closed()
+
+
 async def test_disconnect_cancels_reconnect_task(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
