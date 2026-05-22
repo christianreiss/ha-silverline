@@ -173,6 +173,8 @@ class SilverlineClimate(SilverlineEntity, ClimateEntity, RestoreEntity):
         if not state.power:
             return HVACAction.OFF
         mode = self.hvac_mode
+        if mode is None:
+            return None
         # Authoritative when DP 108 is present (Brustec/Steinbach firmware).
         # actual_frequency == 0 means the compressor is parked; non-zero
         # means it's running and pulling power in the active direction.

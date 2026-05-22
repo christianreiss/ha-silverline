@@ -589,3 +589,19 @@ async def test_unknown_dp4_string_maps_to_hvac_none(
     state = hass.states.get(ENTITY_ID)
     assert state is not None
     assert state.state == "unknown"
+
+
+async def test_unknown_dp4_string_maps_to_hvac_action_none(
+    hass: HomeAssistant, mock_client_factory, init_integration
+) -> None:
+    """When hvac_mode is None due to an unrecognised DP 4 string,
+    hvac_action must also be None so the icon doesn't render as 'Idle'
+    against an 'unknown' state."""
+    coordinator = init_integration.runtime_data
+    coordinator.async_set_updated_data(
+        DeviceState.from_dps({"1": True, "4": "TotallyMadeUpMode", "3": 25})
+    )
+    await hass.async_block_till_done()
+    state = hass.states.get(ENTITY_ID)
+    assert state is not None
+    assert state.attributes.get("hvac_action") is None
