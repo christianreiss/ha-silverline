@@ -89,3 +89,14 @@ async def test_full_firmware_registers_everything(
         if e.config_entry_id == init_integration.entry_id
     )
     assert len(entity_ids) == 18
+
+
+async def test_async_setup_starts_discovery_task(
+    hass: HomeAssistant, init_integration: MockConfigEntry
+) -> None:
+    """async_setup spawns a background discovery listener and tracks it
+    on hass.data[DOMAIN] so duplicate setup_entry calls don't re-spawn it."""
+    from custom_components.poolex_silverline.const import DOMAIN
+    task = hass.data[DOMAIN]["_discovery_task"]
+    assert task is not None
+    assert not task.done()

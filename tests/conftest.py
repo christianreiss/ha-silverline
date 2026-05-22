@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable, Generator
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -40,6 +41,22 @@ def auto_enable_custom_integrations(
     enable_custom_integrations: Any,
 ) -> Generator[None]:
     yield
+
+
+@pytest.fixture(autouse=True)
+def stub_discovery() -> Generator[None]:
+    """Replace pysilverline.discover() with a no-op so the integration's
+    background listener doesn't bind UDP sockets (HA's test framework
+    blocks raw socket use)."""
+    async def _empty():  # pragma: no cover - generator that never yields
+        if False:
+            yield
+        await asyncio.sleep(3600)
+
+    with patch(
+        "custom_components.poolex_silverline.discover", return_value=_empty()
+    ):
+        yield
 
 
 @pytest.fixture

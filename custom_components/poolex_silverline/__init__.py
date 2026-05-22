@@ -2,19 +2,76 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
+
+from homeassistant.config_entries import SOURCE_INTEGRATION_DISCOVERY
 from homeassistant.const import CONF_HOST, CONF_PORT, Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.typing import ConfigType
 
-from pysilverline import SilverlineClient
+from pysilverline import SilverlineClient, discover
 
-from .const import CONF_DEVICE_ID, CONF_LOCAL_KEY
+from .const import CONF_DEVICE_ID, CONF_LOCAL_KEY, DOMAIN
 from .coordinator import SilverlineConfigEntry, SilverlineCoordinator
+
+_LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [
     Platform.CLIMATE,
     Platform.SENSOR,
     Platform.BINARY_SENSOR,
 ]
+
+_DISCOVERY_TASK_KEY = "_discovery_task"
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Start the background UDP discovery listener once per HA process.
+
+    Every Tuya device broadcasts a JSON announcement on UDP/6667 every
+    ~25s. For each new ``device_id`` we see, fire an
+    ``integration_discovery`` flow so HA shows a "Discovered" card.
+    Already-configured devices' discovery handler aborts with
+    ``already_configured`` after pushing any new IP into the existing
+    entry — covers the Gold ``discovery-update-info`` rule for free.
+    """
+    if DOMAIN in hass.data and _DISCOVERY_TASK_KEY in hass.data[DOMAIN]:
+        return True
+    hass.data.setdefault(DOMAIN, {})
+
+    async def _discovery_loop() -> None:
+        seen_recent: set[str] = set()
+        try:
+            async for info in discover():
+                if info.device_id in seen_recent:
+                    # The same device broadcasts every ~25s; don't spam
+                    # the flow system. Existing-entry IP updates still
+                    # flow because async_step_integration_discovery
+                    # delegates to _abort_if_unique_id_configured.
+                    continue
+                seen_recent.add(info.device_id)
+                hass.async_create_task(
+                    hass.config_entries.flow.async_init(
+                        DOMAIN,
+                        context={"source": SOURCE_INTEGRATION_DISCOVERY},
+                        data={
+                            "device_id": info.device_id,
+                            "ip": info.ip,
+                            "version": info.version,
+                        },
+                    )
+                )
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001
+            _LOGGER.exception("discovery listener crashed")
+
+    task = hass.async_create_background_task(
+        _discovery_loop(), name="poolex_silverline_discovery"
+    )
+    hass.data[DOMAIN][_DISCOVERY_TASK_KEY] = task
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: SilverlineConfigEntry) -> bool:
