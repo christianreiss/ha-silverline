@@ -361,6 +361,84 @@ async def test_connection_listener_unsubscribe() -> None:
             await client.disconnect()
 
 
+async def test_get_status_survives_tcp_fragmented_response() -> None:
+    """TCP is allowed to split any frame across read boundaries — the
+    client must wait for the rest of the bytes instead of treating a
+    partial buffer as a malformed frame and dropping the connection.
+
+    Regression test for the case where FrameCodec.decode used to raise
+    ProtocolError("frame truncated") on an incomplete buffer, which the
+    read loop then handled identically to a real spec violation.
+    """
+
+    async def handler(
+        reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> None:
+        from pysilverline.protocol import FrameCodec
+
+        codec = FrameCodec(KEY)
+        buf = bytearray()
+        try:
+            while True:
+                chunk = await reader.read(4096)
+                if not chunk:
+                    return
+                buf.extend(chunk)
+                while len(buf) >= 24:
+                    try:
+                        frame, remainder = codec.decode(bytes(buf))
+                    except Exception:
+                        return
+                    buf = bytearray(remainder)
+                    if frame.cmd == const.CMD_DP_QUERY:
+                        response = _build_frame(
+                            frame.seq,
+                            const.CMD_DP_QUERY,
+                            {"dps": {"1": True, "4": "Heat", "3": 26}},
+                        )
+                        # Split the response across two writes with a
+                        # delay between them — simulates a real TCP
+                        # MSS-sized fragment landing in our client's
+                        # buffer before the rest of the frame arrives.
+                        split = len(response) // 2
+                        writer.write(response[:split])
+                        await writer.drain()
+                        await asyncio.sleep(0.05)
+                        writer.write(response[split:])
+                        await writer.drain()
+        finally:
+            try:
+                writer.close()
+                await writer.wait_closed()
+            except OSError:
+                pass
+
+    server = await asyncio.start_server(handler, "127.0.0.1", 0)
+    port = server.sockets[0].getsockname()[1]
+    try:
+        client = SilverlineClient(
+            host="127.0.0.1",
+            port=port,
+            device_id=DEVICE_ID,
+            local_key=KEY,
+            request_timeout=2.0,
+        )
+        await client.connect()
+        try:
+            state = await client.get_status()
+            assert state.mode == "Heat"
+            assert state.temp_current == 26
+            assert state.power is True
+            # The connection must still be up — a malformed-frame
+            # mishandling would have closed the socket out from under us.
+            assert client.connected
+        finally:
+            await client.disconnect()
+    finally:
+        server.close()
+        await server.wait_closed()
+
+
 async def test_reconnect_on_peer_close(monkeypatch: pytest.MonkeyPatch) -> None:
     """Closing the socket from the server side triggers a reconnect.
 

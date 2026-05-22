@@ -26,7 +26,7 @@ from typing import Any
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 from . import const
-from .exceptions import InvalidAuth, ProtocolError
+from .exceptions import IncompleteFrame, InvalidAuth, ProtocolError
 
 _HEADER_FMT = ">IIII"  # prefix, seq, cmd, size
 _HEADER_SIZE = struct.calcsize(_HEADER_FMT)
@@ -130,18 +130,28 @@ class FrameCodec:
         header and any retcode prefix are NOT stripped here, since that
         depends on whether the frame is a request or a response) and the
         unconsumed remainder of the buffer.
+
+        Raises ``IncompleteFrame`` when more bytes are needed before a
+        frame can be decoded — caller should accumulate more bytes and
+        retry. Raises ``ProtocolError`` only when the bytes that have
+        arrived violate the spec (bad prefix/suffix/size/CRC), in which
+        case the connection is desynchronized and must be dropped.
         """
 
         if len(data) < _HEADER_SIZE + _FOOTER_SIZE:
-            raise ProtocolError("frame too short")
+            raise IncompleteFrame("header not yet complete")
         prefix, seq, cmd, size = struct.unpack(_HEADER_FMT, data[:_HEADER_SIZE])
-        if size > _MAX_FRAME_SIZE:
-            raise ProtocolError(f"frame too large: {size}")
+        # Validate the prefix BEFORE the size cap: a peer that sends
+        # garbage shaped vaguely like a Tuya frame might also produce a
+        # plausibly-sized but bogus size field, and we want the more
+        # specific "bad prefix" diagnostic in the logs.
         if prefix != const.FRAME_PREFIX:
             raise ProtocolError(f"bad prefix 0x{prefix:08x}")
+        if size > _MAX_FRAME_SIZE:
+            raise ProtocolError(f"frame too large: {size}")
         total = _HEADER_SIZE + size
         if len(data) < total:
-            raise ProtocolError("frame truncated")
+            raise IncompleteFrame(f"need {total - len(data)} more bytes")
 
         payload_end = total - _FOOTER_SIZE
         payload = data[_HEADER_SIZE:payload_end]

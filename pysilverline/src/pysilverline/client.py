@@ -9,7 +9,13 @@ from collections.abc import Callable
 from typing import Any
 
 from . import const
-from .exceptions import CannotConnect, InvalidAuth, ProtocolError, SilverlineError
+from .exceptions import (
+    CannotConnect,
+    IncompleteFrame,
+    InvalidAuth,
+    ProtocolError,
+    SilverlineError,
+)
 from .models import DeviceInfo, DeviceState
 from .protocol import Frame, FrameCodec, is_invalid_auth_retcode
 
@@ -304,12 +310,19 @@ class SilverlineClient:
                 while len(buf) >= 24:
                     try:
                         frame, remainder = self._codec.decode(bytes(buf))
+                    except IncompleteFrame:
+                        # Normal case under TCP fragmentation: the wire
+                        # delivered the header but not yet the full body,
+                        # or vice versa. Stop draining and wait for the
+                        # next read to fill the gap.
+                        break
                     except ProtocolError as err:
-                        # A malformed frame from a Tuya peer means we're
-                        # desynchronized (or talking to something hostile);
-                        # there is no safe recovery from mid-stream garbage,
-                        # so drop the connection and let the reconnect path
-                        # re-establish a fresh session.
+                        # Bad prefix / suffix / CRC / oversize means we
+                        # are desynchronized (or talking to something
+                        # hostile). There is no safe recovery from
+                        # mid-stream garbage, so drop the connection and
+                        # let the reconnect path re-establish a fresh
+                        # session.
                         _LOGGER.warning(
                             "dropping connection on malformed frame: %s", err
                         )

@@ -9,7 +9,7 @@ import struct
 import pytest
 
 from pysilverline import const
-from pysilverline.exceptions import InvalidAuth, ProtocolError
+from pysilverline.exceptions import IncompleteFrame, InvalidAuth, ProtocolError
 from pysilverline.protocol import (
     FrameCodec,
     aes_decrypt,
@@ -164,10 +164,26 @@ def test_decode_status_push_with_retcode_and_v33_header() -> None:
     assert codec.decrypt_body(bare) == body
 
 
-def test_decode_truncated() -> None:
+def test_decode_short_buffer_is_incomplete_not_malformed() -> None:
+    """A buffer too small to even hold the header must raise
+    IncompleteFrame, not ProtocolError — TCP can deliver a single byte
+    at a time and the reader needs to keep accumulating, not drop the
+    connection."""
     codec = FrameCodec(KEY)
-    with pytest.raises(ProtocolError):
+    with pytest.raises(IncompleteFrame):
         codec.decode(b"\x00\x00\x55\xaa" + b"\x00" * 4)
+
+
+def test_decode_partial_payload_is_incomplete_not_malformed() -> None:
+    """A valid header that claims more bytes than the buffer contains
+    is the normal under-fragmentation case: header arrived, body hasn't
+    yet. Must raise IncompleteFrame so the reader can wait for more."""
+    codec = FrameCodec(KEY)
+    wire = codec.encode(const.CMD_DP_QUERY, {"x": 1})
+    # Slice off the last few bytes so the size field still claims the
+    # full length but the buffer doesn't contain it yet.
+    with pytest.raises(IncompleteFrame):
+        codec.decode(wire[:-4])
 
 
 def test_decode_bad_prefix() -> None:
