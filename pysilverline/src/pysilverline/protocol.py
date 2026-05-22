@@ -33,6 +33,10 @@ _HEADER_SIZE = struct.calcsize(_HEADER_FMT)
 _FOOTER_FMT = ">II"  # crc32, suffix
 _FOOTER_SIZE = struct.calcsize(_FOOTER_FMT)
 _BLOCK_SIZE = 16  # AES-128 block size
+# Upper bound on the wire-claimed `size` field. Real Tuya frames from a heat
+# pump are well under 1 KiB; capping at 64 KiB prevents a hostile LAN peer
+# from claiming a 4 GiB frame to exhaust memory while we wait for bytes.
+_MAX_FRAME_SIZE = 64 * 1024
 
 _RETCODE_INVALID_KEY = {0x00000FFF, 0xFFFFFFFF}
 
@@ -131,6 +135,8 @@ class FrameCodec:
         if len(data) < _HEADER_SIZE + _FOOTER_SIZE:
             raise ProtocolError("frame too short")
         prefix, seq, cmd, size = struct.unpack(_HEADER_FMT, data[:_HEADER_SIZE])
+        if size > _MAX_FRAME_SIZE:
+            raise ProtocolError(f"frame too large: {size}")
         if prefix != const.FRAME_PREFIX:
             raise ProtocolError(f"bad prefix 0x{prefix:08x}")
         total = _HEADER_SIZE + size

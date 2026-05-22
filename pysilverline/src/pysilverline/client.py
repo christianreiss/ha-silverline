@@ -19,6 +19,11 @@ _DEFAULT_REQUEST_TIMEOUT: float = 10.0
 _HEARTBEAT_INTERVAL: float = 10.0
 _RECONNECT_BACKOFF: tuple[float, ...] = (1.0, 2.0, 4.0, 8.0, 16.0, 30.0, 60.0)
 _READ_CHUNK: int = 4096
+# Hard cap on the inbound buffer when no complete frame has decoded yet. A
+# legitimate frame is < 64 KiB (see protocol._MAX_FRAME_SIZE); 256 KiB gives
+# us comfortable slack but still bounds memory growth from a hostile peer
+# that dribbles bytes after claiming an oversize header.
+_MAX_READ_BUFFER: int = 256 * 1024
 
 PushListener = Callable[[DeviceState], None]
 ConnectionListener = Callable[[bool], None]
@@ -249,6 +254,22 @@ class SilverlineClient:
             self._pending.pop(frame_seq, None)
             raise CannotConnect(f"timeout waiting for cmd 0x{cmd:02x}") from err
 
+    def _close_writer(self) -> None:
+        """Close the underlying writer, swallowing OS errors.
+
+        Used from the read loop when we decide to bail out (oversize
+        buffer, malformed frame); the disconnect path in the ``finally``
+        block of ``_read_loop`` then notifies listeners and schedules a
+        reconnect.
+        """
+        writer = self._writer
+        if writer is None:
+            return
+        try:
+            writer.close()
+        except OSError:
+            pass
+
     async def _read_loop(self) -> None:
         buf = bytearray()
         reader = self._reader
@@ -265,15 +286,35 @@ class SilverlineClient:
                     _LOGGER.debug("connection closed by peer")
                     break
                 buf.extend(chunk)
+                if len(buf) > _MAX_READ_BUFFER:
+                    _LOGGER.warning(
+                        "read buffer exceeded %d bytes without a complete frame; "
+                        "closing connection",
+                        _MAX_READ_BUFFER,
+                    )
+                    self._close_writer()
+                    break
+                drop_connection = False
                 while len(buf) >= 24:
                     try:
                         frame, remainder = self._codec.decode(bytes(buf))
                     except ProtocolError as err:
-                        _LOGGER.warning("dropping malformed frame: %s", err)
+                        # A malformed frame from a Tuya peer means we're
+                        # desynchronized (or talking to something hostile);
+                        # there is no safe recovery from mid-stream garbage,
+                        # so drop the connection and let the reconnect path
+                        # re-establish a fresh session.
+                        _LOGGER.warning(
+                            "dropping connection on malformed frame: %s", err
+                        )
                         buf.clear()
+                        drop_connection = True
                         break
                     buf = bytearray(remainder)
                     self._dispatch(frame)
+                if drop_connection:
+                    self._close_writer()
+                    break
         except asyncio.CancelledError:
             raise
         except Exception:  # noqa: BLE001

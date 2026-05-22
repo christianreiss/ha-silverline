@@ -194,3 +194,18 @@ def test_decrypt_body_rejects_garbage() -> None:
 def test_decrypt_body_empty_returns_empty_dict() -> None:
     codec = FrameCodec(KEY)
     assert codec.decrypt_body(b"") == {}
+
+
+def test_decode_rejects_oversize_size_field() -> None:
+    """A header claiming a multi-GiB frame must be rejected immediately
+    instead of waiting for the bytes to arrive — protects against a
+    hostile LAN peer trying to exhaust memory."""
+    codec = FrameCodec(KEY)
+    # Header with size = 0xFFFFFFFF (~4 GiB); no payload follows.
+    header = struct.pack(
+        ">IIII", const.FRAME_PREFIX, 1, const.CMD_DP_QUERY, 0xFFFFFFFF
+    )
+    # Pad to clear the "frame too short" guard so the size check is reached.
+    wire = header + b"\x00" * 8
+    with pytest.raises(ProtocolError, match="frame too large"):
+        codec.decode(wire)

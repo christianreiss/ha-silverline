@@ -345,6 +345,72 @@ async def test_reconnect_on_peer_close(monkeypatch: pytest.MonkeyPatch) -> None:
         await server.wait_closed()
 
 
+async def test_oversize_frame_header_closes_connection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A hostile peer that claims a multi-GiB frame size must not cause
+    the client to hang waiting for the bytes; it should detect the
+    oversize header via FrameCodec.decode and drop the socket within
+    a short timeout."""
+    import pysilverline.client as client_mod
+    # Long-ish backoff so a reconnect attempt doesn't race the test.
+    monkeypatch.setattr(client_mod, "_RECONNECT_BACKOFF", (5.0,))
+
+    peer_closed = asyncio.Event()
+
+    async def handler(
+        reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> None:
+        # Header claims a ~4 GiB frame; we follow it with 8 junk bytes
+        # so the client's read buffer crosses the 24-byte threshold and
+        # FrameCodec.decode actually runs (and rejects the size).
+        header = struct.pack(
+            ">IIII", const.FRAME_PREFIX, 1, const.CMD_STATUS, 0xFFFFFFFF
+        )
+        writer.write(header + b"\x00" * 8)
+        try:
+            await writer.drain()
+        except (OSError, ConnectionError):
+            pass
+        # Wait for the client to close on us (EOF on our reader). If the
+        # client hung instead, this never fires and the test times out.
+        try:
+            while True:
+                got = await reader.read(4096)
+                if not got:
+                    peer_closed.set()
+                    return
+        except (OSError, ConnectionError):
+            peer_closed.set()
+            return
+
+    server = await asyncio.start_server(handler, "127.0.0.1", 0)
+    port = server.sockets[0].getsockname()[1]
+    try:
+        events: list[bool] = []
+        client = SilverlineClient(
+            host="127.0.0.1", port=port,
+            device_id=DEVICE_ID, local_key=KEY,
+            request_timeout=1.0,
+        )
+        client.add_connection_listener(events.append)
+        await client.connect()
+        try:
+            await asyncio.wait_for(peer_closed.wait(), timeout=2.0)
+            # The read loop's finally clause fires _on_connection_dropped
+            # which notifies listeners with False.
+            for _ in range(40):
+                if False in events:
+                    break
+                await asyncio.sleep(0.025)
+            assert False in events, f"never saw disconnect; events={events}"
+        finally:
+            await client.disconnect()
+    finally:
+        server.close()
+        await server.wait_closed()
+
+
 async def test_disconnect_cancels_reconnect_task(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
