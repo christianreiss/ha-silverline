@@ -84,10 +84,8 @@ in **Settings → Devices** and choose **Reconfigure**.
   any DP changing. The integration listens for those on the persistent
   socket and applies them immediately, so most updates feel instant.
 
-## Known limitations (v0.1)
+## Known limitations
 
-- **No automatic discovery** — Tuya devices broadcast on UDP/6666 but the
-  integration does not yet listen for that. Planned for v0.2.
 - **Diagnostic sensors are firmware-dependent.** DPs 101–111 are populated
   on the Brustec/Steinbach firmware variants; some Poolex Silverline FI
   firmwares only expose DPs 1, 2, 3, 4, and 13. Sensors that don't get
@@ -126,7 +124,26 @@ in **Settings → Devices** and choose **Reconfigure**.
 - This is a device limitation, not an integration bug. Switch to
   Heat or Cool first; the preset will then apply.
 
-## Use case: protect against dry-running
+## Use cases
+
+- **Seasonal pool warmup.** Set `hvac_mode: heat` with the `boost`
+  preset and a 28 °C target in spring; the heat pump runs at maximum
+  inverter speed until the pool reaches setpoint, then naturally
+  modulates down.
+- **Overnight quiet operation.** Use the `eco` preset (mapped to the
+  Silent DP variant) during sleeping hours — the compressor caps its
+  frequency to a quieter rpm at the cost of slower heating.
+- **PV-surplus heating.** Trigger `climate.set_temperature` from a
+  template sensor watching your solar surplus: setpoint moves up by a
+  few degrees when there's free electricity, back down when there
+  isn't.
+- **Frost protection in the off-season.** Park the unit at a low
+  target with the `eco` preset; the inverter pulses only when water
+  temperature drops near the antifreeze threshold.
+
+## Examples
+
+### Prevent dry-running by sequencing the filter pump first
 
 The unit hard-faults to E03 (water flow) within ~30 s of running dry.
 Always start the filter pump before turning the heat pump on:
@@ -143,6 +160,71 @@ automation:
         target:
           entity_id: switch.pool_filter_pump
       - delay: "00:00:15"
+```
+
+### Heat only during low-tariff hours
+
+Drop the setpoint to a frost-protection floor at peak-rate times; raise
+it during the cheap window so the inverter runs when electricity is
+cheapest. Pair with a tariff sensor or a static time schedule.
+
+```yaml
+automation:
+  - alias: "Pool: warm during off-peak"
+    triggers:
+      - platform: time
+        at: "22:00:00"
+    actions:
+      - action: climate.set_temperature
+        target:
+          entity_id: climate.pool_heatpump
+        data:
+          temperature: 28
+      - action: climate.set_preset_mode
+        target:
+          entity_id: climate.pool_heatpump
+        data:
+          preset_mode: boost
+
+  - alias: "Pool: idle during peak"
+    triggers:
+      - platform: time
+        at: "06:00:00"
+    actions:
+      - action: climate.set_temperature
+        target:
+          entity_id: climate.pool_heatpump
+        data:
+          temperature: 18
+      - action: climate.set_preset_mode
+        target:
+          entity_id: climate.pool_heatpump
+        data:
+          preset_mode: eco
+```
+
+### Notify when a fault appears (with self-clearing)
+
+The integration also surfaces fault bits as Home Assistant **Repair
+issues** (Settings → Repairs) that auto-clear when the device clears
+the fault. For an active push notification on top of that, watch the
+fault binary sensors directly:
+
+```yaml
+automation:
+  - alias: "Pool: notify on water-flow fault"
+    triggers:
+      - platform: state
+        entity_id: binary_sensor.pool_heatpump_water_flow_fault
+        from: "off"
+        to: "on"
+    actions:
+      - action: notify.mobile_app
+        data:
+          title: "Pool heat pump: E03 water flow"
+          message: >
+            The heat pump can't detect water flow. Check the filter
+            pump. The unit stops heating until flow is restored.
 ```
 
 ## Removal

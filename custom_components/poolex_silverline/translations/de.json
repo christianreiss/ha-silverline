@@ -119,6 +119,48 @@
       "fault_communication": { "name": "Kommunikations-Fehler" }
     }
   },
+  "issues": {
+    "fault_E03": {
+      "title": "Wasserdurchfluss-Fehler (E03)",
+      "description": "Die Wärmepumpe erkennt keinen Wasserdurchfluss. Filterpumpe und Filter prüfen. Heizen ist gesperrt, bis der Durchfluss wieder vorhanden ist. Die Karte verschwindet automatisch, sobald das Gerät den Fehler zurücksetzt."
+    },
+    "fault_E04": {
+      "title": "Frostschutz-Fehler (E04)",
+      "description": "Frostschutz hat ausgelöst — das Wasser im Wärmetauscher ist zu kalt. Außentemperatur erhöhen oder Betrieb pausieren, bis sie über der Frostschutzschwelle liegt."
+    },
+    "fault_E05": {
+      "title": "Hochdruck-Fehler (E05)",
+      "description": "Hochdruckschalter im Kältekreis ausgelöst. Mögliche Ursachen: verstopfter Lamellenwärmetauscher, zu viel Kältemittel oder defekter Lüfter."
+    },
+    "fault_E06": {
+      "title": "Niederdruck-Fehler (E06)",
+      "description": "Niederdruckschalter im Kältekreis ausgelöst. Möglicherweise Kältemittelverlust oder Expansionsventil-Defekt — bei Wiederholung Service notwendig."
+    },
+    "fault_E09": {
+      "title": "Kommunikationsfehler (E09)",
+      "description": "Interne Kommunikation zwischen Regler und Inverter fehlgeschlagen. Das Gerät erholt sich meist von selbst."
+    },
+    "fault_E10": {
+      "title": "Inverter-Kommunikationsfehler (E10)",
+      "description": "Der Inverter antwortet nicht. Das Gerät erholt sich meist beim nächsten Kompressorzyklus."
+    },
+    "fault_P1": {
+      "title": "Abtaufühler-Fehler (P1)",
+      "description": "Der Abtau-Temperaturfühler liefert einen ungültigen Wert. Abtauzyklen können bis zur Behebung außerplanmäßig sein."
+    },
+    "fault_P3": {
+      "title": "Vorlauffühler-Fehler (P3)",
+      "description": "Der Vorlauf-Temperaturfühler liefert einen ungültigen Wert. Die angezeigte Beckentemperatur kann bis zur Behebung falsch sein."
+    },
+    "fault_P4": {
+      "title": "Rücklauffühler-Fehler (P4)",
+      "description": "Der Rücklauf-Temperaturfühler liefert einen ungültigen Wert. Das Gerät arbeitet ohne präzise Auslauftemperatur-Überwachung."
+    },
+    "fault_P7": {
+      "title": "Verdampferfühler-Fehler (P7)",
+      "description": "Der Verdampferspulen-Temperaturfühler liefert einen ungültigen Wert. Das Abtau-Timing kann betroffen sein."
+    }
+  },
   "exceptions": {
     "auth_failed": {
       "message": "Die Wärmepumpe hat die Zugangsdaten abgelehnt. Eine Neuauthentifizierung ist erforderlich."

@@ -119,6 +119,48 @@
       "fault_communication": { "name": "Communication fault" }
     }
   },
+  "issues": {
+    "fault_E03": {
+      "title": "Water flow fault (E03)",
+      "description": "The heat pump can't detect water flow. Check that the filter pump is running and the filter is clean. The heat pump halts heating until flow is restored. This card disappears automatically once the device clears the fault."
+    },
+    "fault_E04": {
+      "title": "Antifreeze fault (E04)",
+      "description": "Antifreeze protection has tripped — water in the heat exchanger is too cold. Raise the ambient temperature or stop operation until it's above the antifreeze threshold."
+    },
+    "fault_E05": {
+      "title": "High pressure fault (E05)",
+      "description": "Refrigerant high-pressure cutout activated. Likely causes: blocked airflow over the coil, refrigerant overcharge, or condenser fan failure."
+    },
+    "fault_E06": {
+      "title": "Low pressure fault (E06)",
+      "description": "Refrigerant low-pressure cutout activated. Possible refrigerant leak or expansion-valve issue — service required if it repeats."
+    },
+    "fault_E09": {
+      "title": "Communication failure (E09)",
+      "description": "Internal communication between the controller and the inverter has failed. The unit usually auto-recovers."
+    },
+    "fault_E10": {
+      "title": "Inverter communication failure (E10)",
+      "description": "The inverter is not responding. The unit usually auto-recovers on the next compressor cycle."
+    },
+    "fault_P1": {
+      "title": "Defrost sensor fault (P1)",
+      "description": "The defrost temperature sensor reports an invalid reading. Defrost cycles may be off-schedule until cleared."
+    },
+    "fault_P3": {
+      "title": "Inlet sensor fault (P3)",
+      "description": "The water-inlet temperature sensor reports an invalid reading. Pool temperature reporting may be wrong until cleared."
+    },
+    "fault_P4": {
+      "title": "Outlet sensor fault (P4)",
+      "description": "The water-outlet temperature sensor reports an invalid reading. The unit may operate without precise output temperature monitoring."
+    },
+    "fault_P7": {
+      "title": "Coil sensor fault (P7)",
+      "description": "The evaporator coil temperature sensor reports an invalid reading. Defrost timing may be affected until cleared."
+    }
+  },
   "exceptions": {
     "auth_failed": {
       "message": "The heat pump rejected the credentials. Re-authentication is required."
