@@ -117,6 +117,25 @@
       "fault_high_pressure": { "name": "Hochdruck-Fehler" },
       "fault_low_pressure": { "name": "Niederdruck-Fehler" },
       "fault_communication": { "name": "Kommunikations-Fehler" }
+    },
+    "select": {
+      "preset_mode": {
+        "name": "Preset",
+        "state": {
+          "none": "Inverter",
+          "boost": "Boost",
+          "eco": "Silent"
+        }
+      },
+      "operating_mode": {
+        "name": "Betriebsmodus",
+        "state": {
+          "off": "Aus",
+          "heat": "Heizen",
+          "cool": "Kühlen",
+          "heat_cool": "Auto"
+        }
+      }
     }
   },
   "issues": {

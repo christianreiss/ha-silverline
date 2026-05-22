@@ -31,6 +31,10 @@
       "fault_high_pressure": { "default": "mdi:gauge-full" },
       "fault_low_pressure": { "default": "mdi:gauge-low" },
       "fault_communication": { "default": "mdi:lan-disconnect" }
+    },
+    "select": {
+      "preset_mode": { "default": "mdi:tune" },
+      "operating_mode": { "default": "mdi:home-thermometer" }
     }
   }
 }

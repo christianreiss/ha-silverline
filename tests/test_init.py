@@ -49,10 +49,10 @@ async def test_firmware_capability_filter_skips_missing_dps(
     state_minimal_firmware: DeviceState,
 ) -> None:
     """A firmware that only emits DPs 1,2,3,4,13 (verified live on
-    PC-SLP090N) should produce: 1 climate, 1 fault-code sensor, and
-    5 fault binary sensors — and nothing else. The 10 diagnostic
-    temperature/frequency/eev/fan sensors and the water-pump binary
-    sensor (DPs 101-111) must NOT register."""
+    PC-SLP090N) should produce: 1 climate, 1 fault-code sensor,
+    5 fault binary sensors, and 2 selects — and nothing else. The 10
+    diagnostic temperature/frequency/eev/fan sensors and the
+    water-pump binary sensor (DPs 101-111) must NOT register."""
     mock_client_factory.get_status = AsyncMock(return_value=state_minimal_firmware)
     mock_client_factory.state = state_minimal_firmware
     config_entry.add_to_hass(hass)
@@ -72,6 +72,8 @@ async def test_firmware_capability_filter_skips_missing_dps(
         "binary_sensor.pool_heatpump_low_pressure_fault",
         "binary_sensor.pool_heatpump_water_flow_fault",
         "climate.pool_heatpump",
+        "select.pool_heatpump_operating_mode",
+        "select.pool_heatpump_preset",
         "sensor.pool_heatpump_fault_code",
     ]
 
@@ -80,15 +82,19 @@ async def test_full_firmware_registers_everything(
     hass: HomeAssistant, init_integration: MockConfigEntry
 ) -> None:
     """When the device exposes the full DP set (state_pool_running has
-    1-13 + 101-111), all 18 entities register. Guards against the
-    capability filter accidentally dropping entities on full firmware."""
+    1-13 + 101-111), all 20 entities register. Guards against the
+    capability filter accidentally dropping entities on full firmware.
+
+    The 20 count: 1 climate, 11 sensors (10 diagnostic + fault_code),
+    6 binary_sensors (water_pump + 5 fault bits), 2 selects (preset_mode
+    + operating_mode)."""
     registry = er.async_get(hass)
     entity_ids = sorted(
         e.entity_id
         for e in registry.entities.values()
         if e.config_entry_id == init_integration.entry_id
     )
-    assert len(entity_ids) == 18
+    assert len(entity_ids) == 20
 
 
 async def test_async_setup_starts_discovery_task(
