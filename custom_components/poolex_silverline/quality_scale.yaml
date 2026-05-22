@@ -4,7 +4,13 @@ rules:
     status: exempt
     comment: Integration registers no custom service actions in v0.1.
   appropriate-polling: done
-  brands: done
+  brands:
+    status: done
+    comment: |
+      Local brand assets in custom_components/poolex_silverline/brand/ are
+      served by HA >= 2026.3 (brands-proxy API). For older HA installs the
+      assets are visible only after a PR to home-assistant/brands/custom_integrations/poolex_silverline/
+      lands; not currently submitted.
   common-modules: done
   config-flow: done
   config-flow-test-coverage: done
