@@ -11,10 +11,14 @@ runtime.
   (`inverter`, `boost`, `silent`) covering all seven device modes including
   Boost-Cool and Silent-Cool, which the official HA Tuya integration cannot
   reach (see [home-assistant/core#117566][issue-117566]).
-- Eleven diagnostic sensors: compressor exhaust/return temperatures,
-  evaporator and ambient temperatures, water inlet/outlet temperatures,
-  target/actual compressor frequency, EEV step count, fan rpm, and a decoded
-  fault-code enum.
+- Up to eleven firmware-dependent diagnostic sensors: compressor
+  exhaust/return temperatures, evaporator and ambient temperatures, water
+  inlet/outlet temperatures, target/actual compressor frequency, EEV step
+  count, fan rpm, and a decoded fault-code enum. The integration only
+  registers entities for the DPs your firmware actually exposes — the
+  minimal Poolex PC-SLP090N firmware ships five DPs and gets none of the
+  101–111 diagnostics, while the Brustec / Steinbach variants ship the
+  full set.
 - Binary sensors for the water-pump relay and the five most common fault
   bits (water flow, antifreeze, high/low pressure, communication).
 - Reauth flow when the local key rotates and reconfigure flow for IP
@@ -87,9 +91,11 @@ in **Settings → Devices** and choose **Reconfigure**.
 ## Known limitations
 
 - **Diagnostic sensors are firmware-dependent.** DPs 101–111 are populated
-  on the Brustec/Steinbach firmware variants; some Poolex Silverline FI
-  firmwares only expose DPs 1, 2, 3, 4, and 13. Sensors that don't get
-  values automatically surface as `unavailable` rather than failing setup.
+  on the Brustec / Steinbach firmware variants; some Poolex Silverline FI
+  firmwares (verified live: PC-SLP090N) only expose DPs 1, 2, 3, 4, and 13.
+  Unsupported diagnostic DPs are not registered as entities at all — they
+  do not appear in your device page, so they cannot show up as `unavailable`
+  and clutter dashboards.
 - **°F mode is not supported.** Lock the wired remote to °C — on °F some
   firmwares move the fault bitmap from DP 13 to DP 21 and reuse DP 13 for
   the unit-conversion enum, which the integration does not yet handle.
@@ -115,10 +121,12 @@ in **Settings → Devices** and choose **Reconfigure**.
 - The local key is regenerated whenever the device is re-paired in Smart
   Life. Re-fetch it from the Tuya IoT Platform after any Smart Life touch.
 
-**Sensor shows "unavailable" forever**
-- Your firmware variant likely doesn't expose that DP. The climate entity
-  should still work normally; diagnostic sensors that can't be populated
-  are marked unavailable so they don't confuse template sensors.
+**A diagnostic sensor I expected is missing**
+- Your firmware variant likely doesn't expose that DP, in which case
+  the integration omits the entity on purpose (the alternative — a
+  permanently `unavailable` sensor — confuses dashboards and template
+  sensors). Compare with the supported DPs in the device's diagnostics
+  download to confirm.
 
 **Boost or Silent doesn't apply when in Auto**
 - This is a device limitation, not an integration bug. Switch to

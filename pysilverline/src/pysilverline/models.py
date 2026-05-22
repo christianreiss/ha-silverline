@@ -41,28 +41,50 @@ class DeviceState:
 
     @classmethod
     def from_dps(cls, dps: dict[str, Any]) -> DeviceState:
-        """Build a DeviceState from a Tuya `dps` mapping (string keys)."""
+        """Build a DeviceState from a Tuya `dps` mapping (string keys).
 
-        def _get(dp: int) -> Any:
-            return dps.get(str(dp))
+        Coerces each DP through a type filter rather than trusting the
+        wire payload — a malformed frame or a firmware that ships a
+        string where we expect an int would otherwise propagate into
+        entity arithmetic (e.g. `d.temp_set - d.temp_current`) and
+        break consumers in surprising ways. The defensive choice for a
+        DP whose value does not match its declared type is to expose
+        it as None and keep the raw dict intact for diagnostics.
+        """
+
+        def _bool(dp: int) -> bool | None:
+            value = dps.get(str(dp))
+            return value if isinstance(value, bool) else None
+
+        def _int(dp: int) -> int | None:
+            value = dps.get(str(dp))
+            # bool is a subclass of int in Python; reject it explicitly
+            # so a power-style DP doesn't accidentally satisfy an int DP.
+            if isinstance(value, bool):
+                return None
+            return value if isinstance(value, int) else None
+
+        def _str(dp: int) -> str | None:
+            value = dps.get(str(dp))
+            return value if isinstance(value, str) else None
 
         return cls(
-            power=_get(const.DP_POWER),
-            temp_set=_get(const.DP_TEMP_SET),
-            temp_current=_get(const.DP_TEMP_CURRENT),
-            mode=_get(const.DP_MODE),
-            fault=_get(const.DP_FAULT),
-            exhaust_temp=_get(const.DP_EXHAUST_TEMP),
-            return_temp=_get(const.DP_RETURN_TEMP),
-            coil_temp=_get(const.DP_COIL_TEMP),
-            ambient_temp=_get(const.DP_AMBIENT_TEMP),
-            inlet_temp=_get(const.DP_INLET_TEMP),
-            outlet_temp=_get(const.DP_OUTLET_TEMP),
-            target_frequency=_get(const.DP_TARGET_FREQUENCY),
-            actual_frequency=_get(const.DP_ACTUAL_FREQUENCY),
-            eev_steps=_get(const.DP_EEV_STEPS),
-            fan_speed=_get(const.DP_FAN_SPEED),
-            water_pump=_get(const.DP_WATER_PUMP),
+            power=_bool(const.DP_POWER),
+            temp_set=_int(const.DP_TEMP_SET),
+            temp_current=_int(const.DP_TEMP_CURRENT),
+            mode=_str(const.DP_MODE),
+            fault=_int(const.DP_FAULT),
+            exhaust_temp=_int(const.DP_EXHAUST_TEMP),
+            return_temp=_int(const.DP_RETURN_TEMP),
+            coil_temp=_int(const.DP_COIL_TEMP),
+            ambient_temp=_int(const.DP_AMBIENT_TEMP),
+            inlet_temp=_int(const.DP_INLET_TEMP),
+            outlet_temp=_int(const.DP_OUTLET_TEMP),
+            target_frequency=_int(const.DP_TARGET_FREQUENCY),
+            actual_frequency=_int(const.DP_ACTUAL_FREQUENCY),
+            eev_steps=_int(const.DP_EEV_STEPS),
+            fan_speed=_int(const.DP_FAN_SPEED),
+            water_pump=_bool(const.DP_WATER_PUMP),
             raw=dict(dps),
         )
 
