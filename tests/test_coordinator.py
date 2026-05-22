@@ -42,3 +42,48 @@ async def test_cannot_connect_during_poll_keeps_entry_loaded(
     await hass.async_block_till_done()
     coordinator = init_integration.runtime_data
     assert coordinator.last_update_success is False
+
+
+async def test_connection_listener_registered(
+    hass: HomeAssistant, mock_client_factory, init_integration
+) -> None:
+    """Coordinator registers exactly one connection listener at setup."""
+    assert (
+        mock_client_factory.connection_listeners
+    ), "coordinator should have registered a connection listener"
+
+
+async def test_entities_unavailable_on_disconnect(
+    hass: HomeAssistant, mock_client_factory, init_integration
+) -> None:
+    """Firing the connection listener with False flips last_update_success
+    so CoordinatorEntity.available returns False — entities surface
+    `unavailable` immediately, not at the next 30s poll."""
+    coordinator = init_integration.runtime_data
+    assert coordinator.last_update_success is True
+
+    on_change = mock_client_factory.connection_listeners[0]
+    on_change(False)
+    await hass.async_block_till_done()
+    assert coordinator.last_update_success is False
+
+
+async def test_refresh_on_reconnect(
+    hass: HomeAssistant, mock_client_factory, init_integration
+) -> None:
+    """A True event schedules an async_request_refresh so HA sees a
+    fresh state quickly rather than waiting for the next 30s tick."""
+    coordinator = init_integration.runtime_data
+    # Flip to disconnected first so the recovery transition is observable.
+    on_change = mock_client_factory.connection_listeners[0]
+    on_change(False)
+    await hass.async_block_till_done()
+    assert coordinator.last_update_success is False
+
+    # Returning True should trigger a refresh; the mock's get_status returns
+    # state_pool_running, which restores last_update_success.
+    mock_client_factory.get_status.reset_mock()
+    on_change(True)
+    await hass.async_block_till_done()
+    assert mock_client_factory.get_status.await_count >= 1
+    assert coordinator.last_update_success is True
