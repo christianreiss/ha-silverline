@@ -9,6 +9,6 @@
   "integration_type": "device",
   "iot_class": "local_polling",
   "loggers": ["pysilverline", "custom_components.poolex_silverline"],
-  "requirements": ["pysilverline==0.1.1"],
+  "requirements": ["pysilverline==0.2.0"],
   "quality_scale": "silver"
 }

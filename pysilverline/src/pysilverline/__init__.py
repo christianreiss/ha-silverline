@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from . import const
 from .client import SilverlineClient
+from .discovery import DiscoveryInfo, discover, discover_once
 from .exceptions import (
     CannotConnect,
     DeviceLocked,
@@ -18,11 +19,14 @@ __all__ = [
     "DeviceInfo",
     "DeviceLocked",
     "DeviceState",
+    "DiscoveryInfo",
     "InvalidAuth",
     "ProtocolError",
     "SilverlineClient",
     "SilverlineError",
     "const",
+    "discover",
+    "discover_once",
 ]
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
