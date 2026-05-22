@@ -39,6 +39,9 @@
           "off": "mdi:power-off"
         }
       }
+    },
+    "number": {
+      "target_temperature": { "default": "mdi:thermometer" }
     }
   }
 }

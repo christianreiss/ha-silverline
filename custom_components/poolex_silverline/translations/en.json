@@ -121,6 +121,9 @@
     },
     "switch": {
       "power": { "name": "Power" }
+    },
+    "number": {
+      "target_temperature": { "name": "Target temperature" }
     }
   },
   "issues": {
