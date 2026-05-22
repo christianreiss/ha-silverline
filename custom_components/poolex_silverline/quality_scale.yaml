@@ -64,11 +64,16 @@ rules:
   discovery-update-info:
     status: done
     comment: |
-      The same UDP listener detects IP changes; async_step_integration_discovery
-      calls _abort_if_unique_id_configured(updates={CONF_HOST: ip}) which
-      atomically rewrites the entry's host. Worker [item 2] adds a verification
-      step so the rewrite only happens if the new IP responds under the stored
-      local_key.
+      The same UDP listener detects IP changes. The discovery loop tracks
+      the last-seen IP per device_id, so a broadcast on a new IP re-fires
+      the integration_discovery step instead of being deduped away.
+      async_step_integration_discovery then calls
+      _abort_if_unique_id_configured(updates={CONF_HOST: ip}) to atomically
+      rewrite the entry's host. Before any rewrite, _verify_host opens a
+      short-lived encrypted session against the new IP under the stored
+      local_key — only the genuine device can respond, which blocks a LAN
+      attacker who minted a spoofed UDP broadcast (the Tuya discovery key
+      is public). Regression test: test_init.test_discovery_loop_suppresses_duplicate_ip_but_refires_on_change.
   docs-data-update: done
   docs-examples: done
   docs-known-limitations: done
