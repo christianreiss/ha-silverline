@@ -1,9 +1,21 @@
 # Poolex Silverline — Home Assistant integration
 
-Local-only Home Assistant integration for the **Poolex PC-SLP090N "Silverline
-Inverter 90"** pool heat pump and its OEM siblings. Talks the Tuya local
-protocol v3.3 directly over your LAN — no Smart Life cloud dependency at
-runtime.
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-Custom%20Integration-41BDF5?logo=homeassistant&logoColor=white)](https://www.home-assistant.io/)
+[![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange)](https://hacs.xyz/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![Last commit](https://img.shields.io/github/last-commit/christianreiss/ha-silverline)](https://github.com/christianreiss/ha-silverline/commits/main)
+
+Local-only Home Assistant integration for **Poolex Silverline FI** pool heat
+pumps (Tuya v3.3) and OEM siblings. Connects directly over LAN — **no cloud
+runtime dependency**.
+
+## At a glance
+
+- ✅ Full `climate` support (`off / heat / cool / heat_cool`)
+- ✅ Presets incl. boost + silent variants that standard Tuya integrations miss
+- ✅ Firmware-aware diagnostics + fault sensors
+- ✅ Reauth/reconfigure flow for key/IP changes
+- ✅ HACS-installable, multilingual (DE/EN)
 
 ## Features
 
