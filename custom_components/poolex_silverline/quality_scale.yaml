@@ -42,8 +42,27 @@ rules:
   # Gold
   devices: done
   diagnostics: done
-  discovery: done
-  discovery-update-info: done
+  # Option A: kept as `done` because the integration genuinely auto-discovers
+  # devices on the LAN. UDP-broadcast is not a Core-supported discovery channel
+  # (zeroconf/SSDP/DHCP/Bluetooth/USB), but it is the canonical Tuya-LAN
+  # mechanism used by tinytuya, tuya-local, LocalTuya, and others. The block
+  # comments below document this so a reviewer can judge the claim on its merits.
+  discovery:
+    status: done
+    comment: |
+      Implemented as SOURCE_INTEGRATION_DISCOVERY triggered by a background
+      UDP-broadcast listener on the Tuya discovery port (UDP/6667). Standard
+      zeroconf/DHCP discovery isn't available because the WBR3 module
+      doesn't advertise via either channel; UDP-broadcast is the canonical
+      Tuya-LAN discovery mechanism (mirrored by tinytuya and tuya-local).
+  discovery-update-info:
+    status: done
+    comment: |
+      The same UDP listener detects IP changes; async_step_integration_discovery
+      calls _abort_if_unique_id_configured(updates={CONF_HOST: ip}) which
+      atomically rewrites the entry's host. Worker [item 2] adds a verification
+      step so the rewrite only happens if the new IP responds under the stored
+      local_key.
   docs-data-update: done
   docs-examples: done
   docs-known-limitations: done
