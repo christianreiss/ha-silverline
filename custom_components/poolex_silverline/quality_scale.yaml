@@ -89,5 +89,13 @@ rules:
   async-dependency: done
   inject-websession:
     status: exempt
-    comment: Tuya v3.3 uses raw TCP, not aiohttp; the client owns its socket.
+    comment: |
+      The Tuya v3.3 local protocol is a raw TCP stream over port 6668, not HTTP,
+      so an `aiohttp.ClientSession` is categorically irrelevant — there is no
+      websession to inject. The persistent socket carries per-frame AES-128-ECB
+      cipher state keyed on the device's `local_key` plus a monotonic sequence
+      counter; that state is device-scoped and cannot be shared across
+      integrations. The heartbeat loop, reader task, and reconnect-with-backoff
+      machinery are all bound to that single socket, so there is no separable
+      session lifecycle that Home Assistant could own on our behalf.
   strict-typing: done
