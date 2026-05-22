@@ -117,6 +117,9 @@
       "fault_high_pressure": { "name": "High pressure fault" },
       "fault_low_pressure": { "name": "Low pressure fault" },
       "fault_communication": { "name": "Communication fault" }
+    },
+    "switch": {
+      "power": { "name": "Power" }
     }
   },
   "issues": {

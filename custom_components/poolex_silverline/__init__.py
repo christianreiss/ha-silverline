@@ -21,6 +21,7 @@ PLATFORMS: list[Platform] = [
     Platform.CLIMATE,
     Platform.SENSOR,
     Platform.BINARY_SENSOR,
+    Platform.SWITCH,
 ]
 
 _DISCOVERY_TASK_KEY = "_discovery_task"

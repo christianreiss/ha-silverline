@@ -31,6 +31,14 @@
       "fault_high_pressure": { "default": "mdi:gauge-full" },
       "fault_low_pressure": { "default": "mdi:gauge-low" },
       "fault_communication": { "default": "mdi:lan-disconnect" }
+    },
+    "switch": {
+      "power": {
+        "default": "mdi:power",
+        "state": {
+          "off": "mdi:power-off"
+        }
+      }
     }
   }
 }
