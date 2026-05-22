@@ -154,8 +154,13 @@ class SilverlineCoordinator(DataUpdateCoordinator[DeviceState]):
         # surface `unavailable`. On recovery, request a fresh refresh so the
         # state caught between the drop and the next 30s poll lands fast.
         if connected:
+            _LOGGER.info("connection to %s restored", self.client.host)
             self.hass.async_create_task(self.async_request_refresh())
         else:
+            _LOGGER.warning(
+                "connection to %s lost; entities will go unavailable",
+                self.client.host,
+            )
             self.last_update_success = False
             self.async_update_listeners()
 

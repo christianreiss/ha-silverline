@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import timedelta
 from unittest.mock import AsyncMock
 
+import pytest
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 from pysilverline import CannotConnect, DeviceState, InvalidAuth
@@ -87,3 +89,37 @@ async def test_refresh_on_reconnect(
     await hass.async_block_till_done()
     assert mock_client_factory.get_status.await_count >= 1
     assert coordinator.last_update_success is True
+
+
+async def test_connection_change_logs_lost_and_restored(
+    hass: HomeAssistant,
+    mock_client_factory,
+    init_integration,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Satisfies HA's `log-when-unavailable` rule: one warning on drop,
+    one info on recovery — no more, no less."""
+    caplog.set_level(
+        logging.INFO, logger="custom_components.poolex_silverline.coordinator"
+    )
+    on_change = mock_client_factory.connection_listeners[0]
+
+    caplog.clear()
+    on_change(False)
+    await hass.async_block_till_done()
+    lost_records = [
+        r
+        for r in caplog.records
+        if r.levelno == logging.WARNING and "lost" in r.getMessage()
+    ]
+    assert lost_records, "expected a WARNING log record mentioning 'lost'"
+
+    caplog.clear()
+    on_change(True)
+    await hass.async_block_till_done()
+    restored_records = [
+        r
+        for r in caplog.records
+        if r.levelno == logging.INFO and "restored" in r.getMessage()
+    ]
+    assert restored_records, "expected an INFO log record mentioning 'restored'"
