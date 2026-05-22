@@ -8,7 +8,7 @@ from pytest_homeassistant_custom_component.components.diagnostics import (
 )
 from pytest_homeassistant_custom_component.typing import ClientSessionGenerator
 
-from .conftest import DEVICE_ID, LOCAL_KEY
+from .conftest import DEVICE_ID, HOST, LOCAL_KEY
 
 
 async def test_diagnostics_redacts_secrets(
@@ -20,6 +20,8 @@ async def test_diagnostics_redacts_secrets(
     flat = repr(diag)
     assert LOCAL_KEY not in flat
     assert DEVICE_ID not in flat
+    assert HOST not in flat
     assert "**REDACTED**" in flat
     assert "state" in diag
     assert diag["state"]["mode"] == "Heat"
+    assert diag["state"]["raw"] == "**REDACTED**"

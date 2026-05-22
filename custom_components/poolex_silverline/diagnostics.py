@@ -6,6 +6,7 @@ from dataclasses import asdict
 from typing import Any
 
 from homeassistant.components.diagnostics import async_redact_data
+from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant
 
 from .const import CONF_DEVICE_ID, CONF_LOCAL_KEY
@@ -13,10 +14,16 @@ from .coordinator import SilverlineConfigEntry
 
 TO_REDACT: set[str] = {
     CONF_DEVICE_ID,
+    CONF_HOST,
     CONF_LOCAL_KEY,
     "device_id",
+    "entry_id",
+    "host",
+    "ip",
     "local_key",
+    "raw",
     "serial_number",
+    "title",
     "unique_id",
 }
 
