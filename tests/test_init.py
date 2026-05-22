@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import AsyncMock
 
+import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from pysilverline import CannotConnect, DeviceState, InvalidAuth
+from pysilverline.discovery import DiscoveryInfo
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 
@@ -117,3 +120,72 @@ async def test_async_setup_starts_discovery_task(
     task = hass.data[DOMAIN]["_discovery_task"]
     assert task is not None
     assert not task.done()
+
+
+async def test_discovery_loop_suppresses_duplicate_ip_but_refires_on_change(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A repeat broadcast from a known device on the same IP must be
+    suppressed (devices announce every ~25s and HA does not need to be
+    told twice). But a broadcast from the same device on a NEW IP must
+    re-fire the discovery flow so the existing entry's CONF_HOST can
+    be rewritten — that is the whole purpose of the IP-update path,
+    and the original unbounded-set dedup gated it behind the very
+    first sighting per HA process."""
+    from custom_components.poolex_silverline import async_setup
+    from custom_components.poolex_silverline.const import DOMAIN
+
+    queue: asyncio.Queue[DiscoveryInfo] = asyncio.Queue()
+
+    async def _mock_discover():
+        while True:
+            yield await queue.get()
+
+    monkeypatch.setattr(
+        "custom_components.poolex_silverline.discover", _mock_discover
+    )
+
+    init_calls: list[dict] = []
+
+    async def _spy_init(domain, *, context=None, data=None):
+        init_calls.append(data)
+        return {"type": "abort", "reason": "test"}
+
+    monkeypatch.setattr(hass.config_entries.flow, "async_init", _spy_init)
+
+    assert await async_setup(hass, {})
+
+    async def _drain(info: DiscoveryInfo) -> None:
+        await queue.put(info)
+        # Yield to the loop a few times so the discovery task picks the
+        # item up, fires the (spied) flow.async_init, and the resulting
+        # task settles before we inspect init_calls.
+        for _ in range(3):
+            await asyncio.sleep(0)
+        await hass.async_block_till_done()
+
+    try:
+        await _drain(DiscoveryInfo(device_id="dev1", ip="10.0.0.1"))
+        assert len(init_calls) == 1
+        assert init_calls[0]["ip"] == "10.0.0.1"
+
+        # Repeat on the same IP → suppressed.
+        await _drain(DiscoveryInfo(device_id="dev1", ip="10.0.0.1"))
+        assert len(init_calls) == 1
+
+        # New IP for the known device → re-fires.
+        await _drain(DiscoveryInfo(device_id="dev1", ip="10.0.0.2"))
+        assert len(init_calls) == 2
+        assert init_calls[1]["ip"] == "10.0.0.2"
+
+        # A different device on its own IP fires independently.
+        await _drain(DiscoveryInfo(device_id="dev2", ip="10.0.0.3"))
+        assert len(init_calls) == 3
+        assert init_calls[2]["device_id"] == "dev2"
+    finally:
+        task = hass.data[DOMAIN]["_discovery_task"]
+        task.cancel()
+        try:
+            await task
+        except (asyncio.CancelledError, Exception):  # noqa: BLE001
+            pass

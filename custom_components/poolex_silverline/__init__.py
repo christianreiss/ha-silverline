@@ -44,16 +44,19 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     hass.data.setdefault(DOMAIN, {})
 
     async def _discovery_loop() -> None:
-        seen_recent: set[str] = set()
+        # Track the last IP we forwarded per device_id. A repeat broadcast
+        # on the same IP is suppressed (the device announces every ~25s
+        # and HA does not need to be told twice). A broadcast with a new
+        # IP for a known device_id is forwarded so the discovery flow can
+        # rewrite CONF_HOST on the existing entry — the original code's
+        # unbounded set never let any second flow fire, so DHCP-driven
+        # IP changes mid-session went unpropagated until HA restart.
+        seen_ips: dict[str, str] = {}
         try:
             async for info in discover():
-                if info.device_id in seen_recent:
-                    # The same device broadcasts every ~25s; don't spam
-                    # the flow system. Existing-entry IP updates still
-                    # flow because async_step_integration_discovery
-                    # delegates to _abort_if_unique_id_configured.
+                if seen_ips.get(info.device_id) == info.ip:
                     continue
-                seen_recent.add(info.device_id)
+                seen_ips[info.device_id] = info.ip
                 hass.async_create_task(
                     hass.config_entries.flow.async_init(
                         DOMAIN,
