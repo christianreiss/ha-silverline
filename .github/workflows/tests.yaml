@@ -39,4 +39,4 @@ jobs:
           pytest tests/ \
             --cov=custom_components.poolex_silverline \
             --cov-report=term-missing \
-            --cov-fail-under=90
+            --cov-fail-under=95

@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from homeassistant.const import STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from pysilverline import DeviceState
+from syrupy.assertion import SnapshotAssertion
 
 
 async def test_diagnostic_sensors_populate(
@@ -58,3 +60,35 @@ async def test_sensor_unavailable_when_dp_missing(
     state = hass.states.get("sensor.pool_heatpump_water_inlet_temperature")
     assert state is not None
     assert state.state == STATE_UNAVAILABLE
+
+
+async def test_entity_inventory_snapshot(
+    hass: HomeAssistant,
+    init_integration,
+    snapshot: SnapshotAssertion,
+) -> None:
+    """Snapshot the entity registry + canonical "powered + heating" states.
+
+    Catches regressions where: an entity is renamed/removed, a default
+    state changes shape, a unit/device_class is altered, or an attribute
+    appears/disappears unexpectedly. Update with --snapshot-update if the
+    change is intentional."""
+    registry = er.async_get(hass)
+    entries = sorted(
+        (e for e in registry.entities.values() if e.config_entry_id == init_integration.entry_id),
+        key=lambda e: e.entity_id,
+    )
+    assert {e.entity_id: registry.async_get(e.entity_id) for e in entries} == snapshot(
+        name="entity_registry"
+    )
+    # Only entities that are actually enabled produce a state; some
+    # diagnostic DPs are disabled-by-default.
+    states = sorted(
+        (
+            s
+            for e in entries
+            if (s := hass.states.get(e.entity_id)) is not None
+        ),
+        key=lambda s: s.entity_id,
+    )
+    assert states == snapshot(name="entity_states")

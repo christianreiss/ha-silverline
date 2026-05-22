@@ -363,3 +363,120 @@ async def test_set_hvac_off_does_not_sleep(
         blocking=True,
     )
     assert climate_mod._MODE_TRANSITION_SETTLE not in recorded
+
+
+# ---------------------------------------------------------------------------
+# Coverage fill-ins: low-cost branches that the existing tests didn't reach.
+# ---------------------------------------------------------------------------
+
+
+async def test_async_turn_on_off_dispatch(
+    hass: HomeAssistant, mock_client_factory, init_integration
+) -> None:
+    """turn_on/turn_off thin wrappers route through set_hvac_mode."""
+    await hass.services.async_call(
+        CLIMATE_DOMAIN, "turn_off",
+        {ATTR_ENTITY_ID: ENTITY_ID}, blocking=True,
+    )
+    mock_client_factory.set_multiple.assert_awaited_with({1: False})
+
+    mock_client_factory.set_multiple.reset_mock()
+    await hass.services.async_call(
+        CLIMATE_DOMAIN, "turn_on",
+        {ATTR_ENTITY_ID: ENTITY_ID}, blocking=True,
+    )
+    # _last_direction starts at HVACMode.HEAT, so turn_on restores Heat.
+    mock_client_factory.set_multiple.assert_awaited_with({1: True, 4: "Heat"})
+
+
+async def test_write_surfaces_cannot_connect_as_homeassistant_error(
+    hass: HomeAssistant, mock_client_factory, init_integration
+) -> None:
+    """A failed write must surface as HomeAssistantError so HA's
+    service-call layer reports it cleanly rather than 500ing."""
+    from homeassistant.exceptions import HomeAssistantError
+    from pysilverline import CannotConnect
+
+    mock_client_factory.set_multiple.side_effect = CannotConnect("network down")
+    with pytest.raises(HomeAssistantError) as exc:
+        await hass.services.async_call(
+            CLIMATE_DOMAIN,
+            SERVICE_SET_TEMPERATURE,
+            {ATTR_ENTITY_ID: ENTITY_ID, ATTR_TEMPERATURE: 27},
+            blocking=True,
+        )
+    assert exc.value.translation_key == "set_failed"
+
+
+async def test_write_surfaces_invalid_auth_as_homeassistant_error(
+    hass: HomeAssistant, mock_client_factory, init_integration
+) -> None:
+    """A write rejected by the device for invalid auth surfaces as
+    HomeAssistantError with the auth_failed translation."""
+    from homeassistant.exceptions import HomeAssistantError
+    from pysilverline import InvalidAuth
+
+    mock_client_factory.set_multiple.side_effect = InvalidAuth("key rotated")
+    with pytest.raises(HomeAssistantError) as exc:
+        await hass.services.async_call(
+            CLIMATE_DOMAIN,
+            SERVICE_SET_TEMPERATURE,
+            {ATTR_ENTITY_ID: ENTITY_ID, ATTR_TEMPERATURE: 27},
+            blocking=True,
+        )
+    assert exc.value.translation_key == "auth_failed"
+
+
+async def test_restore_state_recovers_last_direction_and_preset(
+    hass: HomeAssistant, mock_client_factory, config_entry, state_pool_off
+) -> None:
+    """When HA reloads with the device powered off, async_added_to_hass
+    restores _last_direction and _last_preset from the previous state
+    attributes so a subsequent turn_on uses the right preset+direction.
+
+    The device must come up OFF — if it's ON in Heat, _sync_from_state
+    overwrites the restored direction back to Heat as expected.
+    """
+    from unittest.mock import AsyncMock
+    from pytest_homeassistant_custom_component.common import mock_restore_cache
+    from homeassistant.core import State
+
+    mock_restore_cache(
+        hass,
+        [
+            State(
+                ENTITY_ID,
+                HVACMode.OFF,
+                attributes={
+                    "last_direction": HVACMode.COOL.value,
+                    "last_preset": "boost",
+                },
+            )
+        ],
+    )
+    mock_client_factory.get_status = AsyncMock(return_value=state_pool_off)
+    config_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    mock_client_factory.set_multiple.reset_mock()
+    await hass.services.async_call(
+        CLIMATE_DOMAIN, "turn_on",
+        {ATTR_ENTITY_ID: ENTITY_ID}, blocking=True,
+    )
+    mock_client_factory.set_multiple.assert_awaited_with({1: True, 4: "BoostCool"})
+
+
+async def test_unknown_dp4_string_maps_to_hvac_none(
+    hass: HomeAssistant, mock_client_factory, init_integration
+) -> None:
+    """If the device's DP 4 emits a string we don't recognize, hvac_mode
+    returns None rather than crashing — the entity surfaces as 'unknown'."""
+    coordinator = init_integration.runtime_data
+    coordinator.async_set_updated_data(
+        DeviceState.from_dps({"1": True, "4": "TotallyMadeUpMode", "3": 25})
+    )
+    await hass.async_block_till_done()
+    state = hass.states.get(ENTITY_ID)
+    assert state is not None
+    assert state.state == "unknown"

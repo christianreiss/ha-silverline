@@ -1,7 +1,7 @@
 {
   "domain": "poolex_silverline",
   "name": "Poolex Silverline",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "codeowners": ["@christian-reiss"],
   "config_flow": true,
   "documentation": "https://github.com/christian-reiss/ha-silverline",
@@ -10,5 +10,5 @@
   "iot_class": "local_polling",
   "loggers": ["pysilverline", "custom_components.poolex_silverline"],
   "requirements": ["pysilverline==0.1.1"],
-  "quality_scale": "bronze"
+  "quality_scale": "silver"
 }
