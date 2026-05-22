@@ -228,3 +228,162 @@ async def test_request_before_connect_raises() -> None:
     )
     with pytest.raises(CannotConnect):
         await client.get_status()
+
+
+async def test_connection_listener_receives_connect_event() -> None:
+    """A successful connect() fires the connection listener with True."""
+    async with FakeTuyaServer() as server:
+        events: list[bool] = []
+        client = SilverlineClient(
+            host="127.0.0.1", port=server.port,
+            device_id=DEVICE_ID, local_key=KEY,
+            request_timeout=1.0,
+        )
+        client.add_connection_listener(events.append)
+        await client.connect()
+        try:
+            assert events == [True]
+        finally:
+            await client.disconnect()
+
+
+async def test_connection_listener_unsubscribe() -> None:
+    """The unsubscribe callable removes the listener."""
+    async with FakeTuyaServer() as server:
+        events: list[bool] = []
+        client = SilverlineClient(
+            host="127.0.0.1", port=server.port,
+            device_id=DEVICE_ID, local_key=KEY,
+            request_timeout=1.0,
+        )
+        unsub = client.add_connection_listener(events.append)
+        unsub()
+        await client.connect()
+        try:
+            assert events == []
+        finally:
+            await client.disconnect()
+
+
+async def test_reconnect_on_peer_close(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Closing the socket from the server side triggers a reconnect.
+
+    Listener sees False then True; the second connect produces a fresh
+    DP_QUERY result the caller can read.
+    """
+    import pysilverline.client as client_mod
+    monkeypatch.setattr(client_mod, "_RECONNECT_BACKOFF", (0.05, 0.05, 0.05))
+
+    connection_count = 0
+    close_first = asyncio.Event()
+
+    async def handler(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        nonlocal connection_count
+        connection_count += 1
+        codec_key = KEY
+        from pysilverline.protocol import FrameCodec
+        codec = FrameCodec(codec_key)
+        buf = bytearray()
+        try:
+            while True:
+                chunk = await reader.read(4096)
+                if not chunk:
+                    return
+                buf.extend(chunk)
+                while len(buf) >= 24:
+                    try:
+                        frame, remainder = codec.decode(bytes(buf))
+                    except Exception:
+                        return
+                    buf = bytearray(remainder)
+                    if frame.cmd == const.CMD_DP_QUERY:
+                        writer.write(_build_frame(
+                            frame.seq, const.CMD_DP_QUERY,
+                            {"dps": {"1": True, "4": "Heat", "3": 26}},
+                        ))
+                        await writer.drain()
+                        if connection_count == 1:
+                            close_first.set()
+                            return  # force peer-close after answering once
+        finally:
+            try:
+                writer.close()
+                await writer.wait_closed()
+            except OSError:
+                pass
+
+    server = await asyncio.start_server(handler, "127.0.0.1", 0)
+    port = server.sockets[0].getsockname()[1]
+    try:
+        events: list[bool] = []
+        client = SilverlineClient(
+            host="127.0.0.1", port=port,
+            device_id=DEVICE_ID, local_key=KEY,
+            request_timeout=1.0,
+        )
+        client.add_connection_listener(events.append)
+        await client.connect()
+        await client.get_status()  # consumes the first response
+        # Wait for the server to close our socket.
+        await asyncio.wait_for(close_first.wait(), timeout=1.0)
+        # Wait for the reconnect listener to fire True a second time.
+        for _ in range(80):
+            if events.count(True) >= 2 and False in events:
+                break
+            await asyncio.sleep(0.05)
+        try:
+            assert False in events, f"never saw disconnect event; events={events}"
+            assert events.count(True) >= 2, f"never reconnected; events={events}"
+            assert connection_count >= 2
+            # The reconnected client can serve a fresh DP_QUERY.
+            state = await client.get_status()
+            assert state.mode == "Heat"
+        finally:
+            await client.disconnect()
+    finally:
+        server.close()
+        await server.wait_closed()
+
+
+async def test_disconnect_cancels_reconnect_task(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Explicit disconnect() stops the reconnect loop mid-backoff."""
+    import pysilverline.client as client_mod
+    # Long backoffs so we definitely catch the task in flight.
+    monkeypatch.setattr(client_mod, "_RECONNECT_BACKOFF", (5.0, 5.0, 5.0))
+
+    connection_count = 0
+
+    async def handler(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        nonlocal connection_count
+        connection_count += 1
+        # Close immediately to trigger reconnect.
+        writer.close()
+        try:
+            await writer.wait_closed()
+        except OSError:
+            pass
+
+    server = await asyncio.start_server(handler, "127.0.0.1", 0)
+    port = server.sockets[0].getsockname()[1]
+    try:
+        client = SilverlineClient(
+            host="127.0.0.1", port=port,
+            device_id=DEVICE_ID, local_key=KEY,
+            request_timeout=1.0,
+        )
+        await client.connect()
+        # Wait for the peer-close to be observed and reconnect to be scheduled.
+        for _ in range(40):
+            if client._reconnect_task is not None and not client._reconnect_task.done():
+                break
+            await asyncio.sleep(0.025)
+        assert client._reconnect_task is not None
+        assert not client._reconnect_task.done()
+        await client.disconnect()
+        # disconnect() awaits the reconnect task, so it must be done now.
+        assert client._reconnect_task is None
+    finally:
+        server.close()
+        await server.wait_closed()
