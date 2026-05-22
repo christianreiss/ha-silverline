@@ -312,3 +312,42 @@ temperature_step: 1
 - No public source confirms the **exact Tuya `category`** of this device — the cloud schema dump in #2797 returns generic `properties[]` rather than declaring `kt`/`heater`/`pool_heater`; the local protocol does not depend on this anyway.
 - The Smart Life app and the HA cloud Tuya integration cannot drive `BoostCool`/`SilentCool`/`SilentHeat` reliably (HA core #117566). LAN is the **only** way to access boost+cool. Plan accordingly.
 - The Tuya WBR3 module and unit have been seen to reboot if hammered with <8 s polls or if two clients (LocalTuya + Smart Life) connect simultaneously. The custom component must be the **sole local LAN client**; either disable the cloud account in Smart Life or block the device's outbound 443/8886 at the firewall (recommended for "LAN-only" intent anyway).
+
+---
+
+## Errata & implementation status (verified live against a physical PC-SLP090N)
+
+This section corrects or extends the original reference with what was actually observed and shipped during implementation. Anything below trumps the speculative claims in the body of the doc.
+
+### Corrections (factual)
+
+- **UDP discovery static key.** Section 5 → Quick reference table says the key is derived from `md5("tuya.tuya.tuya.tuya.tuya.t")`. **Wrong.** Verified live by capturing a real broadcast and trying both candidates: the Tuya UDP discovery key on this device (and on every Tuya 3.x device) is `md5(b"yGAdlopoPVldABfn") = 6c1ec8e2bb9bb59ab50b0daf649b410a`. Implemented in `pysilverline.discovery.UDP_DISCOVERY_KEY`.
+- **Push-frame layout.** Section 4 implies that spontaneous `CMD_STATUS` push frames are bare ciphertext. **Wrong on this firmware.** Real WBR3 pushes carry `[4-byte zero retcode][v3.3 header (3.3 + 12 nulls partly replaced by a per-push counter)][AES-128-ECB ciphertext]`. Without peeling those 19 bytes the codec mis-aligns and every push silently fails PKCS#7 unpadding. Fixed in `pysilverline.protocol.FrameCodec.split_request_payload` (peels both shapes).
+- **UDP-broadcast frame format.** The UDP discovery frame payload differs from TCP push frames: `[4-byte zero retcode][ciphertext]` with **no inner v3.3 header**. Implemented separately from the TCP push peel.
+- **Setpoint range is mode-dependent, not universal 8-40.** Section 5 says "DP 2 = target water temp, range 8-40 °C". **Partially wrong.** Verified live with a 21-value sweep across all three mode-families: Heat clamps to **15-40**, Cool clamps to **8-28** (not 8-40), Auto clamps to **8-40**. The device server-side-clamps anything outside its current mode's range; const.py `TEMP_MIN`/`TEMP_MAX` remain at 8/40 as the wire-level union, while the climate entity exposes per-mode bounds via `min_temp`/`max_temp` properties.
+- **DPs 101-111 are absent on this PC-SLP090N firmware.** Section 7 marks them HIGH-CONFIDENCE INFERRED from Brustec. Verified live: only DPs 1, 2, 3, 4, 13 are emitted on this physical unit, even under active heating load. The integration's firmware-aware filter (`coordinator.supported_dps` + per-description `dp_keys`) skips registering the 11 diagnostic entities that would otherwise stay `unavailable` forever.
+
+### Newly verified device behaviors (not in the original doc)
+
+- **Per-mode setpoint memory.** DP 2 is not a single global value; the device remembers the last setpoint *per mode-family* and silently restores it ~430-500 ms after a DP 4 mode transition. Sending `set_multiple({DP_MODE, DP_TEMP_SET})` atomically still loses the temp because the transition-restore push arrives after the atomic write echoes. The climate entity sleeps `_MODE_TRANSITION_SETTLE = 0.7s` after non-OFF mode writes so chained service calls don't race.
+- **Mode transitions:** Heat-family ↔ Heat-family (Heat ↔ BoostHeat ↔ SilentHeat) and Cool-family ↔ Cool-family preserve DP 2; cross-family transitions trigger the per-mode memory restore.
+- **Out-of-range writes never fail silently.** The device always responds with a clamped value; it does not drop the write.
+
+### Architecture divergence (intentional)
+
+- **Library:** the doc recommends `tinytuya>=1.16.0` wrapped via `loop.run_in_executor`. Shipped: a from-scratch async client in `pysilverline/` (separate PyPI-shape package) that talks Tuya v3.3 natively with `asyncio.open_connection`. Reasons: cleaner async story (no executor wrapping), per-frame AES state owned by the client, auto-reconnect with backoff and a connection-state listener, and dedicated UDP discovery.
+- **Entity set delivered (v0.6.0):** beyond the climate entity the spec called for v0.1, the integration ships:
+  - `switch.power` standalone toggle for DP 1
+  - `number.target_temperature` standalone with mode-aware min/max
+  - `select.preset_mode` (none/boost/eco) and `select.operating_mode` (off/heat/cool/heat_cool) as flat dropdowns
+  - `sensor.runtime_today` (TOTAL_INCREASING, resets at local midnight, derived from `hvac_action`)
+  - `sensor.temperature_delta` (= target − current)
+  - `binary_sensor.compressor_running` (derived from `hvac_action`)
+  - Per-fault-bit Repair issues (auto-create / auto-clear)
+- **`hvac_action` on climate:** the doc doesn't mention it; HA uses it to colorize the climate icon by actual operation state. Computed via `util.compute_hvac_action(state, last_direction)`: authoritative when DP 108 is present (compressor frequency > 0 means running), otherwise inferred from temp_current vs target sign. Shared between the climate entity, `binary_sensor.compressor_running`, and the runtime accumulator.
+- **Discovery:** UDP listener implemented in `pysilverline.discovery`; integration registers a `SOURCE_INTEGRATION_DISCOVERY` flow with a host-rewrite verification step (the discovery host is encrypted with the *public* UDP key, so a hostile LAN actor could spoof it; we verify the new IP responds under the stored `local_key` before persisting `CONF_HOST`).
+- **Quality scale:** every Bronze/Silver/Gold/Platinum rule is `done` or `exempt`. `mypy --strict` clean across both packages.
+
+### Stage progression (vs original "Stage 1–4" plan)
+
+The original phased plan (climate first, sensors week 2, ESPHome fallback as Stage 4) was followed in spirit but compressed: climate, sensors, binary_sensors, diagnostics, reauth, reconfigure, discovery, repairs, and the additional standalone entities all shipped within a single development cycle. The Stage-4 ESPHome bypass remains the canonical fallback if a future Smart Life firmware update drops local-LAN access — no implementation work needed today.
