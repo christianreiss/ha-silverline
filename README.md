@@ -3,7 +3,7 @@
 Local-only Home Assistant integration for the **Poolex PC-SLP090N "Silverline
 Inverter 90"** pool heat pump and its OEM siblings. Talks the Tuya local
 protocol v3.3 directly over your LAN — no Smart Life cloud dependency at
-runtime.
+runtime.X
 
 ## Features
 
