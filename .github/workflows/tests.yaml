@@ -36,7 +36,16 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install ./pysilverline
-          pip install pytest pytest-asyncio pytest-cov pytest-homeassistant-custom-component syrupy
+          # pytest-homeassistant-custom-component ships a new release daily
+          # pinned to the matching homeassistant version. Without an exact
+          # pin, CI can install a different HA than the snapshot was
+          # generated against and test_entity_inventory_snapshot breaks on
+          # internal registry shape drift (e.g. aliases stored as set in
+          # 2026.5.3 vs list[AliasEntry] in 2026.5.4). Bumping this pin
+          # requires regenerating tests/snapshots/test_sensor.ambr against
+          # the new HA via `pytest --snapshot-update`.
+          pip install pytest pytest-asyncio pytest-cov \
+            pytest-homeassistant-custom-component==0.13.333 syrupy
       - name: Run integration tests with coverage
         run: |
           pytest tests/ \
