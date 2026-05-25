@@ -8,6 +8,7 @@ from typing import Any
 
 from homeassistant.components.climate import ClimateEntity
 from homeassistant.components.climate.const import (
+    ATTR_HVAC_MODE,
     ClimateEntityFeature,
     HVACAction,
     HVACMode,
@@ -227,6 +228,13 @@ class SilverlineClimate(SilverlineEntity, ClimateEntity, RestoreEntity):
                 translation_domain=DOMAIN,
                 translation_key="missing_target_temperature",
             )
+        # HA's set_temperature service can bundle a mode change with the
+        # target. Sequence mode-first via async_set_hvac_mode so its
+        # MODE_TRANSITION_SETTLE delay lets the device's per-mode-memory
+        # restore push land before our setpoint write.
+        hvac_mode = kwargs.get(ATTR_HVAC_MODE)
+        if hvac_mode is not None and hvac_mode != self.hvac_mode:
+            await self.async_set_hvac_mode(hvac_mode)
         # HA's climate service guards min_temp/max_temp before we get here,
         # and our properties are mode-aware, so the value is in range. We
         # just round to int (DP 2 is integer °C) and write.

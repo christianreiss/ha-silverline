@@ -114,11 +114,18 @@ in **Settings → Devices** and choose **Reconfigure**.
 - **Auto mode has no Boost or Silent variant** — this is a device
   limitation. Selecting `boost` or `eco` while in `heat_cool` raises a
   service-validation error with a translated message.
-- **Switching HVAC mode resets the target temperature.** The device
-  keeps a separate stored setpoint per mode-family (Heat, Cool, Auto)
-  and silently restores that mode's last value ~500 ms after a mode
-  change. The integration's setpoint slider also adapts its min/max to
-  the active mode (Heat 15–40 °C, Cool 8–28 °C, Auto 8–40 °C).
+
+## Per-mode setpoints
+
+The device keeps a separate stored setpoint per mode-family (Heat, Cool,
+Auto) and restores that mode's last value when you switch into it. For a
+pool heat pump this is usually what you want — Heat is for warming the
+pool (typically 26–30 °C), Cool is for chilling it during a heat wave
+(typically 18–24 °C), and Auto holds a band in the middle. The setpoint
+slider also adapts its min/max to the active mode (Heat 15–40 °C, Cool
+8–28 °C, Auto 8–40 °C). If you change mode and target in one HA service
+call (`climate.set_temperature` with both `hvac_mode` and `temperature`),
+the mode change is applied first so your target lands under the new mode.
 
 ## Troubleshooting
 

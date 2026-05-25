@@ -341,6 +341,43 @@ async def test_set_hvac_mode_sleeps_after_non_off_write(
     assert climate_mod.MODE_TRANSITION_SETTLE in recorded
 
 
+async def test_set_temperature_with_hvac_mode_kwarg_switches_mode_first(
+    hass: HomeAssistant, mock_client_factory, init_integration, monkeypatch
+) -> None:
+    """Bundled climate.set_temperature (hvac_mode + temperature in one call)
+    must sequence the mode change before the setpoint write — otherwise the
+    device's per-mode-memory restore push lands ~500ms later and clobbers
+    the setpoint."""
+    import custom_components.poolex_silverline.climate as climate_mod
+
+    recorded_sleeps: list[float] = []
+    real_sleep = asyncio.sleep
+
+    async def fake_sleep(delay: float) -> None:
+        recorded_sleeps.append(delay)
+        await real_sleep(0)
+
+    monkeypatch.setattr(climate_mod.asyncio, "sleep", fake_sleep)
+
+    # init_integration starts in Heat; bundle Heat→Cool with target 25.
+    await hass.services.async_call(
+        CLIMATE_DOMAIN,
+        SERVICE_SET_TEMPERATURE,
+        {
+            ATTR_ENTITY_ID: ENTITY_ID,
+            ATTR_HVAC_MODE: HVACMode.COOL,
+            ATTR_TEMPERATURE: 25,
+        },
+        blocking=True,
+    )
+
+    calls = mock_client_factory.set_multiple.await_args_list
+    assert len(calls) == 2
+    assert calls[0].args[0] == {1: True, 4: "Cool"}
+    assert calls[1].args[0] == {2: 25}
+    assert climate_mod.MODE_TRANSITION_SETTLE in recorded_sleeps
+
+
 # ---------------------------------------------------------------------------
 # hvac_action — what HA uses to colorize the climate icon per operation state
 # ---------------------------------------------------------------------------
