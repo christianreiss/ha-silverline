@@ -127,13 +127,14 @@ async def test_preset_during_auto_raises(
     coordinator.async_set_updated_data(DeviceState.from_dps({"1": True, "4": "Auto"}))
     await hass.async_block_till_done()
 
-    with pytest.raises(ServiceValidationError):
+    with pytest.raises(ServiceValidationError) as exc:
         await hass.services.async_call(
             CLIMATE_DOMAIN,
             SERVICE_SET_PRESET_MODE,
             {ATTR_ENTITY_ID: ENTITY_ID, ATTR_PRESET_MODE: "boost"},
             blocking=True,
         )
+    assert exc.value.translation_key == "preset_not_available_in_auto"
 
 
 async def test_set_temperature_rounds_to_int(

@@ -467,21 +467,6 @@ async def test_get_status_nonzero_retcode_raises_silverline_error() -> None:
 
 
 # ---------------------------------------------------------------------------
-# get_device_info
-# ---------------------------------------------------------------------------
-
-
-async def test_get_device_info_returns_device_id() -> None:
-    """The local protocol doesn't expose firmware/model strings; we just
-    return the device_id so HA can build a DeviceInfo block."""
-    client = SilverlineClient(
-        host="127.0.0.1", port=1, device_id=DEVICE_ID, local_key=KEY
-    )
-    info = await client.get_device_info()
-    assert info.device_id == DEVICE_ID
-
-
-# ---------------------------------------------------------------------------
 # Request error paths
 # ---------------------------------------------------------------------------
 

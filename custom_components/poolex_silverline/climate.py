@@ -14,36 +14,28 @@ from homeassistant.components.climate.const import (
 )
 from homeassistant.const import ATTR_TEMPERATURE, PRECISION_WHOLE, UnitOfTemperature
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
-from pysilverline import CannotConnect, InvalidAuth, const as tuya_const
+from pysilverline import const as tuya_const
 
 from .const import (
-    AUTO_TEMP_MAX,
-    AUTO_TEMP_MIN,
-    COOL_PREFIX_TO_PRESET,
-    COOL_TEMP_MAX,
-    COOL_TEMP_MIN,
     DOMAIN,
-    HEAT_PREFIX_TO_PRESET,
-    HEAT_TEMP_MAX,
-    HEAT_TEMP_MIN,
     MODE_TRANSITION_SETTLE,
     PRESET_BOOST,
     PRESET_ECO,
+    PRESET_NONE,
     PRESET_TO_COOL_DP,
     PRESET_TO_HEAT_DP,
 )
 from .coordinator import SilverlineConfigEntry, SilverlineCoordinator
 from .entity import SilverlineEntity
-from .util import compute_hvac_action
+from .util import compute_hvac_action, derive_hvac_mode, derive_preset, mode_temp_range
 
 _LOGGER = logging.getLogger(__name__)
 
 PARALLEL_UPDATES = 1
 
-PRESET_NONE = "none"
 PRESETS: list[str] = [PRESET_NONE, PRESET_BOOST, PRESET_ECO]
 
 HVAC_MODES = [HVACMode.OFF, HVACMode.HEAT, HVACMode.COOL, HVACMode.HEAT_COOL]
@@ -77,7 +69,7 @@ class SilverlineClimate(SilverlineEntity, ClimateEntity, RestoreEntity):
 
     def __init__(self, coordinator: SilverlineCoordinator) -> None:
         super().__init__(coordinator)
-        self._attr_unique_id = f"{coordinator.device_info.device_id}_climate"
+        self._attr_unique_id = f"{coordinator.device_id}_climate"
         # When the device is off we can't read DP 4 to know the user's last
         # intent. Persist it so HA-restart while-off still remembers heat-vs-cool.
         self._last_direction: HVACMode = HVACMode.HEAT
@@ -123,29 +115,16 @@ class SilverlineClimate(SilverlineEntity, ClimateEntity, RestoreEntity):
     @property
     def hvac_mode(self) -> HVACMode | None:
         state = self.coordinator.data
-        if state is None or state.power is None:
+        if state is None:
             return None
-        if not state.power:
-            return HVACMode.OFF
-        mode = state.mode or ""
-        if mode == "Auto":
-            return HVACMode.HEAT_COOL
-        if mode in HEAT_PREFIX_TO_PRESET:
-            return HVACMode.HEAT
-        if mode in COOL_PREFIX_TO_PRESET:
-            return HVACMode.COOL
-        return None
+        return derive_hvac_mode(state)
 
     @property
     def preset_mode(self) -> str | None:
         state = self.coordinator.data
-        if state is None or not state.power or not state.mode:
+        if state is None:
             return PRESET_NONE
-        if state.mode in HEAT_PREFIX_TO_PRESET:
-            return HEAT_PREFIX_TO_PRESET[state.mode]
-        if state.mode in COOL_PREFIX_TO_PRESET:
-            return COOL_PREFIX_TO_PRESET[state.mode]
-        return PRESET_NONE
+        return derive_preset(state)
 
     @property
     def current_temperature(self) -> float | None:
@@ -191,15 +170,11 @@ class SilverlineClimate(SilverlineEntity, ClimateEntity, RestoreEntity):
         mode = self.hvac_mode
         if mode == HVACMode.OFF:
             mode = self._last_direction
-        if mode == HVACMode.COOL:
-            return COOL_TEMP_MIN, COOL_TEMP_MAX
-        if mode == HVACMode.HEAT_COOL:
-            return AUTO_TEMP_MIN, AUTO_TEMP_MAX
-        return HEAT_TEMP_MIN, HEAT_TEMP_MAX
+        return mode_temp_range(mode)
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         if hvac_mode == HVACMode.OFF:
-            await self._write({tuya_const.DP_POWER: False})
+            await self._write_dps({tuya_const.DP_POWER: False})
             return
 
         if hvac_mode in (HVACMode.HEAT, HVACMode.COOL):
@@ -216,7 +191,9 @@ class SilverlineClimate(SilverlineEntity, ClimateEntity, RestoreEntity):
                 translation_placeholders={"mode": str(hvac_mode)},
             )
 
-        await self._write({tuya_const.DP_POWER: True, tuya_const.DP_MODE: mode_string})
+        await self._write_dps(
+            {tuya_const.DP_POWER: True, tuya_const.DP_MODE: mode_string}
+        )
         # Device has per-mode setpoint memory: entering a mode triggers a
         # restore-push for that mode's last temp ~430-500 ms later, which
         # would overwrite any setpoint a chained service call writes too soon.
@@ -241,7 +218,7 @@ class SilverlineClimate(SilverlineEntity, ClimateEntity, RestoreEntity):
 
         self._last_preset = preset_mode
         mode_string = self._mode_string_for(current, preset_mode)
-        await self._write({tuya_const.DP_MODE: mode_string})
+        await self._write_dps({tuya_const.DP_MODE: mode_string})
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
         target = kwargs.get(ATTR_TEMPERATURE)
@@ -254,7 +231,7 @@ class SilverlineClimate(SilverlineEntity, ClimateEntity, RestoreEntity):
         # and our properties are mode-aware, so the value is in range. We
         # just round to int (DP 2 is integer °C) and write.
         value = int(round(float(target)))
-        await self._write({tuya_const.DP_TEMP_SET: value})
+        await self._write_dps({tuya_const.DP_TEMP_SET: value})
 
     async def async_turn_on(self) -> None:
         await self.async_set_hvac_mode(self._last_direction)
@@ -266,25 +243,3 @@ class SilverlineClimate(SilverlineEntity, ClimateEntity, RestoreEntity):
     def _mode_string_for(direction: HVACMode, preset: str) -> str:
         table = PRESET_TO_HEAT_DP if direction == HVACMode.HEAT else PRESET_TO_COOL_DP
         return table.get(preset, table[PRESET_NONE])
-
-    async def _write(self, dps: dict[int, bool | int | str]) -> None:
-        try:
-            await self.coordinator.client.set_multiple(dps)
-        except InvalidAuth as err:
-            raise HomeAssistantError(
-                translation_domain=DOMAIN,
-                translation_key="auth_failed",
-            ) from err
-        except CannotConnect as err:
-            raise HomeAssistantError(
-                translation_domain=DOMAIN,
-                translation_key="set_failed",
-                translation_placeholders={"reason": str(err)},
-            ) from err
-        # Push the optimistic merged state to the coordinator so the entity
-        # reflects the change immediately. The device will subsequently send
-        # its own STATUS push within ~200 ms which the coordinator will
-        # overlay on top.
-        if self.coordinator.data is not None:
-            merged = self.coordinator.data.merge({str(k): v for k, v in dps.items()})
-            self.coordinator.async_set_updated_data(merged)

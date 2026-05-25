@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.core import HomeAssistant
-from pysilverline import DeviceInfo, DeviceState
+from pysilverline import DeviceState
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.syrupy import (
     HomeAssistantSnapshotExtension,
@@ -112,7 +112,6 @@ def mock_client(state_pool_running: DeviceState) -> MagicMock:
     client.state = state_pool_running
     client.connect = AsyncMock(return_value=None)
     client.disconnect = AsyncMock(return_value=None)
-    client.get_device_info = AsyncMock(return_value=DeviceInfo(device_id=DEVICE_ID))
     client.get_status = AsyncMock(return_value=state_pool_running)
     client.set_dp = AsyncMock(return_value=None)
     client.set_multiple = AsyncMock(return_value=None)

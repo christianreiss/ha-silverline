@@ -7,11 +7,9 @@ from dataclasses import dataclass
 
 from homeassistant.components.switch import SwitchEntity, SwitchEntityDescription
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from pysilverline import CannotConnect, DeviceState, InvalidAuth, const as tuya_const
+from pysilverline import DeviceState, const as tuya_const
 
-from .const import DOMAIN
 from .coordinator import SilverlineConfigEntry, SilverlineCoordinator
 from .entity import SilverlineEntity
 
@@ -65,7 +63,7 @@ class SilverlineSwitch(SilverlineEntity, SwitchEntity):
     ) -> None:
         super().__init__(coordinator)
         self.entity_description = description
-        self._attr_unique_id = f"{coordinator.device_info.device_id}_{description.key}"
+        self._attr_unique_id = f"{coordinator.device_id}_{description.key}"
 
     @property
     def is_on(self) -> bool | None:
@@ -80,27 +78,7 @@ class SilverlineSwitch(SilverlineEntity, SwitchEntity):
         return self.entity_description.value_fn(self.coordinator.data) is not None
 
     async def async_turn_on(self, **kwargs: object) -> None:
-        await self._write(True)
+        await self._write_dps({tuya_const.DP_POWER: True})
 
     async def async_turn_off(self, **kwargs: object) -> None:
-        await self._write(False)
-
-    async def _write(self, value: bool) -> None:
-        try:
-            await self.coordinator.client.set_dp(tuya_const.DP_POWER, value)
-        except InvalidAuth as err:
-            raise HomeAssistantError(
-                translation_domain=DOMAIN,
-                translation_key="auth_failed",
-            ) from err
-        except CannotConnect as err:
-            raise HomeAssistantError(
-                translation_domain=DOMAIN,
-                translation_key="set_failed",
-                translation_placeholders={"reason": str(err)},
-            ) from err
-        # Optimistic merge so the entity flips immediately; the device's
-        # subsequent STATUS push will overlay the authoritative value.
-        if self.coordinator.data is not None:
-            merged = self.coordinator.data.merge({str(tuya_const.DP_POWER): value})
-            self.coordinator.async_set_updated_data(merged)
+        await self._write_dps({tuya_const.DP_POWER: False})

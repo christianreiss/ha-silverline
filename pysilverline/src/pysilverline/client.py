@@ -16,7 +16,7 @@ from .exceptions import (
     ProtocolError,
     SilverlineError,
 )
-from .models import DeviceInfo, DeviceState
+from .models import DeviceState
 from .protocol import Frame, FrameCodec, is_invalid_auth_retcode
 
 _LOGGER = logging.getLogger(__name__)
@@ -247,11 +247,6 @@ class SilverlineClient:
         # ~200ms; merge optimistically so callers see the updated DPs even if
         # they query before the push arrives.
         self._state = self._state.merge(dps)
-
-    async def get_device_info(self) -> DeviceInfo:
-        """The Tuya local protocol does not expose firmware/model strings;
-        we return the device_id so callers can build a DeviceInfo block."""
-        return DeviceInfo(device_id=self.device_id)
 
     async def _request(self, cmd: int, body: dict[str, Any]) -> Frame:
         if not self.connected:

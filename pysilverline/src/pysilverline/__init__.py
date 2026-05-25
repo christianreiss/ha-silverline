@@ -11,11 +11,10 @@ from .exceptions import (
     ProtocolError,
     SilverlineError,
 )
-from .models import DeviceInfo, DeviceState
+from .models import DeviceState
 
 __all__ = [
     "CannotConnect",
-    "DeviceInfo",
     "DeviceState",
     "DiscoveryInfo",
     "InvalidAuth",

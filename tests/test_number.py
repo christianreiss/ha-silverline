@@ -157,7 +157,7 @@ async def test_set_value_rounds_to_int_and_writes_dp2(
         {ATTR_ENTITY_ID: ENTITY_ID, ATTR_VALUE: 25.7},
         blocking=True,
     )
-    mock_client_factory.set_dp.assert_awaited_with(2, 26)
+    mock_client_factory.set_multiple.assert_awaited_with({2: 26})
 
     await hass.services.async_call(
         NUMBER_DOMAIN,
@@ -165,7 +165,7 @@ async def test_set_value_rounds_to_int_and_writes_dp2(
         {ATTR_ENTITY_ID: ENTITY_ID, ATTR_VALUE: 25.4},
         blocking=True,
     )
-    mock_client_factory.set_dp.assert_awaited_with(2, 25)
+    mock_client_factory.set_multiple.assert_awaited_with({2: 25})
 
 
 async def test_set_value_integer_passes_through(
@@ -177,7 +177,7 @@ async def test_set_value_integer_passes_through(
         {ATTR_ENTITY_ID: ENTITY_ID, ATTR_VALUE: 30},
         blocking=True,
     )
-    mock_client_factory.set_dp.assert_awaited_with(2, 30)
+    mock_client_factory.set_multiple.assert_awaited_with({2: 30})
 
 
 async def test_unavailable_when_temp_set_none(
@@ -221,7 +221,7 @@ async def test_set_value_surfaces_invalid_auth_as_homeassistant_error(
     from pysilverline import InvalidAuth
     import pytest
 
-    mock_client_factory.set_dp.side_effect = InvalidAuth("rotated")
+    mock_client_factory.set_multiple.side_effect = InvalidAuth("rotated")
     with pytest.raises(HomeAssistantError) as exc:
         await hass.services.async_call(
             NUMBER_DOMAIN,
@@ -241,7 +241,7 @@ async def test_set_value_surfaces_cannot_connect_as_homeassistant_error(
     from pysilverline import CannotConnect
     import pytest
 
-    mock_client_factory.set_dp.side_effect = CannotConnect("network down")
+    mock_client_factory.set_multiple.side_effect = CannotConnect("network down")
     with pytest.raises(HomeAssistantError) as exc:
         await hass.services.async_call(
             NUMBER_DOMAIN,

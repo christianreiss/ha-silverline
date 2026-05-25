@@ -38,7 +38,6 @@ from pysilverline import (  # noqa: E402
     SilverlineClient,
 )
 from pysilverline.const import (  # noqa: E402
-    ALL_MODES,
     DP_MODE,
     DP_POWER,
     DP_TEMP_SET,
@@ -276,9 +275,6 @@ async def _summarize_mode_results(snapshots: dict[str, dict[str, Any]]) -> None:
     print(f"  accepted: {accepted}")
     if rejected:
         print(f"  rejected: {rejected}")
-    unknown = [m for m in MODE_CYCLE if m not in ALL_MODES]
-    if unknown:
-        print(f"  WARNING: unknown enum in cycle: {unknown}")
 
 
 def _build_parser() -> argparse.ArgumentParser:

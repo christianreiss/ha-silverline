@@ -13,6 +13,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from homeassistant.components.climate.const import HVACMode
 from homeassistant.components.number import (
     NumberEntity,
     NumberEntityDescription,
@@ -20,23 +21,12 @@ from homeassistant.components.number import (
 )
 from homeassistant.const import UnitOfTemperature
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from pysilverline import CannotConnect, DeviceState, InvalidAuth, const as tuya_const
+from pysilverline import DeviceState, const as tuya_const
 
-from .const import (
-    AUTO_TEMP_MAX,
-    AUTO_TEMP_MIN,
-    COOL_PREFIX_TO_PRESET,
-    COOL_TEMP_MAX,
-    COOL_TEMP_MIN,
-    DOMAIN,
-    HEAT_PREFIX_TO_PRESET,
-    HEAT_TEMP_MAX,
-    HEAT_TEMP_MIN,
-)
 from .coordinator import SilverlineConfigEntry, SilverlineCoordinator
 from .entity import SilverlineEntity
+from .util import derive_hvac_mode, mode_temp_range
 
 # Write-capable setpoint: serialize per entity so back-to-back automation
 # writes don't race the optimistic merge. pysilverline serializes the
@@ -93,7 +83,7 @@ class SilverlineNumber(SilverlineEntity, NumberEntity):
     ) -> None:
         super().__init__(coordinator)
         self.entity_description = description
-        self._attr_unique_id = f"{coordinator.device_info.device_id}_{description.key}"
+        self._attr_unique_id = f"{coordinator.device_id}_{description.key}"
 
     @property
     def native_value(self) -> float | None:
@@ -125,37 +115,11 @@ class SilverlineNumber(SilverlineEntity, NumberEntity):
         """
         state = self.coordinator.data
         if state is None or not state.power:
-            return HEAT_TEMP_MIN, HEAT_TEMP_MAX
-        mode = state.mode or ""
-        if mode == "Auto":
-            return AUTO_TEMP_MIN, AUTO_TEMP_MAX
-        if mode in COOL_PREFIX_TO_PRESET:
-            return COOL_TEMP_MIN, COOL_TEMP_MAX
-        if mode in HEAT_PREFIX_TO_PRESET:
-            return HEAT_TEMP_MIN, HEAT_TEMP_MAX
-        return HEAT_TEMP_MIN, HEAT_TEMP_MAX
+            return mode_temp_range(HVACMode.HEAT)
+        return mode_temp_range(derive_hvac_mode(state))
 
     async def async_set_native_value(self, value: float) -> None:
         # DP 2 is integer Celsius; HA's NumberEntity already enforces our
         # native_min_value/native_max_value before delegating here.
         int_value = int(round(value))
-        try:
-            await self.coordinator.client.set_dp(tuya_const.DP_TEMP_SET, int_value)
-        except InvalidAuth as err:
-            raise HomeAssistantError(
-                translation_domain=DOMAIN,
-                translation_key="auth_failed",
-            ) from err
-        except CannotConnect as err:
-            raise HomeAssistantError(
-                translation_domain=DOMAIN,
-                translation_key="set_failed",
-                translation_placeholders={"reason": str(err)},
-            ) from err
-        # Optimistic merge so the slider doesn't snap back to the old value
-        # while we wait for the device's STATUS push (~200 ms).
-        if self.coordinator.data is not None:
-            merged = self.coordinator.data.merge(
-                {str(tuya_const.DP_TEMP_SET): int_value}
-            )
-            self.coordinator.async_set_updated_data(merged)
+        await self._write_dps({tuya_const.DP_TEMP_SET: int_value})

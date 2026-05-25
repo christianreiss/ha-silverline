@@ -236,7 +236,7 @@ class SilverlineSensor(SilverlineEntity, SensorEntity):
     ) -> None:
         super().__init__(coordinator)
         self.entity_description = description
-        self._attr_unique_id = f"{coordinator.device_info.device_id}_{description.key}"
+        self._attr_unique_id = f"{coordinator.device_id}_{description.key}"
 
     @property
     def native_value(self) -> float | int | str | None:

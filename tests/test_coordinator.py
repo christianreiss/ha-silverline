@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock
 import pytest
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
-from pysilverline import CannotConnect, DeviceState, InvalidAuth
+from pysilverline import CannotConnect, DeviceState, InvalidAuth, SilverlineError
 from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
 
@@ -44,6 +44,26 @@ async def test_cannot_connect_during_poll_keeps_entry_loaded(
     await hass.async_block_till_done()
     coordinator = init_integration.runtime_data
     assert coordinator.last_update_success is False
+
+
+async def test_silverline_error_during_poll_keeps_entry_loaded(
+    hass: HomeAssistant, mock_client_factory, init_integration
+) -> None:
+    """A device-side rejection (non-zero retcode that isn't auth) must
+    surface as a soft poll failure: last_update_success goes False so
+    entities flip to unavailable, but no reauth flow is triggered — the
+    socket is healthy, the firmware just refused this query."""
+    mock_client_factory.get_status = AsyncMock(
+        side_effect=SilverlineError("retcode 0x42")
+    )
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=60))
+    await hass.async_block_till_done()
+    coordinator = init_integration.runtime_data
+    assert coordinator.last_update_success is False
+    assert not any(
+        flow["context"].get("source") == "reauth"
+        for flow in hass.config_entries.flow.async_progress()
+    )
 
 
 async def test_connection_listener_registered(

@@ -13,11 +13,12 @@ from __future__ import annotations
 import asyncio
 from typing import Final
 
+from homeassistant.components.climate.const import HVACMode
 from homeassistant.components.select import SelectEntity
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from pysilverline import CannotConnect, InvalidAuth, const as tuya_const
+from pysilverline import const as tuya_const
 
 from .const import (
     COOL_PREFIX_TO_PRESET,
@@ -26,15 +27,16 @@ from .const import (
     MODE_TRANSITION_SETTLE,
     PRESET_BOOST,
     PRESET_ECO,
+    PRESET_NONE,
     PRESET_TO_COOL_DP,
     PRESET_TO_HEAT_DP,
 )
 from .coordinator import SilverlineConfigEntry, SilverlineCoordinator
 from .entity import SilverlineEntity
+from .util import derive_hvac_mode, derive_preset
 
 PARALLEL_UPDATES = 1
 
-PRESET_NONE = "none"
 PRESET_OPTIONS: Final[list[str]] = [PRESET_NONE, PRESET_BOOST, PRESET_ECO]
 
 OPMODE_OFF = "off"
@@ -47,6 +49,13 @@ OPMODE_OPTIONS: Final[list[str]] = [
     OPMODE_COOL,
     OPMODE_HEAT_COOL,
 ]
+
+_HVAC_MODE_TO_OPMODE: Final[dict[HVACMode, str]] = {
+    HVACMode.OFF: OPMODE_OFF,
+    HVACMode.HEAT: OPMODE_HEAT,
+    HVACMode.COOL: OPMODE_COOL,
+    HVACMode.HEAT_COOL: OPMODE_HEAT_COOL,
+}
 
 
 async def async_setup_entry(
@@ -71,53 +80,22 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class _SilverlineSelectBase(SilverlineEntity, SelectEntity):
-    """Shared write helper that mirrors climate.SilverlineClimate._write."""
-
-    async def _write(self, dps: dict[int, bool | int | str]) -> None:
-        try:
-            await self.coordinator.client.set_multiple(dps)
-        except InvalidAuth as err:
-            raise HomeAssistantError(
-                translation_domain=DOMAIN,
-                translation_key="auth_failed",
-            ) from err
-        except CannotConnect as err:
-            raise HomeAssistantError(
-                translation_domain=DOMAIN,
-                translation_key="set_failed",
-                translation_placeholders={"reason": str(err)},
-            ) from err
-        # Optimistic merge so the entity reflects the change immediately;
-        # the device's STATUS push within ~200 ms will overlay on top.
-        if self.coordinator.data is not None:
-            merged = self.coordinator.data.merge({str(k): v for k, v in dps.items()})
-            self.coordinator.async_set_updated_data(merged)
-
-
-class SilverlinePresetSelect(_SilverlineSelectBase):
+class SilverlinePresetSelect(SilverlineEntity, SelectEntity):
     """Flat dropdown for the inverter preset (none / boost / eco)."""
 
     _attr_translation_key = "preset_mode"
     _attr_options = PRESET_OPTIONS
-    # Used by HA's capability filter — DP 4 is the only DP we read/write here.
-    dp_keys = ("4",)
 
     def __init__(self, coordinator: SilverlineCoordinator) -> None:
         super().__init__(coordinator)
-        self._attr_unique_id = f"{coordinator.device_info.device_id}_preset_mode"
+        self._attr_unique_id = f"{coordinator.device_id}_preset_mode"
 
     @property
     def current_option(self) -> str | None:
         state = self.coordinator.data
-        if state is None or not state.power or not state.mode:
+        if state is None:
             return PRESET_NONE
-        if state.mode in HEAT_PREFIX_TO_PRESET:
-            return HEAT_PREFIX_TO_PRESET[state.mode]
-        if state.mode in COOL_PREFIX_TO_PRESET:
-            return COOL_PREFIX_TO_PRESET[state.mode]
-        # "Auto" or any unknown string — no preset is active.
-        return PRESET_NONE
+        return derive_preset(state)
 
     async def async_select_option(self, option: str) -> None:
         if option not in PRESET_OPTIONS:
@@ -148,10 +126,10 @@ class SilverlinePresetSelect(_SilverlineSelectBase):
         else:
             # Unknown DP-4 string — refuse rather than guess heat/cool.
             return
-        await self._write({tuya_const.DP_MODE: mode_string})
+        await self._write_dps({tuya_const.DP_MODE: mode_string})
 
 
-class SilverlineOperatingModeSelect(_SilverlineSelectBase):
+class SilverlineOperatingModeSelect(SilverlineEntity, SelectEntity):
     """Flat dropdown for the HVAC mode (off / heat / cool / heat_cool).
 
     Mirrors climate.SilverlineClimate.async_set_hvac_mode, including the
@@ -161,31 +139,24 @@ class SilverlineOperatingModeSelect(_SilverlineSelectBase):
 
     _attr_translation_key = "operating_mode"
     _attr_options = OPMODE_OPTIONS
-    dp_keys = ("1", "4")
 
     def __init__(self, coordinator: SilverlineCoordinator) -> None:
         super().__init__(coordinator)
-        self._attr_unique_id = f"{coordinator.device_info.device_id}_operating_mode"
+        self._attr_unique_id = f"{coordinator.device_id}_operating_mode"
 
     @property
     def current_option(self) -> str | None:
         state = self.coordinator.data
-        if state is None or state.power is None:
+        if state is None:
             return None
-        if not state.power:
-            return OPMODE_OFF
-        mode = state.mode or ""
-        if mode == "Auto":
-            return OPMODE_HEAT_COOL
-        if mode in HEAT_PREFIX_TO_PRESET:
-            return OPMODE_HEAT
-        if mode in COOL_PREFIX_TO_PRESET:
-            return OPMODE_COOL
-        return None
+        mode = derive_hvac_mode(state)
+        if mode is None:
+            return None
+        return _HVAC_MODE_TO_OPMODE.get(mode)
 
     async def async_select_option(self, option: str) -> None:
         if option == OPMODE_OFF:
-            await self._write({tuya_const.DP_POWER: False})
+            await self._write_dps({tuya_const.DP_POWER: False})
             return
 
         if option == OPMODE_HEAT:
@@ -200,7 +171,9 @@ class SilverlineOperatingModeSelect(_SilverlineSelectBase):
                 translation_key="unsupported_hvac_mode",
                 translation_placeholders={"mode": option},
             )
-        await self._write({tuya_const.DP_POWER: True, tuya_const.DP_MODE: mode_string})
+        await self._write_dps(
+            {tuya_const.DP_POWER: True, tuya_const.DP_MODE: mode_string}
+        )
         # See climate.py: the device pushes its per-mode-memory setpoint
         # ~430-500 ms after a mode change. Without this sleep, a chained
         # service call's set_temperature can be clobbered by that push.

@@ -243,13 +243,14 @@ async def test_preset_during_auto_raises(
     coordinator.async_set_updated_data(DeviceState.from_dps({"1": True, "4": "Auto"}))
     await hass.async_block_till_done()
 
-    with pytest.raises(ServiceValidationError):
+    with pytest.raises(ServiceValidationError) as exc:
         await hass.services.async_call(
             SELECT_DOMAIN,
             SERVICE_SELECT_OPTION,
             {ATTR_ENTITY_ID: PRESET_ENTITY, ATTR_OPTION: "boost"},
             blocking=True,
         )
+    assert exc.value.translation_key == "preset_not_available_in_auto"
 
 
 async def test_preset_while_off_is_noop(

@@ -9,15 +9,6 @@ from . import const
 
 
 @dataclass(slots=True, kw_only=True, frozen=True)
-class DeviceInfo:
-    """Static device identity. Tuya v3.3 does not return a model string;
-    fields are populated from the config entry plus what we infer."""
-
-    device_id: str
-    firmware: str | None = None
-
-
-@dataclass(slots=True, kw_only=True, frozen=True)
 class DeviceState:
     """Snapshot of all known DPs at a point in time. Missing DPs are None."""
 

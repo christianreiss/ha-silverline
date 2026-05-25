@@ -61,7 +61,7 @@ async def test_turn_on_writes_dp1_true(
         {ATTR_ENTITY_ID: ENTITY_ID},
         blocking=True,
     )
-    mock_client_factory.set_dp.assert_awaited_with(1, True)
+    mock_client_factory.set_multiple.assert_awaited_with({1: True})
     # Optimistic merge should flip the state immediately.
     assert hass.states.get(ENTITY_ID).state == STATE_ON
 
@@ -76,7 +76,7 @@ async def test_turn_off_writes_dp1_false(
         {ATTR_ENTITY_ID: ENTITY_ID},
         blocking=True,
     )
-    mock_client_factory.set_dp.assert_awaited_with(1, False)
+    mock_client_factory.set_multiple.assert_awaited_with({1: False})
     assert hass.states.get(ENTITY_ID).state == STATE_OFF
 
 
@@ -111,7 +111,7 @@ async def test_switch_missing_when_dp1_not_supported(
 async def test_turn_on_surfaces_cannot_connect_as_homeassistant_error(
     hass: HomeAssistant, mock_client_factory, init_integration: MockConfigEntry
 ) -> None:
-    mock_client_factory.set_dp.side_effect = CannotConnect("offline")
+    mock_client_factory.set_multiple.side_effect = CannotConnect("offline")
     with pytest.raises(HomeAssistantError) as exc:
         await hass.services.async_call(
             SWITCH_DOMAIN,
@@ -125,7 +125,7 @@ async def test_turn_on_surfaces_cannot_connect_as_homeassistant_error(
 async def test_turn_off_surfaces_invalid_auth_as_homeassistant_error(
     hass: HomeAssistant, mock_client_factory, init_integration: MockConfigEntry
 ) -> None:
-    mock_client_factory.set_dp.side_effect = InvalidAuth("rotated")
+    mock_client_factory.set_multiple.side_effect = InvalidAuth("rotated")
     with pytest.raises(HomeAssistantError) as exc:
         await hass.services.async_call(
             SWITCH_DOMAIN,

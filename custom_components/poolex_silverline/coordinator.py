@@ -16,7 +16,6 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from homeassistant.util import dt as dt_util
 from pysilverline import (
     CannotConnect,
-    DeviceInfo,
     DeviceState,
     InvalidAuth,
     SilverlineClient,
@@ -54,7 +53,6 @@ class SilverlineCoordinator(DataUpdateCoordinator[DeviceState]):
     """Coordinates polling and push updates from one heat pump."""
 
     config_entry: SilverlineConfigEntry
-    device_info: DeviceInfo
 
     def __init__(
         self,
@@ -71,6 +69,7 @@ class SilverlineCoordinator(DataUpdateCoordinator[DeviceState]):
             always_update=False,
         )
         self.client = client
+        self.device_id: str = client.device_id
         self._unsub_push: Callable[[], None] | None = None
         self._unsub_connection: Callable[[], None] | None = None
         # Set on first successful poll. Lets platforms skip entities whose
@@ -105,7 +104,6 @@ class SilverlineCoordinator(DataUpdateCoordinator[DeviceState]):
         self._unsub_connection = self.client.add_connection_listener(
             self._handle_connection_change
         )
-        self.device_info = await self.client.get_device_info()
 
     async def _async_update_data(self) -> DeviceState:
         try:

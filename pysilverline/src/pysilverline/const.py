@@ -38,29 +38,6 @@ DP_EEV_STEPS: Final = 109
 DP_FAN_SPEED: Final = 110
 DP_WATER_PUMP: Final = 111
 
-MODE_HEAT: Final = "Heat"
-MODE_COOL: Final = "Cool"
-MODE_AUTO: Final = "Auto"
-MODE_BOOST_HEAT: Final = "BoostHeat"
-MODE_BOOST_COOL: Final = "BoostCool"
-MODE_SILENT_HEAT: Final = "SilentHeat"
-MODE_SILENT_COOL: Final = "SilentCool"
-
-ALL_MODES: Final = frozenset(
-    {
-        MODE_HEAT,
-        MODE_COOL,
-        MODE_AUTO,
-        MODE_BOOST_HEAT,
-        MODE_BOOST_COOL,
-        MODE_SILENT_HEAT,
-        MODE_SILENT_COOL,
-    }
-)
-
-TEMP_MIN: Final = 8
-TEMP_MAX: Final = 40
-
 FAULT_BIT_NAMES: Final = {
     0: "E03",
     1: "E04",
