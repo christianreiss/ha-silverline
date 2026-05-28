@@ -14,6 +14,9 @@ venv/
 .snapshots/
 .DS_Store
 
+# Per-agent transient worktrees used during the audit/fix loop
+.claude/
+
 # Secrets — local credentials for the live device
 access.yaml
 
