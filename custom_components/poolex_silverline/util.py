@@ -25,6 +25,21 @@ from .const import (
 )
 
 
+def mask_device_id(device_id: str) -> str:
+    """Return a shortened device_id safe for INFO/WARNING logs.
+
+    Tuya device IDs are 22-char identifiers that uniquely name the unit;
+    leaking them at INFO into a shared journal is mildly sensitive. We
+    keep the first six characters (enough to correlate log lines for the
+    same device) and drop the rest, marking the truncation with `...`.
+    Full IDs stay available at DEBUG level for owners actively
+    troubleshooting their own device.
+    """
+    if len(device_id) <= 6:
+        return device_id
+    return f"{device_id[:6]}..."
+
+
 def derive_hvac_mode(state: DeviceState) -> HVACMode | None:
     """Map DP 1 (power) + DP 4 (mode enum) onto HVACMode.
 

@@ -14,6 +14,7 @@ from homeassistant.helpers import config_validation as cv
 from pysilverline import CannotConnect, InvalidAuth, SilverlineClient
 
 from .const import CONF_DEVICE_ID, CONF_LOCAL_KEY, DEFAULT_PORT, DOMAIN
+from .util import mask_device_id
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -203,10 +204,11 @@ class SilverlineConfigFlow(ConfigFlow, domain=DOMAIN):
             _LOGGER.info(
                 "Silverline discovery: ignoring non-Poolex Tuya device"
                 " device=%s host=%s productKey=%s",
-                device_id,
+                mask_device_id(device_id),
                 host,
                 product_key,
             )
+            _LOGGER.debug("Silverline discovery (full device_id): %s", device_id)
             return self.async_abort(reason="unsupported_product")
 
         await self.async_set_unique_id(device_id)
@@ -226,8 +228,11 @@ class SilverlineConfigFlow(ConfigFlow, domain=DOMAIN):
                 _LOGGER.warning(
                     "Ignoring discovery for %s at %s: host did not"
                     " authenticate with the stored local_key",
-                    device_id,
+                    mask_device_id(device_id),
                     host,
+                )
+                _LOGGER.debug(
+                    "Unverified discovery host (full device_id): %s", device_id
                 )
                 return self.async_abort(reason="unverified_host")
             self._abort_if_unique_id_configured(updates={CONF_HOST: host})
@@ -239,11 +244,12 @@ class SilverlineConfigFlow(ConfigFlow, domain=DOMAIN):
         product_key = discovery_info.get("product_key")
         _LOGGER.info(
             "Silverline discovery: device=%s host=%s productKey=%s known=%s",
-            device_id,
+            mask_device_id(device_id),
             host,
             product_key,
             product_key in _KNOWN_POOLEX_PRODUCT_KEYS if product_key else False,
         )
+        _LOGGER.debug("Silverline discovery (full device_id): %s", device_id)
 
         self._discovery_host = host
         self._discovery_device_id = device_id

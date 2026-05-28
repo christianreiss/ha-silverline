@@ -7,7 +7,10 @@ from __future__ import annotations
 from homeassistant.components.climate.const import HVACAction
 from pysilverline import DeviceState
 
-from custom_components.poolex_silverline.util import compute_hvac_action
+from custom_components.poolex_silverline.util import (
+    compute_hvac_action,
+    mask_device_id,
+)
 
 
 def test_compute_hvac_action_cool_idle_when_actual_frequency_zero() -> None:
@@ -32,3 +35,16 @@ def test_compute_hvac_action_heat_cool_idle_when_at_target() -> None:
     cooling is needed."""
     state = DeviceState.from_dps({"1": True, "4": "Auto", "2": 27, "3": 27})
     assert compute_hvac_action(state) is HVACAction.IDLE
+
+
+def test_mask_device_id_truncates_long_id() -> None:
+    """A real 22-char Tuya device_id collapses to first 6 chars + ellipsis."""
+    assert mask_device_id("bf12345678abcdefghijkl") == "bf1234..."
+
+
+def test_mask_device_id_passes_through_short_id() -> None:
+    """Short strings (<= 6 chars) are returned verbatim — there's nothing
+    to mask, and trimming further would surrender the only correlator a
+    log reader has."""
+    assert mask_device_id("abc") == "abc"
+    assert mask_device_id("abcdef") == "abcdef"
