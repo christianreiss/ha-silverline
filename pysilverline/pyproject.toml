@@ -19,7 +19,7 @@ classifiers = [
     "Topic :: Home Automation",
     "Typing :: Typed",
 ]
-dependencies = ["cryptography>=41.0"]
+dependencies = ["cryptography>=44.0"]
 
 [project.optional-dependencies]
 test = ["pytest>=8", "pytest-asyncio>=0.23"]

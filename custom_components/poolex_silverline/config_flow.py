@@ -10,6 +10,11 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.selector import (
+    TextSelector,
+    TextSelectorConfig,
+    TextSelectorType,
+)
 
 from pysilverline import CannotConnect, InvalidAuth, SilverlineClient
 
@@ -51,18 +56,25 @@ _KNOWN_POOLEX_PRODUCT_KEYS: frozenset[str] = frozenset(
     }
 )
 
+# The local_key is a long-lived shared secret used to encrypt every frame
+# exchanged with the device. Render it as a password field so HA masks it in
+# the UI (and in screenshots/screen-shares of the setup dialog).
+_LOCAL_KEY_SELECTOR = TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD))
+
 _USER_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_HOST): cv.string,
         vol.Optional(CONF_PORT, default=DEFAULT_PORT): cv.port,
         vol.Required(CONF_DEVICE_ID): cv.string,
-        vol.Required(CONF_LOCAL_KEY): cv.string,
+        vol.Required(CONF_LOCAL_KEY): _LOCAL_KEY_SELECTOR,
     }
 )
 
-_REAUTH_SCHEMA = vol.Schema({vol.Required(CONF_LOCAL_KEY): cv.string})
+_REAUTH_SCHEMA = vol.Schema({vol.Required(CONF_LOCAL_KEY): _LOCAL_KEY_SELECTOR})
 
-_DISCOVERY_CONFIRM_SCHEMA = vol.Schema({vol.Required(CONF_LOCAL_KEY): cv.string})
+_DISCOVERY_CONFIRM_SCHEMA = vol.Schema(
+    {vol.Required(CONF_LOCAL_KEY): _LOCAL_KEY_SELECTOR}
+)
 
 
 async def _validate(data: Mapping[str, Any]) -> None:
