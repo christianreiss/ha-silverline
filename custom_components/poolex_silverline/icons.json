@@ -39,7 +39,12 @@
       "fault_antifreeze": { "default": "mdi:snowflake-alert" },
       "fault_high_pressure": { "default": "mdi:gauge-full" },
       "fault_low_pressure": { "default": "mdi:gauge-low" },
-      "fault_communication": { "default": "mdi:lan-disconnect" }
+      "fault_communication": { "default": "mdi:lan-disconnect" },
+      "fault_inverter_comms": { "default": "mdi:lan-disconnect" },
+      "fault_inlet_sensor": { "default": "mdi:thermometer-off" },
+      "fault_outlet_sensor": { "default": "mdi:thermometer-off" },
+      "fault_defrost_sensor": { "default": "mdi:thermometer-off" },
+      "fault_coil_sensor": { "default": "mdi:thermometer-off" }
     },
     "switch": {
       "power": {

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from homeassistant.const import STATE_OFF, STATE_ON
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from pysilverline import DeviceState
 
 COMPRESSOR = "binary_sensor.pool_heatpump_compressor"
@@ -97,3 +98,43 @@ async def test_compressor_on_when_actual_frequency_positive(
     )
     await hass.async_block_till_done()
     assert hass.states.get(COMPRESSOR).state == STATE_ON
+
+
+async def test_all_ten_fault_bits_have_entities(
+    hass: HomeAssistant, init_integration
+) -> None:
+    """All 10 bits in FAULT_BIT_NAMES get a registry entry: the first 5
+    are enabled by default (common operational faults), the remaining 5
+    are disabled by default (rarely-fired sensor / inverter faults the
+    user can opt-in to)."""
+    registry = er.async_get(hass)
+    by_uid = {
+        e.unique_id: e
+        for e in registry.entities.values()
+        if e.config_entry_id == init_integration.entry_id
+        and e.platform == "poolex_silverline"
+        and e.domain == "binary_sensor"
+    }
+    device = init_integration.unique_id
+    enabled = {
+        "fault_water_flow",
+        "fault_antifreeze",
+        "fault_high_pressure",
+        "fault_low_pressure",
+        "fault_communication",
+    }
+    disabled = {
+        "fault_inverter_comms",
+        "fault_inlet_sensor",
+        "fault_outlet_sensor",
+        "fault_defrost_sensor",
+        "fault_coil_sensor",
+    }
+    for key in enabled:
+        entry = by_uid.get(f"{device}_{key}")
+        assert entry is not None, f"missing registry entry for {key}"
+        assert entry.disabled_by is None, f"{key} should be enabled by default"
+    for key in disabled:
+        entry = by_uid.get(f"{device}_{key}")
+        assert entry is not None, f"missing registry entry for {key}"
+        assert entry.disabled_by is not None, f"{key} should be disabled by default"

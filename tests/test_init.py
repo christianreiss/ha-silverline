@@ -146,9 +146,10 @@ async def test_firmware_capability_filter_skips_missing_dps(
     temperature number, 2 selects (preset + operating_mode), 1 fault-
     code sensor, 1 temperature-delta sensor (depends only on DPs 2+3),
     the compressor-running binary sensor (DPs 1+4 always present), and
-    5 fault binary sensors — and nothing else. The 10 diagnostic
-    temperature/frequency/eev/fan sensors and the water-pump binary
-    sensor (DPs 101-111) must NOT register."""
+    10 fault binary sensors (5 enabled by default + 5 disabled by
+    default for the rarely-fired bits) — and nothing else. The 10
+    diagnostic temperature/frequency/eev/fan sensors and the water-pump
+    binary sensor (DPs 101-111) must NOT register."""
     mock_client_factory.get_status = AsyncMock(return_value=state_minimal_firmware)
     mock_client_factory.state = state_minimal_firmware
     config_entry.add_to_hass(hass)
@@ -163,10 +164,15 @@ async def test_firmware_capability_filter_skips_missing_dps(
     )
     assert entity_ids == [
         "binary_sensor.pool_heatpump_antifreeze_fault",
+        "binary_sensor.pool_heatpump_coil_sensor_fault",
         "binary_sensor.pool_heatpump_communication_fault",
         "binary_sensor.pool_heatpump_compressor",
+        "binary_sensor.pool_heatpump_defrost_sensor_fault",
         "binary_sensor.pool_heatpump_high_pressure_fault",
+        "binary_sensor.pool_heatpump_inlet_sensor_fault",
+        "binary_sensor.pool_heatpump_inverter_communication_fault",
         "binary_sensor.pool_heatpump_low_pressure_fault",
+        "binary_sensor.pool_heatpump_outlet_sensor_fault",
         "binary_sensor.pool_heatpump_water_flow_fault",
         "climate.pool_heatpump",
         "number.pool_heatpump_target_temperature",
@@ -185,12 +191,12 @@ async def test_full_firmware_registers_everything(
     hass: HomeAssistant, init_integration: MockConfigEntry
 ) -> None:
     """When the device exposes the full DP set (state_pool_running has
-    1-13 + 101-111), all 25 entities register. Guards against the
+    1-13 + 101-111), all 30 entities register. Guards against the
     capability filter accidentally dropping entities on full firmware.
 
-    The 25 count: 1 climate, 13 sensors (10 diagnostic + fault_code +
-    temperature_delta + runtime_today), 7 binary_sensors (water_pump +
-    5 fault bits + compressor_running), 1 switch (power), 1 number
+    The 30 count: 1 climate, 13 sensors (10 diagnostic + fault_code +
+    temperature_delta + runtime_today), 12 binary_sensors (water_pump +
+    10 fault bits + compressor_running), 1 switch (power), 1 number
     (target_temperature), 2 selects (preset_mode + operating_mode)."""
     registry = er.async_get(hass)
     entity_ids = sorted(
@@ -198,7 +204,7 @@ async def test_full_firmware_registers_everything(
         for e in registry.entities.values()
         if e.config_entry_id == init_integration.entry_id
     )
-    assert len(entity_ids) == 25
+    assert len(entity_ids) == 30
 
 
 async def test_async_setup_starts_discovery_task(

@@ -14,13 +14,18 @@ from homeassistant.components.climate.const import HVACAction
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from pysilverline import DeviceState
+from pysilverline import DeviceState, const as tuya_const
 
 from .coordinator import SilverlineConfigEntry, SilverlineCoordinator
 from .entity import SilverlineEntity
 from .util import compute_hvac_action
 
 PARALLEL_UPDATES = 0
+
+# Which fault bits are common enough to want on the dashboard out of the
+# box. The remaining bits in FAULT_BIT_NAMES become disabled-by-default
+# entities the user can turn on if they care about that specific fault.
+_DEFAULT_ENABLED_FAULT_BITS: frozenset[int] = frozenset({0, 1, 2, 3, 4})
 
 
 def _bit(state: DeviceState, position: int) -> bool | None:
@@ -48,6 +53,31 @@ class SilverlineBinarySensorDescription(BinarySensorEntityDescription):
     dp_keys: tuple[str, ...]
 
 
+def _fault_binary_sensor(bit: int, name: str) -> SilverlineBinarySensorDescription:
+    """Build one fault-bit binary sensor description.
+
+    Keeping this as a helper keeps the BINARY_SENSORS tuple in lock-step
+    with FAULT_BIT_NAMES — adding a new bit to the library mapping
+    automatically registers a corresponding entity.
+    """
+
+    def _value_fn(state: DeviceState) -> bool | None:
+        # ``bit`` is closed over by reference rather than cell-bound via a
+        # default arg — wrapping the call in a def fixes the type so the
+        # SilverlineBinarySensorDescription field's Callable matches strictly.
+        return _bit(state, bit)
+
+    return SilverlineBinarySensorDescription(
+        key=f"fault_{name}",
+        translation_key=f"fault_{name}",
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=bit in _DEFAULT_ENABLED_FAULT_BITS,
+        value_fn=_value_fn,
+        dp_keys=("13",),
+    )
+
+
 BINARY_SENSORS: tuple[SilverlineBinarySensorDescription, ...] = (
     SilverlineBinarySensorDescription(
         key="compressor_running",
@@ -66,45 +96,9 @@ BINARY_SENSORS: tuple[SilverlineBinarySensorDescription, ...] = (
         value_fn=lambda d: d.water_pump,
         dp_keys=("111",),
     ),
-    SilverlineBinarySensorDescription(
-        key="fault_water_flow",
-        translation_key="fault_water_flow",
-        device_class=BinarySensorDeviceClass.PROBLEM,
-        entity_category=EntityCategory.DIAGNOSTIC,
-        value_fn=lambda d: _bit(d, 0),
-        dp_keys=("13",),
-    ),
-    SilverlineBinarySensorDescription(
-        key="fault_antifreeze",
-        translation_key="fault_antifreeze",
-        device_class=BinarySensorDeviceClass.PROBLEM,
-        entity_category=EntityCategory.DIAGNOSTIC,
-        value_fn=lambda d: _bit(d, 1),
-        dp_keys=("13",),
-    ),
-    SilverlineBinarySensorDescription(
-        key="fault_high_pressure",
-        translation_key="fault_high_pressure",
-        device_class=BinarySensorDeviceClass.PROBLEM,
-        entity_category=EntityCategory.DIAGNOSTIC,
-        value_fn=lambda d: _bit(d, 2),
-        dp_keys=("13",),
-    ),
-    SilverlineBinarySensorDescription(
-        key="fault_low_pressure",
-        translation_key="fault_low_pressure",
-        device_class=BinarySensorDeviceClass.PROBLEM,
-        entity_category=EntityCategory.DIAGNOSTIC,
-        value_fn=lambda d: _bit(d, 3),
-        dp_keys=("13",),
-    ),
-    SilverlineBinarySensorDescription(
-        key="fault_communication",
-        translation_key="fault_communication",
-        device_class=BinarySensorDeviceClass.PROBLEM,
-        entity_category=EntityCategory.DIAGNOSTIC,
-        value_fn=lambda d: _bit(d, 4),
-        dp_keys=("13",),
+    *(
+        _fault_binary_sensor(bit, name)
+        for bit, name in sorted(tuya_const.FAULT_BIT_NAMES.items())
     ),
 )
 
