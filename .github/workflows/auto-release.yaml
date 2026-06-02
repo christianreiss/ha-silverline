@@ -1,0 +1,78 @@
+name: Auto-release on version bump
+
+# When a version is bumped on main, create the matching git tag so the
+# existing release pipelines fire automatically:
+#   * manifest.json  version X.Y.Z  -> tag vX.Y.Z              -> release.yaml (GitHub Release)
+#   * pyproject.toml version X.Y.Z  -> tag pysilverline-vX.Y.Z -> pysilverline-pypi.yaml (PyPI)
+#
+# IMPORTANT — why this needs a PAT:
+# GitHub deliberately will NOT trigger other workflows from a tag pushed with
+# the default GITHUB_TOKEN (anti-recursion). So tags pushed here with the
+# default token would be silent — exactly the "stuck release" failure this
+# workflow exists to prevent. We therefore push with a Personal Access Token.
+#
+# Setup (one time):
+#   1. Create a fine-grained PAT scoped to this repo with
+#      Repository permissions -> Contents: Read and write.
+#   2. Add it as a repository secret named RELEASE_PAT.
+# If RELEASE_PAT is absent the checkout falls back to GITHUB_TOKEN: tags are
+# still created but the downstream release/PyPI workflows will NOT fire.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - custom_components/poolex_silverline/manifest.json
+      - pysilverline/pyproject.toml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: auto-release
+  cancel-in-progress: false
+
+jobs:
+  auto-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history + all tags so the "tag already exists?" guard is
+          # accurate and re-runs are idempotent.
+          fetch-depth: 0
+          # PAT so pushed tags trigger release.yaml / pysilverline-pypi.yaml.
+          token: ${{ secrets.RELEASE_PAT || github.token }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"  # tomllib is stdlib 3.11+
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Tag integration release from manifest version
+        run: |
+          version=$(python -c "import json; print(json.load(open('custom_components/poolex_silverline/manifest.json'))['version'])")
+          tag="v${version}"
+          if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
+            echo "Tag ${tag} already exists — nothing to do."
+          else
+            echo "Creating and pushing ${tag}"
+            git tag -a "${tag}" -m "Poolex Silverline ${version}"
+            git push origin "${tag}"
+          fi
+
+      - name: Tag library release from pyproject version
+        run: |
+          version=$(python -c "import tomllib; print(tomllib.load(open('pysilverline/pyproject.toml','rb'))['project']['version'])")
+          tag="pysilverline-v${version}"
+          if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
+            echo "Tag ${tag} already exists — nothing to do."
+          else
+            echo "Creating and pushing ${tag}"
+            git tag -a "${tag}" -m "pysilverline ${version}"
+            git push origin "${tag}"
+          fi
