@@ -85,9 +85,9 @@
     },
     "sensor": {
       "temperature_delta": { "name": "Temperaturdifferenz" },
-      "exhaust_temperature": { "name": "Verdichter-Heißgastemperatur" },
-      "return_temperature": { "name": "Verdichter-Sauggastemperatur" },
-      "coil_temperature": { "name": "Verdampfertemperatur" },
+      "exhaust_temperature": { "name": "Verdichter-Sauggastemperatur" },
+      "return_temperature": { "name": "Außentemperatur" },
+      "coil_temperature": { "name": "Poolwassertemperatur" },
       "ambient_temperature": { "name": "Kompressor-Druckgastemperatur" },
       "inlet_temperature": { "name": "Wassereintrittstemperatur" },
       "outlet_temperature": { "name": "Wasseraustrittstemperatur" },

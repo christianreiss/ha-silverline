@@ -95,9 +95,9 @@
     },
     "sensor": {
       "temperature_delta": { "name": "Temperature delta" },
-      "exhaust_temperature": { "name": "Compressor exhaust temperature" },
-      "return_temperature": { "name": "Compressor return temperature" },
-      "coil_temperature": { "name": "Evaporator coil temperature" },
+      "exhaust_temperature": { "name": "Compressor suction temperature" },
+      "return_temperature": { "name": "Outdoor ambient temperature" },
+      "coil_temperature": { "name": "Pool water temperature" },
       "ambient_temperature": { "name": "Compressor discharge temperature" },
       "inlet_temperature": { "name": "Water inlet temperature" },
       "outlet_temperature": { "name": "Water outlet temperature" },

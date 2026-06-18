@@ -97,7 +97,7 @@ SENSORS: tuple[SilverlineSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         entity_category=EntityCategory.DIAGNOSTIC,
-        value_fn=lambda d: d.exhaust_temp,
+        value_fn=lambda d: d.suction_temp,
         dp_keys=("101",),
     ),
     SilverlineSensorDescription(
@@ -107,7 +107,7 @@ SENSORS: tuple[SilverlineSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         entity_category=EntityCategory.DIAGNOSTIC,
-        value_fn=lambda d: d.return_temp,
+        value_fn=lambda d: d.ambient_temp,
         dp_keys=("102",),
     ),
     SilverlineSensorDescription(
@@ -117,7 +117,7 @@ SENSORS: tuple[SilverlineSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         entity_category=EntityCategory.DIAGNOSTIC,
-        value_fn=lambda d: d.coil_temp,
+        value_fn=lambda d: d.pool_temp,
         dp_keys=("103",),
     ),
     SilverlineSensorDescription(

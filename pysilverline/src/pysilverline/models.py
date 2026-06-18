@@ -17,9 +17,9 @@ class DeviceState:
     temp_current: int | None = None
     mode: str | None = None
     fault: int | None = None
-    exhaust_temp: int | None = None
-    return_temp: int | None = None
-    coil_temp: int | None = None
+    suction_temp: int | None = None
+    ambient_temp: int | None = None
+    pool_temp: int | None = None
     discharge_temp: int | None = None
     inlet_temp: int | None = None
     outlet_temp: int | None = None
@@ -80,9 +80,9 @@ class DeviceState:
             temp_current=_int(const.DP_TEMP_CURRENT),
             mode=_str(const.DP_MODE),
             fault=_int(const.DP_FAULT),
-            exhaust_temp=_int(const.DP_EXHAUST_TEMP),
-            return_temp=_int(const.DP_RETURN_TEMP),
-            coil_temp=_int(const.DP_COIL_TEMP),
+            suction_temp=_int(const.DP_SUCTION_TEMP),
+            ambient_temp=_int(const.DP_AMBIENT_TEMP),
+            pool_temp=_int(const.DP_POOL_TEMP),
             discharge_temp=_int(const.DP_DISCHARGE_TEMP),
             inlet_temp=_int(const.DP_INLET_TEMP),
             outlet_temp=_int(const.DP_OUTLET_TEMP),
