@@ -6,8 +6,8 @@
 [![Last commit](https://img.shields.io/github/last-commit/christianreiss/ha-silverline)](https://github.com/christianreiss/ha-silverline/commits/main)
 
 Local-only Home Assistant integration for **Poolex Silverline FI** pool heat
-pumps (Tuya v3.3) and OEM siblings. Connects directly over LAN — **no cloud
-runtime dependency**.
+pumps (Tuya v3.3 / v3.4 / v3.5) and OEM siblings. Connects directly over LAN —
+**no cloud runtime dependency**.
 
 ## At a glance
 
@@ -58,11 +58,13 @@ only the PC-SLP090N has been verified directly against live hardware.
 **Legend** — 🟢 live-verified · 🔵 high confidence (same OEM platform, not
 tested directly) · ⚪ unknown · ✅ present · ❌ absent · ❓ firmware-dependent
 
-- **The protocol version is auto-detected** (v3.5 is probed first, with a
-  v3.3 fallback) and can be pinned on the config entry. v3.5 is implemented
-  faithfully to the spec and tested against a TinyTuya-faithful fake, but
-  **not yet against real v3.5 hardware** — hence v3.3 / v3.5 on the OEM
-  siblings.
+- **The protocol version is auto-detected** (probed in order v3.5 → v3.4 →
+  v3.3) and can be pinned on the config entry. v3.4 and v3.5 are implemented
+  faithfully to the spec (verified line-by-line against the TinyTuya source)
+  and tested against TinyTuya-faithful fakes, but **not yet against real v3.4
+  or v3.5 hardware** — hence v3.3 / v3.5 on the OEM siblings. The v3.4 probe
+  has been field-tested as benign against the live v3.3 device (it falls back
+  cleanly without disturbing the pump).
 - **Diagnostic DPs (101–111) are firmware-dependent, not model-dependent:**
   the same SKU can ship full or bare depending on its firmware. The
   integration only registers the DPs the first `DP_QUERY` returns, so missing
@@ -301,8 +303,8 @@ suffix becomes heat/cool. All seven modes are accessible.
 
 ## Related projects
 
-- [`pysilverline`](./pysilverline) — the underlying async Tuya v3.3 client,
-  reusable outside Home Assistant.
+- [`pysilverline`](./pysilverline) — the underlying async Tuya v3.3 / v3.4 /
+  v3.5 client, reusable outside Home Assistant.
 - [`tinytuya`](https://github.com/jasonacox/tinytuya) — generic Tuya local
   protocol library that informed parts of the protocol implementation.
 - [`tuya-local`](https://github.com/make-all/tuya-local) — community Tuya
@@ -319,8 +321,8 @@ After cloning, install the git hooks once:
 
 This points `core.hooksPath` at the tracked `.githooks/` directory. The
 `pre-commit` hook runs the `pysilverline` protocol/client API test suite
-(Tuya **v3.3** and **v3.5**) before every commit, so a change that breaks
-either wire protocol can't land. It's the library suite only (fast, ~1–2 s);
+(Tuya **v3.3**, **v3.4** and **v3.5**) before every commit, so a change that
+breaks any wire protocol can't land. It's the library suite only (fast, ~1–2 s);
 linting, type-checking, and the Home Assistant integration tests are left to
 CI and `scripts/platinum-gate.sh`.
 

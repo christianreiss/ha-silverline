@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # pre-commit — run the pysilverline protocol/client API test suite before every
-# commit, so a change that breaks the Tuya v3.3 (55AA/AES-ECB) or v3.5
-# (6699/AES-GCM) wire protocol can't land. This is the lib suite only
-# (codec + client, both versions); it deliberately does NOT run ruff/mypy or
-# the Home Assistant integration tests — keep the commit gate fast and focused.
+# commit, so a change that breaks the Tuya v3.3 (55AA/AES-ECB), v3.4
+# (55AA/AES-ECB+HMAC) or v3.5 (6699/AES-GCM) wire protocol can't land. This is
+# the lib suite only (codec + client, all versions); it deliberately does NOT
+# run ruff/mypy or the Home Assistant integration tests — keep the commit gate
+# fast and focused.
 #
 # Install once per clone:   ./scripts/install-hooks.sh
 # Bypass for one commit:    git commit --no-verify
@@ -32,7 +33,7 @@ EOF
   exit 1
 fi
 
-echo "pre-commit: running pysilverline API tests (Tuya v3.3 + v3.5)…" >&2
+echo "pre-commit: running pysilverline API tests (Tuya v3.3 + v3.4 + v3.5)…" >&2
 # Run from inside pysilverline/ so its own pytest config applies (it disables
 # the Home Assistant pytest plugins, which the standalone lib must not load).
 if ( cd "${LIB_DIR}" && "${PY}" -m pytest tests/ -q ); then
