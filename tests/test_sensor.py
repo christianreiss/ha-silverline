@@ -475,3 +475,103 @@ async def test_v34_model_selects_v34_sensor_catalog(hass: HomeAssistant) -> None
         if e.unique_id == f"{device_id}_outdoor_coil_temperature"
     )
     assert hass.states.get(outdoor_coil).state == "12"
+
+
+async def test_v34_entity_inventory_snapshot(
+    hass: HomeAssistant,
+    snapshot: SnapshotAssertion,
+) -> None:
+    """Snapshot the v3.4 (silverline_v34) entity registry + states.
+
+    test_entity_inventory_snapshot only covers the legacy/standard catalog;
+    this pins the v3.4 per-firmware catalog byte-for-byte (every key,
+    device_class, unit, entity_category and enabled-default), so the
+    sensor-description dedup cannot silently alter a v3.4 entity."""
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from homeassistant.const import CONF_HOST, CONF_PORT
+    from pysilverline.layouts import LAYOUT_V34_WFZEIYN
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    from custom_components.poolex_silverline.const import (
+        CONF_DEVICE_ID,
+        CONF_LOCAL_KEY,
+        CONF_MODEL,
+        DOMAIN,
+    )
+
+    device_id = "bf12345678abcdefghijkl"
+    v34_dps = {
+        "1": True,
+        "2": 28,
+        "3": 26,
+        "4": "Heat",
+        "13": 0,
+        "101": 28,
+        "102": 18,
+        "103": 26,
+        "105": 12,
+        "106": 70,
+        "108": 40,
+        "109": 240,
+        "110": 130,
+        "111": 850,
+        "114": 600,
+        "124": 45,
+        "133": -8,
+        "132": 3,
+        "140": 80,
+        "120": 1234,
+        "137": 5,
+        "142": 50,
+    }
+    state = DeviceState.from_dps(v34_dps, layout=LAYOUT_V34_WFZEIYN)
+
+    client = MagicMock()
+    client.host = "10.0.0.50"
+    client.port = 6668
+    client.device_id = device_id
+    client.connected = True
+    client.state = state
+    client.detected_version = "3.4"
+    client.connect = AsyncMock(return_value=None)
+    client.disconnect = AsyncMock(return_value=None)
+    client.get_status = AsyncMock(return_value=state)
+    client.set_dp = AsyncMock(return_value=None)
+    client.set_multiple = AsyncMock(return_value=None)
+    client.add_listener = MagicMock(return_value=lambda: None)
+    client.add_connection_listener = MagicMock(return_value=lambda: None)
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=device_id,
+        data={
+            CONF_HOST: "10.0.0.50",
+            CONF_PORT: 6668,
+            CONF_DEVICE_ID: device_id,
+            CONF_LOCAL_KEY: "0123456789abcdef",
+            CONF_MODEL: "silverline_v34",
+        },
+        version=1,
+        minor_version=1,
+    )
+    entry.add_to_hass(hass)
+    with patch(
+        "custom_components.poolex_silverline.SilverlineClient", return_value=client
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    registry = er.async_get(hass)
+    entries = sorted(
+        (e for e in registry.entities.values() if e.config_entry_id == entry.entry_id),
+        key=lambda e: e.entity_id,
+    )
+    assert {e.entity_id: registry.async_get(e.entity_id) for e in entries} == snapshot(
+        name="v34_entity_registry"
+    )
+    states = sorted(
+        (s for e in entries if (s := hass.states.get(e.entity_id)) is not None),
+        key=lambda s: s.entity_id,
+    )
+    assert states == snapshot(name="v34_entity_states")
