@@ -6,13 +6,10 @@ import logging
 import time
 from collections.abc import Callable
 from datetime import date, datetime, timedelta
-from typing import Final
 
-from homeassistant.components.climate.const import HVACAction
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed
-from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 from pysilverline import (
@@ -21,34 +18,15 @@ from pysilverline import (
     InvalidAuth,
     SilverlineClient,
     SilverlineError,
-    const as tuya_const,
 )
 
+from ._faults import FaultReconciler
+from ._runtime import accumulate_runtime
 from .const import (
     CONF_MODEL,
     DEFAULT_SCAN_INTERVAL,
     DEVICE_PROFILES,
     DOMAIN,
-    E03_DEBOUNCE_SECONDS,
-)
-
-# Fault-bit severity for Repair issues. Operational faults (water flow,
-# antifreeze, pressure) need user attention now; sensor and comms faults
-# are warnings — annoying but the unit usually recovers on its own.
-_FAULT_SEVERITY: Final[dict[str, ir.IssueSeverity]] = {
-    "E03": ir.IssueSeverity.ERROR,
-    "E04": ir.IssueSeverity.ERROR,
-    "E05": ir.IssueSeverity.ERROR,
-    "E06": ir.IssueSeverity.ERROR,
-    "E09": ir.IssueSeverity.WARNING,
-    "E10": ir.IssueSeverity.WARNING,
-    "P1": ir.IssueSeverity.WARNING,
-    "P3": ir.IssueSeverity.WARNING,
-    "P4": ir.IssueSeverity.WARNING,
-    "P7": ir.IssueSeverity.WARNING,
-}
-_LEARN_MORE_URL: Final = (
-    "https://github.com/christianreiss/ha-silverline#troubleshooting"
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -90,15 +68,8 @@ class SilverlineCoordinator(DataUpdateCoordinator[DeviceState]):
             )
         else:
             self.supported_dps = frozenset()
-        # Tracks which fault codes currently have an open Repair issue so
-        # we only fire create/delete when the bit actually flips.
-        self._active_fault_issues: set[str] = set()
-        # Per-bit monotonic timestamp of the first sighting of an active
-        # fault. Drives the E03 debounce: bit 0 only opens a Repair issue
-        # after E03_DEBOUNCE_SECONDS of continuous activation. Entries are
-        # cleared when the bit clears so a later re-trip restarts the
-        # window from zero.
-        self._fault_first_seen: dict[int, float] = {}
+        # Owns the fault → Repair-issue state and reconciliation logic.
+        self._faults = FaultReconciler()
         # Runtime-today accumulator state — see _tick_runtime. Stored on
         # the coordinator (not the sensor) so it survives entity reloads
         # and is reachable from diagnostics without entity lookups.
@@ -121,9 +92,9 @@ class SilverlineCoordinator(DataUpdateCoordinator[DeviceState]):
         """Read-only view of the OEM codes with an open Repair issue.
 
         Lets diagnostics surface the current fault set without reaching into
-        ``_active_fault_issues`` — the reconcile logic stays the sole writer.
+        the reconciler — the reconcile logic stays the sole writer.
         """
-        return frozenset(self._active_fault_issues)
+        return self._faults.active_codes
 
     async def _async_setup(self) -> None:
         try:
@@ -173,7 +144,11 @@ class SilverlineCoordinator(DataUpdateCoordinator[DeviceState]):
         # Single chokepoint for every fresh state, push or poll. Keeps the
         # issue registry and runtime accumulator consistent regardless of
         # which path delivered the state.
-        self._reconcile_fault_issues(state)
+        #
+        # monotonic() is read HERE (not inside the reconciler) so the E03
+        # debounce clock stays patchable as
+        # coordinator.time.monotonic in tests.
+        self._faults.reconcile(self.hass, state, now=time.monotonic())
         self._tick_runtime(state)
 
     @callback
@@ -193,89 +168,22 @@ class SilverlineCoordinator(DataUpdateCoordinator[DeviceState]):
         # the runtime accumulator self-contained).
         from .util import compute_hvac_action
 
+        # utcnow() is read HERE (not inside accumulate_runtime) so the
+        # runtime clock stays patchable as coordinator.dt_util.utcnow in
+        # tests.
         now = dt_util.utcnow()
-        local_today = dt_util.as_local(now).date()
-
-        if self._runtime_last_tick is None:
-            # First observation: just anchor the clock; can't accumulate
-            # an interval without a prior timestamp.
-            self._runtime_last_tick = now
-            self._runtime_local_date = local_today
-            return
-
-        if self._runtime_local_date != local_today:
-            # Day boundary crossed since the last tick. Zero the counter
-            # and re-anchor — under-counts the few seconds between the
-            # last pre-midnight tick and the actual midnight instant, but
-            # avoids attributing any of that time to "today".
-            self._runtime_today_seconds = 0.0
-            self._runtime_local_date = local_today
-            self._runtime_last_tick = now
-            return
-
         action = compute_hvac_action(state)
-        if action in (HVACAction.HEATING, HVACAction.COOLING):
-            delta = (now - self._runtime_last_tick).total_seconds()
-            if delta > 0:
-                self._runtime_today_seconds += delta
-        self._runtime_last_tick = now
-
-    @callback
-    def _reconcile_fault_issues(self, state: DeviceState) -> None:
-        """Create / delete HA Repair issues to match the fault bitmap.
-
-        Fault DP 13 is a 30-bit field; each set bit maps to an OEM service
-        code in pysilverline.const.FAULT_BIT_CODES (E03, E04, ...). We
-        open one Repair issue per active code and close it the moment the
-        device clears the bit — the user gets a transient, self-clearing
-        notification stream without having to dismiss each one manually.
-
-        Bit 0 (E03 water flow) is debounced by ``E03_DEBOUNCE_SECONDS``:
-        the spec only wants the Repair card to surface once flow has been
-        absent persistently, because the unit briefly self-trips E03 on
-        startup before the filter pump primes — raising a card in that
-        window would be noise. Other bits are immediate; they either don't
-        bounce that way or they're already informational.
-        """
-        active_bits: set[int] = set()
-        fault = state.fault
-        if isinstance(fault, int) and fault != 0:
-            for bit in tuya_const.FAULT_BIT_CODES:
-                if fault & (1 << bit):
-                    active_bits.add(bit)
-
-        now = time.monotonic()
-        # Drop first_seen entries for bits that are no longer set so a
-        # later re-trip restarts the debounce window from zero.
-        for bit in list(self._fault_first_seen):
-            if bit not in active_bits:
-                del self._fault_first_seen[bit]
-        for bit in active_bits:
-            self._fault_first_seen.setdefault(bit, now)
-
-        # Resolve active_bits into the set of OEM codes whose Repair issue
-        # should currently be open. Bit 0 only counts after the debounce
-        # window has elapsed; everything else counts immediately.
-        eligible_codes: set[str] = set()
-        for bit in active_bits:
-            if bit == 0 and now - self._fault_first_seen[bit] < E03_DEBOUNCE_SECONDS:
-                continue
-            eligible_codes.add(tuya_const.FAULT_BIT_CODES[bit])
-
-        for cleared in self._active_fault_issues - eligible_codes:
-            ir.async_delete_issue(self.hass, DOMAIN, f"fault_{cleared}")
-        for raised in eligible_codes - self._active_fault_issues:
-            ir.async_create_issue(
-                self.hass,
-                DOMAIN,
-                f"fault_{raised}",
-                is_fixable=False,
-                is_persistent=False,
-                severity=_FAULT_SEVERITY.get(raised, ir.IssueSeverity.WARNING),
-                translation_key=f"fault_{raised}",
-                learn_more_url=_LEARN_MORE_URL,
-            )
-        self._active_fault_issues = eligible_codes
+        (
+            self._runtime_today_seconds,
+            self._runtime_last_tick,
+            self._runtime_local_date,
+        ) = accumulate_runtime(
+            now=now,
+            last_tick=self._runtime_last_tick,
+            local_date=self._runtime_local_date,
+            today_seconds=self._runtime_today_seconds,
+            action=action,
+        )
 
     @callback
     def _handle_connection_change(self, connected: bool) -> None:
