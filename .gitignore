@@ -19,6 +19,7 @@ venv/
 
 # Secrets — local credentials for the live device
 access.yaml
+.env
 
 # Live-device probe captures (large, host-specific, regenerated as needed)
 live_dump.json

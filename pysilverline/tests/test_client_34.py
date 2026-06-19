@@ -44,6 +44,15 @@ def _build_frame_34(
     return body + struct.pack(">32sI", mac, const.FRAME_SUFFIX)
 
 
+def _build_empty_ack_34(seq: int, cmd: int, session_key: bytes) -> bytes:
+    footer_size = struct.calcsize(">32sI")
+    size = 4 + footer_size
+    header = struct.pack(">IIII", const.FRAME_PREFIX, seq, cmd, size)
+    body = header + struct.pack(">I", 0)
+    mac = hmac.new(session_key, body, hashlib.sha256).digest()
+    return body + struct.pack(">32sI", mac, const.FRAME_SUFFIX)
+
+
 class FakeTuya34Server:
     """TCP server speaking Tuya v3.4 — mirrors FakeTuya35Server key timing."""
 
@@ -195,6 +204,40 @@ async def test_v34_pinned_handshake_and_get_status() -> None:
             assert client.detected_version == "3.4"
             state = await client.get_status()
             assert state.power is False
+        finally:
+            await client.disconnect()
+
+
+async def test_v34_control_acked_by_status_push() -> None:
+    async with FakeTuya34Server() as server:
+        server.handlers[const.CMD_DP_QUERY] = _dp_query_handler(
+            {"1": True, "4": "SilentHeat", "2": 30, "3": 29}
+        )
+
+        def control_handler(seq: int, body: dict[str, Any], session_key: bytes) -> bytes:
+            assert body["protocol"] == 5
+            dps = body["data"]["dps"]
+            assert dps == {"4": "BoostHeat"}
+            return _build_empty_ack_34(seq + 100, const.CMD_CONTROL_NEW, session_key)
+
+        server.handlers[const.CMD_CONTROL_NEW] = control_handler
+        client = SilverlineClient(
+            host="127.0.0.1",
+            port=server.port,
+            device_id=DEVICE_ID,
+            local_key=KEY,
+            protocol_version="3.4",
+            request_timeout=2.0,
+        )
+        await client.connect()
+        try:
+            state = await client.get_status()
+            assert state.mode == "SilentHeat"
+            await client.set_dp(4, "BoostHeat")
+            assert client.state.mode == "BoostHeat"
+            assert any(
+                cmd == const.CMD_CONTROL_NEW for _seq, cmd, _body in server.received
+            )
         finally:
             await client.disconnect()
 

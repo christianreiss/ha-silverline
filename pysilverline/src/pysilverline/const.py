@@ -26,6 +26,8 @@ CMD_CONTROL: Final = 0x07
 CMD_STATUS: Final = 0x08
 CMD_HEART_BEAT: Final = 0x09
 CMD_DP_QUERY: Final = 0x0A
+CMD_CONTROL_NEW: Final = 0x0D
+CMD_DP_QUERY_NEW: Final = 0x10
 CMD_DP_REFRESH: Final = 0x12
 
 CMDS_WITHOUT_HEADER: Final = frozenset({CMD_DP_QUERY})
@@ -35,6 +37,7 @@ CMDS_WITHOUT_HEADER: Final = frozenset({CMD_DP_QUERY})
 CMDS_WITHOUT_HEADER_V34: Final = frozenset(
     {
         CMD_DP_QUERY,
+        CMD_DP_QUERY_NEW,
         CMD_HEART_BEAT,
         SESS_KEY_NEG_START,
         SESS_KEY_NEG_RESP,
@@ -42,14 +45,9 @@ CMDS_WITHOUT_HEADER_V34: Final = frozenset(
     }
 )
 
-# v3.4 handshake: START (16-byte nonce) and FINISH (32-byte HMAC) are sent
-# cleartext; only SESS_KEY_NEG_RESP from the device is AES-encrypted.
-CMDS_CLEARTEXT_PAYLOAD_V34: Final = frozenset(
-    {
-        SESS_KEY_NEG_START,
-        SESS_KEY_NEG_FINISH,
-    }
-)
+# Some Tuya v3.4 peers send cleartext START/FINISH; Poolex WBR3 pool firmware
+# (productKey wfzeiyn1ed3axxde) expects encrypted handshake frames instead.
+CMDS_CLEARTEXT_PAYLOAD_V34: Final = frozenset()
 
 DP_POWER: Final = 1
 DP_TEMP_SET: Final = 2

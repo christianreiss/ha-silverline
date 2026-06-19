@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import hmac as _hmac
+import json
 import logging
 import os
 import time
@@ -510,14 +511,27 @@ class SilverlineClient:
         if not values:
             return
         dps = {str(k): v for k, v in values.items()}
-        body = {
-            "devId": self.device_id,
-            "gwId": self.device_id,
-            "uid": "",
-            "t": int(time.time()),
-            "dps": dps,
-        }
-        frame = await self._request(const.CMD_CONTROL, body)
+        if self._detected_version == "3.4":
+            # Tuya v3.4 (device22-style) uses CONTROL_NEW with a protocol
+            # wrapper. The cloud IoT UI exposes the same operation as
+            # code/value pairs (e.g. switch/temp_set), but the local LAN API
+            # still sends raw DP ids inside data.dps.
+            body = {
+                "protocol": 5,
+                "t": int(time.time()),
+                "data": {"dps": dps},
+            }
+            cmd = const.CMD_CONTROL_NEW
+        else:
+            body = {
+                "devId": self.device_id,
+                "gwId": self.device_id,
+                "uid": "",
+                "t": int(time.time()),
+                "dps": dps,
+            }
+            cmd = const.CMD_CONTROL
+        frame = await self._request(cmd, body)
         retcode, _ = self._codec.split_response_payload(frame.cmd, frame.payload)
         if is_invalid_auth_retcode(retcode):
             raise InvalidAuth(f"device rejected CONTROL retcode={retcode}")
@@ -685,13 +699,45 @@ class SilverlineClient:
                 return self._pending.pop(match_seq)[1]
         return None
 
+    def _push_dps_from_frame(self, frame: Frame) -> dict[str, Any]:
+        """Extract a ``dps`` mapping from a spontaneous STATUS/REFRESH frame."""
+        if self._detected_version == "3.4":
+            body = self._codec.split_request_payload(frame.payload)
+            json_start = body.find(b"{")
+            if json_start < 0:
+                raise ProtocolError("v3.4 STATUS push has no JSON body")
+            try:
+                parsed = json.loads(body[json_start:])
+            except (UnicodeDecodeError, json.JSONDecodeError) as err:
+                raise ProtocolError("v3.4 STATUS push is not JSON") from err
+            if not isinstance(parsed, dict):
+                raise ProtocolError("v3.4 STATUS push JSON is not an object")
+            data = parsed.get("data")
+            if isinstance(data, dict):
+                dps = data.get("dps", {})
+            else:
+                dps = parsed.get("dps", {})
+            if not isinstance(dps, dict):
+                return {}
+            return dps
+
+        ciphertext = self._codec.split_request_payload(frame.payload)
+        decoded = self._codec.decrypt_body(ciphertext)
+        dps = decoded.get("dps", {}) if isinstance(decoded, dict) else {}
+        return dps if isinstance(dps, dict) else {}
+
     def _dispatch(self, frame: Frame) -> None:
         # Correlate a response to the request awaiting it. Push frames
         # (CMD_STATUS) carry their own seqs from the device and must never be
         # delivered to a request future; the cmd gate in front of the match
         # guarantees a push payload is never handed to a request that can't
         # decode it.
-        if frame.cmd in (const.CMD_CONTROL, const.CMD_DP_QUERY, const.CMD_DP_REFRESH):
+        if frame.cmd in (
+            const.CMD_CONTROL,
+            const.CMD_CONTROL_NEW,
+            const.CMD_DP_QUERY,
+            const.CMD_DP_REFRESH,
+        ):
             fut = self._take_pending(frame.cmd, frame.seq)
             if fut is not None:
                 if not fut.done():
@@ -699,18 +745,24 @@ class SilverlineClient:
                 return
 
         if frame.cmd in (const.CMD_STATUS, const.CMD_DP_REFRESH):
-            ciphertext = self._codec.split_request_payload(frame.payload)
             try:
-                decoded = self._codec.decrypt_body(ciphertext)
+                dps = self._push_dps_from_frame(frame)
             except (InvalidAuth, ProtocolError):
-                # InvalidAuth = wrong key (next poll will trigger reauth).
-                # ProtocolError = AES decrypted but JSON parse failed —
-                # transient corruption; ignore the push, the next one
-                # will land cleanly.
                 _LOGGER.debug("ignoring undecryptable push frame")
                 return
-            dps = decoded.get("dps", {}) if isinstance(decoded, dict) else {}
-            if not isinstance(dps, dict) or not dps:
+            # Ack CONTROL before the empty-dps early return — v3.4 often
+            # sends several partial STATUS frames (one DP at a time).
+            if self._detected_version == "3.4":
+                fut = self._take_pending(const.CMD_CONTROL_NEW, frame.seq)
+                if fut is not None and not fut.done():
+                    fut.set_result(
+                        Frame(
+                            seq=frame.seq,
+                            cmd=const.CMD_CONTROL_NEW,
+                            payload=b"\x00\x00\x00\x00",
+                        )
+                    )
+            if not dps:
                 return
             self._state = self._state.merge(dps, layout=self._dp_layout)
             for listener in list(self._listeners):

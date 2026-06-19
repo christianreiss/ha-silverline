@@ -198,7 +198,12 @@ class FrameCodec:
         """
         retcode: int | None = None
         body = payload
-        if cmd in (const.CMD_CONTROL, const.CMD_DP_QUERY, const.CMD_DP_REFRESH):
+        if cmd in (
+            const.CMD_CONTROL,
+            const.CMD_CONTROL_NEW,
+            const.CMD_DP_QUERY,
+            const.CMD_DP_REFRESH,
+        ):
             if len(body) >= 4:
                 retcode = struct.unpack(">I", body[:4])[0]
                 body = body[4:]
@@ -323,8 +328,8 @@ class Frame34Codec:
         return self._build_frame(cmd, plaintext, encrypt=True)
 
     def encode_raw(self, cmd: int, payload: bytes) -> bytes:
-        """Build a 55AA frame with a cleartext payload (v3.4 handshake)."""
-        return self._build_frame(cmd, payload, encrypt=False)
+        """Build a 55AA frame for the v3.4 handshake (AES-encrypted payload)."""
+        return self._build_frame(cmd, payload, encrypt=True)
 
     def _build_frame(self, cmd: int, plaintext: bytes, *, encrypt: bool) -> bytes:
         if cmd not in const.CMDS_WITHOUT_HEADER_V34:
@@ -364,9 +369,17 @@ class Frame34Codec:
             raise ProtocolError(f"bad suffix 0x{suffix:08x}")
 
         if cleartext_retcode is None:
-            cleartext_retcode = self._frame_has_cleartext_retcode(
-                data, size, authenticated_end, mac
-            )
+            if (
+                cmd == const.CMD_CONTROL_NEW
+                and size == self._FOOTER_SIZE + self._RETCODE_SIZE
+            ):
+                # v3.4 CONTROL_NEW ACK can be just a cleartext retcode with
+                # no encrypted JSON body.
+                cleartext_retcode = True
+            else:
+                cleartext_retcode = self._frame_has_cleartext_retcode(
+                    data, size, authenticated_end, mac
+                )
 
         if cleartext_retcode:
             retcode = struct.unpack(
@@ -385,7 +398,9 @@ class Frame34Codec:
         if not hmac.compare_digest(mac, expected_mac):
             raise InvalidAuth("HMAC mismatch — local_key likely wrong")
 
-        if cmd in const.CMDS_CLEARTEXT_PAYLOAD_V34:
+        if not payload_bytes:
+            decrypted = b""
+        elif cmd in const.CMDS_CLEARTEXT_PAYLOAD_V34:
             decrypted = payload_bytes
         else:
             try:
@@ -429,7 +444,12 @@ class Frame34Codec:
     def split_response_payload(cmd: int, payload: bytes) -> tuple[int | None, bytes]:
         retcode: int | None = None
         body = payload
-        if cmd in (const.CMD_CONTROL, const.CMD_DP_QUERY, const.CMD_DP_REFRESH):
+        if cmd in (
+            const.CMD_CONTROL,
+            const.CMD_CONTROL_NEW,
+            const.CMD_DP_QUERY,
+            const.CMD_DP_REFRESH,
+        ):
             if len(body) >= 4:
                 retcode = struct.unpack(">I", body[:4])[0]
                 body = body[4:]
@@ -606,7 +626,12 @@ class Frame35Codec:
         """
         retcode: int | None = None
         body = payload
-        if cmd in (const.CMD_CONTROL, const.CMD_DP_QUERY, const.CMD_DP_REFRESH):
+        if cmd in (
+            const.CMD_CONTROL,
+            const.CMD_CONTROL_NEW,
+            const.CMD_DP_QUERY,
+            const.CMD_DP_REFRESH,
+        ):
             if len(body) >= 4:
                 retcode = struct.unpack(">I", body[:4])[0]
                 body = body[4:]
