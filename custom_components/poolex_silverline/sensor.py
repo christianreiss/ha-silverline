@@ -13,7 +13,6 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.const import (
     PERCENTAGE,
-    REVOLUTIONS_PER_MINUTE,
     EntityCategory,
     UnitOfFrequency,
     UnitOfTemperature,
@@ -23,10 +22,12 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from pysilverline import DeviceState, const as tuya_const
 
+from .const import CONF_MODEL
 from .coordinator import SilverlineConfigEntry, SilverlineCoordinator
 from .entity import SilverlineEntity
 
 PARALLEL_UPDATES = 0
+REVOLUTIONS_PER_MINUTE = "rpm"
 
 
 def _decode_fault(raw: int | None) -> str | None:
