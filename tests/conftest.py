@@ -151,7 +151,7 @@ def mock_client_factory(mock_client: MagicMock) -> Generator[MagicMock]:
             return_value=mock_client,
         ),
         patch(
-            "custom_components.poolex_silverline.config_flow.SilverlineClient",
+            "custom_components.poolex_silverline._config_validation.SilverlineClient",
             return_value=mock_client,
         ),
     ):
