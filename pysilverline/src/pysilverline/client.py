@@ -530,7 +530,7 @@ class SilverlineClient:
 
     async def _request(self, cmd: int, body: dict[str, Any]) -> Frame:
         if not self.connected:
-            raise CannotConnect("not connected")
+            await self.connect()
         loop = asyncio.get_running_loop()
         future: asyncio.Future[Frame] = loop.create_future()
 
@@ -575,6 +575,8 @@ class SilverlineClient:
         reader = self._reader
         if reader is None:
             return
+        peer_closed = False
+        drop_connection = False
         try:
             while not self._closing:
                 try:
@@ -584,6 +586,7 @@ class SilverlineClient:
                     break
                 if not chunk:
                     _LOGGER.debug("connection closed by peer")
+                    peer_closed = True
                     break
                 buf.extend(chunk)
                 if len(buf) > _MAX_READ_BUFFER:
@@ -593,8 +596,8 @@ class SilverlineClient:
                         _MAX_READ_BUFFER,
                     )
                     self._close_writer()
+                    drop_connection = True
                     break
-                drop_connection = False
                 while len(buf) >= 18:
                     try:
                         frame, remainder = self._codec.decode(bytes(buf))
@@ -631,6 +634,23 @@ class SilverlineClient:
                 if not fut.done():
                     fut.set_exception(CannotConnect("connection lost"))
             self._pending.clear()
+            if (
+                self._detected_version == "3.4"
+                and peer_closed
+                and not drop_connection
+                and not self._closing
+            ):
+                # TinyTuya's default v3.4 flow treats sockets as
+                # request-scoped. The WBR3 pool firmware mirrors that by
+                # closing TCP after a response. Keep entities available and
+                # reconnect lazily on the next request instead of surfacing a
+                # one-second unavailable blip every poll.
+                writer = self._writer
+                if writer is not None:
+                    _close_writer_silent(writer)
+                self._reader = None
+                self._writer = None
+                return
             self._on_connection_dropped()
 
     def _take_pending(self, cmd: int, seq: int) -> asyncio.Future[Frame] | None:

@@ -47,10 +47,13 @@ def _build_frame_34(
 class FakeTuya34Server:
     """TCP server speaking Tuya v3.4 — mirrors FakeTuya35Server key timing."""
 
-    def __init__(self, *, retcode_in_resp: bool = False) -> None:
+    def __init__(
+        self, *, retcode_in_resp: bool = False, close_after_response: bool = False
+    ) -> None:
         self.handlers: dict[int, Any] = {}
         self.received: list[tuple[int, int, dict[str, Any]]] = []
         self._retcode_in_resp = retcode_in_resp
+        self._close_after_response = close_after_response
         self._server: asyncio.base_events.Server | None = None
         self.port: int = 0
         self.finish_decoded_with_real_key = False
@@ -133,6 +136,8 @@ class FakeTuya34Server:
                             if response is not None:
                                 writer.write(response)
                                 await writer.drain()
+                                if self._close_after_response:
+                                    return
         finally:
             writer.close()
 
@@ -190,6 +195,39 @@ async def test_v34_pinned_handshake_and_get_status() -> None:
             assert client.detected_version == "3.4"
             state = await client.get_status()
             assert state.power is False
+        finally:
+            await client.disconnect()
+
+
+async def test_v34_peer_close_after_query_is_silent_and_next_poll_reconnects() -> None:
+    async with FakeTuya34Server(close_after_response=True) as server:
+        server.handlers[const.CMD_DP_QUERY] = _dp_query_handler(
+            {"1": True, "4": "Heat", "3": 29, "2": 30}
+        )
+        client = SilverlineClient(
+            host="127.0.0.1",
+            port=server.port,
+            device_id=DEVICE_ID,
+            local_key=KEY,
+            protocol_version="3.4",
+            request_timeout=2.0,
+        )
+        connection_events: list[bool] = []
+        client.add_connection_listener(connection_events.append)
+        await client.connect()
+        try:
+            state = await client.get_status()
+            assert state.power is True
+            # Let the read loop observe the peer's clean post-response close.
+            await asyncio.sleep(0)
+            await asyncio.sleep(0)
+            assert connection_events == [True]
+            assert client.connected is False
+
+            state = await client.get_status()
+            assert state.temp_current == 29
+            assert server.connections == 2
+            assert connection_events == [True, True]
         finally:
             await client.disconnect()
 
