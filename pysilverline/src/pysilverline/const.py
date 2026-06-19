@@ -42,6 +42,15 @@ CMDS_WITHOUT_HEADER_V34: Final = frozenset(
     }
 )
 
+# v3.4 handshake: START (16-byte nonce) and FINISH (32-byte HMAC) are sent
+# cleartext; only SESS_KEY_NEG_RESP from the device is AES-encrypted.
+CMDS_CLEARTEXT_PAYLOAD_V34: Final = frozenset(
+    {
+        SESS_KEY_NEG_START,
+        SESS_KEY_NEG_FINISH,
+    }
+)
+
 DP_POWER: Final = 1
 DP_TEMP_SET: Final = 2
 DP_TEMP_CURRENT: Final = 3

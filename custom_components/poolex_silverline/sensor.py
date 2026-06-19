@@ -170,7 +170,7 @@ SENSORS: tuple[SilverlineSensorDescription, ...] = (
         native_unit_of_measurement=UnitOfFrequency.HERTZ,
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda d: d.actual_frequency,
-        dp_keys=("107",),
+        dp_keys=("108",),
     ),
     SilverlineSensorDescription(
         key="eev_steps",

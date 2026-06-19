@@ -320,22 +320,25 @@ class Frame34Codec:
 
     def encode(self, cmd: int, body: dict[str, Any]) -> bytes:
         plaintext = json.dumps(body, separators=(",", ":")).encode("utf-8")
-        return self._build_frame(cmd, plaintext)
+        return self._build_frame(cmd, plaintext, encrypt=True)
 
     def encode_raw(self, cmd: int, payload: bytes) -> bytes:
-        """Build a 55AA frame with a raw bytes payload (for handshake)."""
-        return self._build_frame(cmd, payload)
+        """Build a 55AA frame with a cleartext payload (v3.4 handshake)."""
+        return self._build_frame(cmd, payload, encrypt=False)
 
-    def _build_frame(self, cmd: int, plaintext: bytes) -> bytes:
+    def _build_frame(self, cmd: int, plaintext: bytes, *, encrypt: bool) -> bytes:
         if cmd not in const.CMDS_WITHOUT_HEADER_V34:
             blob = const.PROTOCOL_34_HEADER + plaintext
         else:
             blob = plaintext
-        ciphertext = aes_encrypt(blob, self._key)
+        if encrypt and cmd not in const.CMDS_CLEARTEXT_PAYLOAD_V34:
+            body_bytes_payload = aes_encrypt(blob, self._key)
+        else:
+            body_bytes_payload = blob
         seq = self.next_seq()
-        size = len(ciphertext) + self._FOOTER_SIZE
+        size = len(body_bytes_payload) + self._FOOTER_SIZE
         header = struct.pack(_HEADER_FMT, const.FRAME_PREFIX, seq, cmd, size)
-        body_bytes = header + ciphertext
+        body_bytes = header + body_bytes_payload
         mac = hmac.new(self._key, body_bytes, hashlib.sha256).digest()
         return body_bytes + struct.pack(self._FOOTER_FMT, mac, const.FRAME_SUFFIX)
 
@@ -369,12 +372,12 @@ class Frame34Codec:
             retcode = struct.unpack(
                 ">I", data[_HEADER_SIZE : _HEADER_SIZE + self._RETCODE_SIZE]
             )[0]
-            ciphertext = data[
+            payload_bytes = data[
                 _HEADER_SIZE + self._RETCODE_SIZE : authenticated_end
             ]
         else:
             retcode = 0
-            ciphertext = data[_HEADER_SIZE:authenticated_end]
+            payload_bytes = data[_HEADER_SIZE:authenticated_end]
 
         expected_mac = hmac.new(
             self._key, data[:authenticated_end], hashlib.sha256
@@ -382,10 +385,13 @@ class Frame34Codec:
         if not hmac.compare_digest(mac, expected_mac):
             raise InvalidAuth("HMAC mismatch — local_key likely wrong")
 
-        try:
-            decrypted = aes_decrypt(ciphertext, self._key)
-        except (ProtocolError, ValueError) as err:
-            raise InvalidAuth("decryption failed — local_key likely wrong") from err
+        if cmd in const.CMDS_CLEARTEXT_PAYLOAD_V34:
+            decrypted = payload_bytes
+        else:
+            try:
+                decrypted = aes_decrypt(payload_bytes, self._key)
+            except (ProtocolError, ValueError) as err:
+                raise InvalidAuth("decryption failed — local_key likely wrong") from err
 
         if decrypted.startswith(const.PROTOCOL_34_HEADER):
             decrypted = decrypted[len(const.PROTOCOL_34_HEADER) :]

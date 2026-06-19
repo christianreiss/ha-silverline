@@ -70,8 +70,22 @@ def test_frame34_encode_raw_roundtrip() -> None:
     codec = Frame34Codec(KEY)
     nonce = b"\xab" * 16
     wire = codec.encode_raw(const.SESS_KEY_NEG_START, nonce)
+    _, _, cmd, size = struct.unpack(">IIII", wire[:16])
+    assert cmd == const.SESS_KEY_NEG_START
+    assert size == 16 + Frame34Codec._FOOTER_SIZE
     frame, _ = codec.decode(wire, cleartext_retcode=False)
     assert frame.payload[-16:] == nonce
+
+
+def test_frame34_handshake_finish_is_cleartext() -> None:
+    codec = Frame34Codec(KEY)
+    finish = b"\xcd" * 32
+    wire = codec.encode_raw(const.SESS_KEY_NEG_FINISH, finish)
+    _, _, cmd, size = struct.unpack(">IIII", wire[:16])
+    assert cmd == const.SESS_KEY_NEG_FINISH
+    assert size == 32 + Frame34Codec._FOOTER_SIZE
+    frame, _ = codec.decode(wire, cleartext_retcode=False)
+    assert frame.payload[-32:] == finish
 
 
 def test_frame34_session_key_update() -> None:
