@@ -22,7 +22,7 @@ from homeassistant.helpers.typing import ConfigType
 from pysilverline import SilverlineClient, discover
 from pysilverline.layouts import layout_for_model
 
-from .const import CONF_DEVICE_ID, CONF_LOCAL_KEY, CONF_PROTOCOL_VERSION, DOMAIN
+from .const import CONF_DEVICE_ID, CONF_LOCAL_KEY, CONF_MODEL, CONF_PROTOCOL_VERSION, DOMAIN
 from .coordinator import SilverlineConfigEntry, SilverlineCoordinator
 
 _LOGGER = logging.getLogger(__name__)
