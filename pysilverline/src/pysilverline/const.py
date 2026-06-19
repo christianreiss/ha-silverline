@@ -30,7 +30,7 @@ CMD_CONTROL: Final = 0x07
 CMD_STATUS: Final = 0x08
 CMD_HEART_BEAT: Final = 0x09
 CMD_DP_QUERY: Final = 0x0A
-CMD_CONTROL_NEW: Final = 0x0D   # v3.4 "device22" control write (protocol:5 wrapper)
+CMD_CONTROL_NEW: Final = 0x0D  # v3.4 "device22" control write (protocol:5 wrapper)
 CMD_DP_QUERY_NEW: Final = 0x10
 CMD_DP_REFRESH: Final = 0x12
 
@@ -59,9 +59,9 @@ DP_TEMP_SET: Final = 2
 DP_TEMP_CURRENT: Final = 3
 DP_MODE: Final = 4
 DP_FAULT: Final = 13
-DP_SUCTION_TEMP: Final = 101   # compressor suction / return-gas temperature (°C)
-DP_AMBIENT_TEMP: Final = 102   # outdoor ambient air temperature (°C)
-DP_POOL_TEMP: Final = 103      # pool water temperature (°C)
+DP_SUCTION_TEMP: Final = 101  # compressor suction / return-gas temperature (°C)
+DP_AMBIENT_TEMP: Final = 102  # outdoor ambient air temperature (°C)
+DP_POOL_TEMP: Final = 103  # pool water temperature (°C)
 DP_DISCHARGE_TEMP: Final = 104  # compressor discharge / hot-gas temperature (°C)
 DP_INLET_TEMP: Final = 105
 DP_OUTLET_TEMP: Final = 106
@@ -74,13 +74,13 @@ DP_WATER_PUMP: Final = 111
 # Meanings are inferred from refrigeration engineering and cross-checked
 # against measured operating conditions — treat as confirmed once a user
 # verifies the values make sense on their device.
-DP_CONDENSING_TEMP: Final = 124   # refrigerant high-side saturation temp (°C)
+DP_CONDENSING_TEMP: Final = 124  # refrigerant high-side saturation temp (°C)
 DP_EVAPORATING_TEMP: Final = 133  # refrigerant low-side saturation temp (°C)
-DP_SUPERHEAT: Final = 132         # compressor suction superheat (°C, can be negative)
-DP_COMPRESSOR_LOAD: Final = 140   # compressor load (%)
-DP_TOTAL_HOURS: Final = 120       # cumulative operating hours since first power-on
+DP_SUPERHEAT: Final = 132  # compressor suction superheat (°C, can be negative)
+DP_COMPRESSOR_LOAD: Final = 140  # compressor load (%)
+DP_TOTAL_HOURS: Final = 120  # cumulative operating hours since first power-on
 DP_TARGET_SUPERHEAT: Final = 137  # EEV target superheat setpoint (°C)
-DP_TARGET_CONDENSING: Final = 142 # high-side condensing temperature setpoint (°C)
+DP_TARGET_CONDENSING: Final = 142  # high-side condensing temperature setpoint (°C)
 
 #: Symbolic short names for the fault bitmap on DP 13. Stable across firmware
 #: variants — picked to read clearly in entity ids / sensor states without

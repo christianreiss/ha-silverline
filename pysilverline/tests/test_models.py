@@ -78,9 +78,7 @@ def test_from_dps_accepts_zero_int_for_water_pump_as_false() -> None:
 def test_from_dps_extracts_fi150_refrigerant_dps() -> None:
     """Extended diagnostic DPs observed on FI 150 firmware map correctly,
     including negative values for evaporating temp and superheat."""
-    state = DeviceState.from_dps(
-        {"124": 45, "133": -8, "132": -1, "140": 80}
-    )
+    state = DeviceState.from_dps({"124": 45, "133": -8, "132": -1, "140": 80})
     assert state.condensing_temp == 45
     assert state.evaporating_temp == -8
     assert state.superheat == -1

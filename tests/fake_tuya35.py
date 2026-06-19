@@ -115,9 +115,7 @@ class FakeTuya35Server:
                         self.queries += 1
                         payload = (
                             struct.pack(">I", 0)
-                            + json.dumps(
-                                {"devId": DEVICE_ID, "dps": self.dps}
-                            ).encode()
+                            + json.dumps({"devId": DEVICE_ID, "dps": self.dps}).encode()
                         )
                         writer.write(
                             _encode_35(

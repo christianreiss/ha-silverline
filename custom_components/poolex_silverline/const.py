@@ -30,8 +30,9 @@ DEVICE_PROFILES: Final[dict[str, DeviceProfile]] = {
     ),
     "jetline_fi": DeviceProfile(
         display_name="Poolex JetLine Selection FI",
-        known_dps=frozenset({1, 2, 3, 4, 13, 101, 102, 103, 104, 105, 106,
-                              107, 108, 109, 110, 111}),
+        known_dps=frozenset(
+            {1, 2, 3, 4, 13, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111}
+        ),
     ),
     "brustec_br80": DeviceProfile(
         display_name="Brustec BR-80",
@@ -56,9 +57,28 @@ DEVICE_PROFILES: Final[dict[str, DeviceProfile]] = {
         display_name="Poolex Silverline (Tuya v3.4 / wfzeiyn1ed3axxde)",
         known_dps=frozenset(
             {
-                1, 2, 3, 4, 13,
-                101, 102, 103, 105, 106, 108, 109, 110, 111, 114,
-                120, 124, 132, 133, 137, 140, 142,
+                1,
+                2,
+                3,
+                4,
+                13,
+                101,
+                102,
+                103,
+                105,
+                106,
+                108,
+                109,
+                110,
+                111,
+                114,
+                120,
+                124,
+                132,
+                133,
+                137,
+                140,
+                142,
             }
         ),
     ),

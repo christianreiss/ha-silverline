@@ -69,7 +69,9 @@ async def test_diagnostics_last_exception_does_not_leak_host(
     # (CannotConnect(f"connect {host}:{port}: ...")) and the coordinator
     # re-wraps it. async_redact_data scrubs by key, not substring, so a raw
     # string would leak the IP.
-    coordinator.last_exception = RuntimeError(f"poll failed: connect {HOST}:6668: timeout")
+    coordinator.last_exception = RuntimeError(
+        f"poll failed: connect {HOST}:6668: timeout"
+    )
 
     diag = await get_diagnostics_for_config_entry(hass, hass_client, init_integration)
 

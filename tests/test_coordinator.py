@@ -152,7 +152,7 @@ async def test_connection_change_logs_lost_and_restored(
 
 async def test_known_model_pre_populates_supported_dps(
     hass: HomeAssistant,
-    mock_client_factory: "MagicMock",  # type: ignore[name-defined]
+    mock_client_factory,
 ) -> None:
     """A config entry with CONF_MODEL='pc_slp090n' should pre-populate
     supported_dps with the 5 known DPs so entities register before first poll.
@@ -179,14 +179,15 @@ async def test_known_model_pre_populates_supported_dps(
 
     coordinator = entry.runtime_data
     expected = frozenset(
-        str(dp) for dp in DEVICE_PROFILES["pc_slp090n"].known_dps  # type: ignore[arg-type]
+        str(dp)
+        for dp in DEVICE_PROFILES["pc_slp090n"].known_dps  # type: ignore[arg-type]
     )
     assert coordinator.supported_dps == expected
 
 
 async def test_unknown_model_leaves_supported_dps_empty(
     hass: HomeAssistant,
-    mock_client_factory: "MagicMock",  # type: ignore[name-defined]
+    mock_client_factory,
 ) -> None:
     """CONF_MODEL='other' (known_dps=None) leaves supported_dps empty until
     the first poll populates it."""

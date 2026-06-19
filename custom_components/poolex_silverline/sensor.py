@@ -525,11 +525,7 @@ async def async_setup_entry(
     supported = coordinator.supported_dps
     # The v3.4 wfzeiyn firmware renumbers its DPs, so it gets a dedicated
     # catalog; every other model uses the legacy numbering.
-    catalog = (
-        V34_SENSORS
-        if entry.data.get(CONF_MODEL) == "silverline_v34"
-        else SENSORS
-    )
+    catalog = V34_SENSORS if entry.data.get(CONF_MODEL) == "silverline_v34" else SENSORS
     async_add_entities(
         SilverlineSensor(coordinator, description)
         for description in catalog

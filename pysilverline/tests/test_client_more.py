@@ -995,7 +995,7 @@ async def test_reconnect_gives_up_after_backoff_exhausted(
         port=port,
         device_id=DEVICE_ID,
         local_key=KEY,
-            protocol_version="3.3",
+        protocol_version="3.3",
         request_timeout=0.1,
     )
     await client.connect()

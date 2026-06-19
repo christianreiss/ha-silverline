@@ -512,7 +512,9 @@ async def test_model_step_reconfigure_updates_model(
     """Reconfigure flow reaches model step and updates the entry model."""
     config_entry.add_to_hass(hass)
     result = await config_entry.start_reconfigure_flow(hass)
-    result = await hass.config_entries.flow.async_configure(result["flow_id"], ENTRY_DATA)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], ENTRY_DATA
+    )
     assert result["step_id"] == "model"
 
     result = await _submit_model_step(hass, result["flow_id"], "jetline_fi")

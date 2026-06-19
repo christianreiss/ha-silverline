@@ -24,7 +24,13 @@ from pysilverline import (
     const as tuya_const,
 )
 
-from .const import CONF_MODEL, DEFAULT_SCAN_INTERVAL, DEVICE_PROFILES, DOMAIN, E03_DEBOUNCE_SECONDS
+from .const import (
+    CONF_MODEL,
+    DEFAULT_SCAN_INTERVAL,
+    DEVICE_PROFILES,
+    DOMAIN,
+    E03_DEBOUNCE_SECONDS,
+)
 
 # Fault-bit severity for Repair issues. Operational faults (water flow,
 # antifreeze, pressure) need user attention now; sensor and comms faults

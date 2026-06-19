@@ -254,7 +254,9 @@ class SilverlineClient:
             # the next protocol. The penalty is paid once: the detected version
             # sticks and future reconnects skip straight to it.
             _close_writer_silent(writer)
-            _LOGGER.debug("v%s probe failed for %s; trying next protocol", ver, self.host)
+            _LOGGER.debug(
+                "v%s probe failed for %s; trying next protocol", ver, self.host
+            )
             reader, writer = await self._open_tcp()
 
         self._codec = self._codec_33
@@ -720,9 +722,7 @@ class SilverlineClient:
                         # the same desync, not a reauth trigger. Either way there
                         # is no safe recovery from mid-stream garbage: drop and
                         # let the reconnect path re-establish a fresh session.
-                        _LOGGER.warning(
-                            "dropping connection on bad frame: %s", err
-                        )
+                        _LOGGER.warning("dropping connection on bad frame: %s", err)
                         buf.clear()
                         drop_connection = True
                         break

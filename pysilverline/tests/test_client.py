@@ -335,7 +335,7 @@ async def test_connect_failure_raises_cannot_connect() -> None:
         port=1,  # nothing listens on port 1
         device_id=DEVICE_ID,
         local_key=KEY,
-            protocol_version="3.3",
+        protocol_version="3.3",
         request_timeout=0.5,
     )
     with pytest.raises(CannotConnect):
@@ -348,7 +348,7 @@ async def test_request_before_connect_raises() -> None:
         port=1,
         device_id=DEVICE_ID,
         local_key=KEY,
-            protocol_version="3.3",
+        protocol_version="3.3",
     )
     with pytest.raises(CannotConnect):
         await client.get_status()

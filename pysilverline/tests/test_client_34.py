@@ -96,7 +96,9 @@ class FakeTuya34Server:
             self._server.close()
             await self._server.wait_closed()
 
-    async def push(self, cmd: int, body: dict[str, Any], *, retcode: int | None) -> None:
+    async def push(
+        self, cmd: int, body: dict[str, Any], *, retcode: int | None
+    ) -> None:
         """Send a spontaneous frame under the session key.
 
         Real v3.4 firmware encrypts the version header inside STATUS pushes (the
@@ -105,9 +107,7 @@ class FakeTuya34Server:
         if self._writer is None or self.session_key is None:
             raise RuntimeError("push before handshake complete")
         plaintext = const.PROTOCOL_34_HEADER + json.dumps(body).encode()
-        wire = _encode_34(
-            0x9999, cmd, plaintext, self.session_key, retcode=retcode
-        )
+        wire = _encode_34(0x9999, cmd, plaintext, self.session_key, retcode=retcode)
         self._writer.write(wire)
         await self._writer.drain()
 
@@ -155,9 +155,9 @@ class FakeTuya34Server:
 
                     if frame.cmd == const.SESS_KEY_NEG_START:
                         local_nonce = aes_decrypt(frame.payload, KEY_B)
-                        inner = REMOTE_NONCE + hmac.new(
-                            KEY_B, local_nonce, _SHA
-                        ).digest()
+                        inner = (
+                            REMOTE_NONCE + hmac.new(KEY_B, local_nonce, _SHA).digest()
+                        )
                         resp_key = self._resp_key or KEY_B
                         writer.write(
                             _encode_34(
@@ -222,9 +222,10 @@ def _control_new_handler() -> Any:
     """Ack a CONTROL_NEW write with a dedicated CONTROL_NEW frame (retcode 0)."""
 
     def handler(seq: int, body: dict[str, Any], session_key: bytes) -> bytes:
-        payload = const.PROTOCOL_34_HEADER + json.dumps(
-            {"dps": _dps_from_control_new(body)}
-        ).encode()
+        payload = (
+            const.PROTOCOL_34_HEADER
+            + json.dumps({"dps": _dps_from_control_new(body)}).encode()
+        )
         return _encode_34(seq, const.CMD_CONTROL_NEW, payload, session_key, retcode=0)
 
     return handler
@@ -372,7 +373,9 @@ async def test_v34_push_is_dispatched_to_listener(with_retcode: bool) -> None:
         try:
             await client.get_status()  # establishes session_key on the server
             await server.push(
-                const.CMD_STATUS, {"dps": {"3": 31}}, retcode=0 if with_retcode else None
+                const.CMD_STATUS,
+                {"dps": {"3": 31}},
+                retcode=0 if with_retcode else None,
             )
             for _ in range(50):
                 if seen:
