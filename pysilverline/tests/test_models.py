@@ -93,3 +93,51 @@ def test_from_dps_rejects_bool_for_int_field() -> None:
     can't silently land in a numeric field as 0 or 1."""
     state = DeviceState.from_dps({"108": True})
     assert state.actual_frequency is None
+
+
+def test_from_dps_v34_layout_remaps_dp_numbers() -> None:
+    """The wfzeiyn v3.4 firmware renumbers DPs: a custom layout reads each
+    semantic field from the right wire DP instead of the legacy number."""
+    from pysilverline.layouts import LAYOUT_V34_WFZEIYN
+
+    # Wire values keyed by the v3.4 DP numbers (fan on 114, suction on 106,
+    # outlet on 101, aux valve on 110, indoor coil on 108, etc.).
+    dps = {
+        "101": 28,  # outlet water temp
+        "102": 18,  # ambient
+        "103": 26,  # pool
+        "105": 12,  # outdoor coil
+        "106": 70,  # return gas / suction
+        "108": 40,  # indoor coil
+        "109": 240,  # main valve / eev
+        "110": 130,  # aux valve
+        "111": 850,  # circulation pump rpm
+        "114": 600,  # fan speed
+    }
+    state = DeviceState.from_dps(dps, layout=LAYOUT_V34_WFZEIYN)
+
+    assert state.outlet_temp == 28
+    assert state.suction_temp == 70  # DP 106, not 101
+    assert state.outdoor_coil_temp == 12  # DP 105 (None on legacy layout)
+    assert state.indoor_coil_temp == 40  # DP 108
+    assert state.eev_steps == 240  # DP 109 (main valve)
+    assert state.aux_valve_opening == 130  # DP 110 (None on legacy layout)
+    assert state.water_pump_rpm == 850  # DP 111 as an int
+    assert state.fan_speed == 600  # DP 114, not DP 110
+    # DPs this firmware does not expose stay None even though legacy DP
+    # numbers (104/105/107/108) carry data on other firmwares.
+    assert state.discharge_temp is None
+    assert state.inlet_temp is None
+    assert state.target_frequency is None
+    assert state.actual_frequency is None
+
+
+def test_from_dps_default_layout_unchanged_by_v34_fields() -> None:
+    """The legacy default layout leaves the new v3.4-only fields None and keeps
+    fan on DP 110 — backward compatibility for existing devices."""
+    state = DeviceState.from_dps({"110": 500, "111": True})
+    assert state.fan_speed == 500  # legacy fan DP
+    assert state.aux_valve_opening is None
+    assert state.outdoor_coil_temp is None
+    assert state.indoor_coil_temp is None
+    assert state.water_pump is True

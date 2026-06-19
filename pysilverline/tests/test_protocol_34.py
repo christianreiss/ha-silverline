@@ -254,6 +254,28 @@ def test_frame34_split_response_no_retcode_for_status() -> None:
     assert body == ciphertext
 
 
+def test_frame34_split_response_control_new_bare_ack() -> None:
+    """A v3.4 CONTROL_NEW ACK can be a bare 4-byte retcode with no JSON body.
+
+    The %16==4 heuristic peels the retcode and leaves an empty ciphertext, so
+    decrypt_body(b"") returns {} — set_multiple only needs retcode == 0.
+    """
+    codec = Frame34Codec(KEY)
+    rc, body = codec.split_response_payload(const.CMD_CONTROL_NEW, struct.pack(">I", 0))
+    assert rc == 0
+    assert body == b""
+    assert codec.decrypt_body(body) == {}
+
+
+def test_frame34_split_response_control_new_with_body() -> None:
+    codec = Frame34Codec(KEY)
+    ciphertext = aes_encrypt(b'{"dps":{"2":28}}', KEY_B)
+    payload = struct.pack(">I", 0) + ciphertext
+    rc, body = codec.split_response_payload(const.CMD_CONTROL_NEW, payload)
+    assert rc == 0
+    assert body == ciphertext
+
+
 def test_frame34_split_request_strips_retcode_when_misaligned() -> None:
     codec = Frame34Codec(KEY)
     ciphertext = aes_encrypt(b'{"dps":{"3":31}}', KEY_B)

@@ -65,6 +65,7 @@ _KNOWN_POOLEX_PRODUCT_KEYS: frozenset[str] = frozenset(
         "wgpg4qdqg8dd3xtx",  # Brustec BR-80
         "qrlLaHWwIsZsV31f",  # Phalén Calidi XP
         "bf911310efade7bc43mzsm",  # Nulite (house-heating sibling)
+        "wfzeiyn1ed3axxde",  # Poolex Silverline (Tuya v3.4 firmware, 2026) — @olomouckyorel
     }
 )
 

@@ -81,6 +81,9 @@ class FakeTuya34Server:
         self.session_key: bytes | None = None
         self.connections = 0
         self.drop_after_handshake = False
+        # When True, close the TCP connection right after sending the first data
+        # response — mirrors the real v3.4 WBR3 firmware's request-scoped socket.
+        self.close_after_response = False
         self._writer: asyncio.StreamWriter | None = None
 
     async def __aenter__(self) -> "FakeTuya34Server":
@@ -94,11 +97,16 @@ class FakeTuya34Server:
             await self._server.wait_closed()
 
     async def push(self, cmd: int, body: dict[str, Any], *, retcode: int | None) -> None:
-        """Send a spontaneous frame under the session key."""
+        """Send a spontaneous frame under the session key.
+
+        Real v3.4 firmware encrypts the version header inside STATUS pushes (the
+        cmd is not header-less), so the fake does too — exercising the client's
+        post-decrypt header strip on the push path."""
         if self._writer is None or self.session_key is None:
             raise RuntimeError("push before handshake complete")
+        plaintext = const.PROTOCOL_34_HEADER + json.dumps(body).encode()
         wire = _encode_34(
-            0x9999, cmd, json.dumps(body).encode(), self.session_key, retcode=retcode
+            0x9999, cmd, plaintext, self.session_key, retcode=retcode
         )
         self._writer.write(wire)
         await self._writer.drain()
@@ -186,6 +194,9 @@ class FakeTuya34Server:
                             if response is not None:
                                 writer.write(response)
                                 await writer.drain()
+                        if self.close_after_response:
+                            # Real v3.4 firmware hangs up after each response.
+                            return
         finally:
             writer.close()
 
@@ -199,14 +210,36 @@ def _dp_query_handler(dps: dict[str, Any]) -> Any:
     return handler
 
 
-def _control_handler() -> Any:
+def _dps_from_control_new(body: dict[str, Any]) -> dict[str, Any]:
+    """Pull the dps out of a v3.4 CONTROL_NEW (protocol:5) write body."""
+    data = body.get("data")
+    if isinstance(data, dict) and isinstance(data.get("dps"), dict):
+        return data["dps"]
+    return body.get("dps", {})
+
+
+def _control_new_handler() -> Any:
+    """Ack a CONTROL_NEW write with a dedicated CONTROL_NEW frame (retcode 0)."""
+
     def handler(seq: int, body: dict[str, Any], session_key: bytes) -> bytes:
-        # CONTROL responses carry the inner version header — proves the client's
-        # decrypt_body strips it on the response path too.
         payload = const.PROTOCOL_34_HEADER + json.dumps(
-            {"dps": body.get("dps", {})}
+            {"dps": _dps_from_control_new(body)}
         ).encode()
-        return _encode_34(seq, const.CMD_CONTROL, payload, session_key, retcode=0)
+        return _encode_34(seq, const.CMD_CONTROL_NEW, payload, session_key, retcode=0)
+
+    return handler
+
+
+def _control_new_ack_via_status_handler() -> Any:
+    """Ack a CONTROL_NEW write by echoing state via a STATUS push instead of a
+    dedicated ACK — the common real-device behavior. The STATUS push carries a
+    device-global seqno (not the request's) and the ``data.dps`` wrapper, so it
+    exercises the client's cmd-fallback correlation and data.dps unwrapping."""
+
+    def handler(seq: int, body: dict[str, Any], session_key: bytes) -> bytes:
+        dps = _dps_from_control_new(body)
+        payload = const.PROTOCOL_34_HEADER + json.dumps({"data": {"dps": dps}}).encode()
+        return _encode_34(0xB00C, const.CMD_STATUS, payload, session_key, retcode=0)
 
     return handler
 
@@ -267,10 +300,10 @@ async def test_v34_pinned_handshake_and_get_status() -> None:
             await client.disconnect()
 
 
-async def test_v34_set_multiple_round_trip() -> None:
-    """A CONTROL command negotiates and is accepted over v3.4 (header inside ct)."""
+async def test_v34_set_multiple_uses_control_new() -> None:
+    """v3.4 writes go via CONTROL_NEW (0x0D) with a protocol:5 / data.dps body."""
     async with FakeTuya34Server() as server:
-        server.handlers[const.CMD_CONTROL] = _control_handler()
+        server.handlers[const.CMD_CONTROL_NEW] = _control_new_handler()
         client = SilverlineClient(
             host="127.0.0.1",
             port=server.port,
@@ -282,13 +315,39 @@ async def test_v34_set_multiple_round_trip() -> None:
         await client.connect()
         try:
             await client.set_multiple({const.DP_TEMP_SET: 28, const.DP_POWER: True})
-            controls = [r for r in server.received if r[1] == const.CMD_CONTROL]
+            # The device received exactly one CONTROL_NEW (not legacy CONTROL),
+            # carrying both DPs inside the protocol:5 data.dps wrapper.
+            controls = [r for r in server.received if r[1] == const.CMD_CONTROL_NEW]
             assert len(controls) == 1
-            # The device decrypted the CONTROL body — inner header stripped,
-            # both DPs present.
-            assert controls[0][2]["dps"] == {"2": 28, "1": True}
+            assert not [r for r in server.received if r[1] == const.CMD_CONTROL]
+            body = controls[0][2]
+            assert body["protocol"] == 5
+            assert body["data"]["dps"] == {"2": 28, "1": True}
+            # Optimistic local merge reflects the write.
             assert client.state.temp_set == 28
             assert client.state.power is True
+        finally:
+            await client.disconnect()
+
+
+async def test_v34_set_multiple_acked_via_status_push() -> None:
+    """A v3.4 device that acks a write with a STATUS push (not a CONTROL_NEW
+    frame) still resolves the write — the client correlates the push to the
+    outstanding CONTROL_NEW by cmd and unwraps the data.dps echo."""
+    async with FakeTuya34Server() as server:
+        server.handlers[const.CMD_CONTROL_NEW] = _control_new_ack_via_status_handler()
+        client = SilverlineClient(
+            host="127.0.0.1",
+            port=server.port,
+            device_id=DEVICE_ID,
+            local_key=KEY,
+            protocol_version="3.4",
+            request_timeout=2.0,
+        )
+        await client.connect()
+        try:
+            await client.set_multiple({const.DP_TEMP_SET: 29})
+            assert client.state.temp_set == 29
         finally:
             await client.disconnect()
 
@@ -325,11 +384,18 @@ async def test_v34_push_is_dispatched_to_listener(with_retcode: bool) -> None:
             await client.disconnect()
 
 
-async def test_v34_reconnect_rehandshakes() -> None:
-    """On reconnect the codec resets to the real key and negotiates afresh."""
+async def test_v34_lazy_reconnect_after_idle_close() -> None:
+    """The v3.4 device closes TCP after each response; the client reconnects
+    lazily on the next poll and re-handshakes, without flapping 'unavailable'.
+
+    Proves the request-scoped socket lifecycle: a clean peer-close is treated as
+    idle (no connection-lost notification), and the next get_status transparently
+    opens a fresh connection (connection count climbs each poll).
+    """
     async with FakeTuya34Server() as server:
-        server.drop_after_handshake = True
-        server.handlers[const.CMD_DP_QUERY] = _dp_query_handler({"1": True})
+        server.close_after_response = True
+        server.handlers[const.CMD_DP_QUERY] = _dp_query_handler({"1": True, "3": 26})
+        lost: list[bool] = []
         client = SilverlineClient(
             host="127.0.0.1",
             port=server.port,
@@ -338,17 +404,22 @@ async def test_v34_reconnect_rehandshakes() -> None:
             protocol_version="3.4",
             request_timeout=2.0,
         )
+        client.add_connection_listener(lambda up: lost.append(up))
         await client.connect()
         try:
-            # First connection drops right after its handshake; the client must
-            # reconnect and negotiate a fresh session key on connection #2.
-            for _ in range(100):
-                if server.connections >= 2 and client.connected:
+            # First poll on connection #1.
+            assert (await client.get_status()).temp_current == 26
+            # Give the read loop a moment to observe the device's idle close.
+            for _ in range(50):
+                if not client.connected:
                     break
-                await asyncio.sleep(0.05)
+                await asyncio.sleep(0.02)
+            assert not client.connected  # socket torn down quietly
+            # Second poll must transparently re-open + re-handshake (connection #2).
+            assert (await client.get_status()).temp_current == 26
             assert server.connections >= 2
-            state = await client.get_status()
-            assert state.power is True
+            # The idle close must NOT have surfaced as a connection-lost (False).
+            assert False not in lost
         finally:
             await client.disconnect()
 

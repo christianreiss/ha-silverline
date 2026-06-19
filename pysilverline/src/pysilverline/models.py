@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from . import const
+from .layouts import LAYOUT_STANDARD, DpLayout
 
 
 @dataclass(slots=True, kw_only=True, frozen=True)
@@ -23,11 +24,15 @@ class DeviceState:
     discharge_temp: int | None = None
     inlet_temp: int | None = None
     outlet_temp: int | None = None
+    outdoor_coil_temp: int | None = None
+    indoor_coil_temp: int | None = None
     target_frequency: int | None = None
     actual_frequency: int | None = None
     eev_steps: int | None = None
     fan_speed: int | None = None
+    aux_valve_opening: int | None = None
     water_pump: bool | None = None
+    water_pump_rpm: int | None = None
     condensing_temp: int | None = None
     evaporating_temp: int | None = None
     superheat: int | None = None
@@ -38,26 +43,36 @@ class DeviceState:
     raw: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
-    def from_dps(cls, dps: dict[str, Any]) -> DeviceState:
+    def from_dps(
+        cls, dps: dict[str, Any], *, layout: DpLayout = LAYOUT_STANDARD
+    ) -> DeviceState:
         """Build a DeviceState from a Tuya `dps` mapping (string keys).
 
-        Coerces each DP through a type filter rather than trusting the
-        wire payload — a malformed frame or a firmware that ships a
-        string where we expect an int would otherwise propagate into
-        entity arithmetic (e.g. `d.temp_set - d.temp_current`) and
-        break consumers in surprising ways. The defensive choice for a
-        DP whose value does not match its declared type is to expose
-        it as None and keep the raw dict intact for diagnostics.
+        ``layout`` maps the diagnostic/sensor fields onto wire DP numbers; it
+        defaults to the legacy layout so existing callers are unaffected. A
+        firmware that does not expose a field sets it to ``None`` in the layout,
+        which yields ``None`` here regardless of what the wire carries.
+
+        Coerces each DP through a type filter rather than trusting the wire
+        payload — a malformed frame or a firmware that ships a string where we
+        expect an int would otherwise propagate into entity arithmetic and break
+        consumers in surprising ways. The defensive choice for a DP whose value
+        does not match its declared type is to expose it as None and keep the
+        raw dict intact for diagnostics.
         """
 
-        def _bool(dp: int) -> bool | None:
+        def _bool(dp: int | None) -> bool | None:
+            if dp is None:
+                return None
             value = dps.get(str(dp))
             return value if isinstance(value, bool) else None
 
-        def _pump(dp: int) -> bool | None:
+        def _pump(dp: int | None) -> bool | None:
             # Some firmware variants (e.g. FI 150) send DP 111 as an integer
             # (e.g. 320 = pump running) instead of a bool. Accept both: treat
             # non-zero int as True, zero as False.
+            if dp is None:
+                return None
             value = dps.get(str(dp))
             if isinstance(value, bool):
                 return value
@@ -65,7 +80,19 @@ class DeviceState:
                 return value != 0
             return None
 
-        def _int(dp: int) -> int | None:
+        def _pump_rpm(dp: int | None) -> int | None:
+            # Integer view of the same DP for firmwares that report pump speed
+            # (rpm) rather than a simple on/off flag.
+            if dp is None:
+                return None
+            value = dps.get(str(dp))
+            if isinstance(value, bool):
+                return None
+            return value if isinstance(value, int) else None
+
+        def _int(dp: int | None) -> int | None:
+            if dp is None:
+                return None
             value = dps.get(str(dp))
             # bool is a subclass of int in Python; reject it explicitly
             # so a power-style DP doesn't accidentally satisfy an int DP.
@@ -73,7 +100,9 @@ class DeviceState:
                 return None
             return value if isinstance(value, int) else None
 
-        def _str(dp: int) -> str | None:
+        def _str(dp: int | None) -> str | None:
+            if dp is None:
+                return None
             value = dps.get(str(dp))
             return value if isinstance(value, str) else None
 
@@ -83,29 +112,35 @@ class DeviceState:
             temp_current=_int(const.DP_TEMP_CURRENT),
             mode=_str(const.DP_MODE),
             fault=_int(const.DP_FAULT),
-            suction_temp=_int(const.DP_SUCTION_TEMP),
-            ambient_temp=_int(const.DP_AMBIENT_TEMP),
-            pool_temp=_int(const.DP_POOL_TEMP),
-            discharge_temp=_int(const.DP_DISCHARGE_TEMP),
-            inlet_temp=_int(const.DP_INLET_TEMP),
-            outlet_temp=_int(const.DP_OUTLET_TEMP),
-            target_frequency=_int(const.DP_TARGET_FREQUENCY),
-            actual_frequency=_int(const.DP_ACTUAL_FREQUENCY),
-            eev_steps=_int(const.DP_EEV_STEPS),
-            fan_speed=_int(const.DP_FAN_SPEED),
-            water_pump=_pump(const.DP_WATER_PUMP),
-            condensing_temp=_int(const.DP_CONDENSING_TEMP),
-            evaporating_temp=_int(const.DP_EVAPORATING_TEMP),
-            superheat=_int(const.DP_SUPERHEAT),
-            compressor_load=_int(const.DP_COMPRESSOR_LOAD),
-            total_hours=_int(const.DP_TOTAL_HOURS),
-            target_superheat=_int(const.DP_TARGET_SUPERHEAT),
-            target_condensing=_int(const.DP_TARGET_CONDENSING),
+            suction_temp=_int(layout.suction_temp),
+            ambient_temp=_int(layout.ambient_temp),
+            pool_temp=_int(layout.pool_temp),
+            discharge_temp=_int(layout.discharge_temp),
+            inlet_temp=_int(layout.inlet_temp),
+            outlet_temp=_int(layout.outlet_temp),
+            outdoor_coil_temp=_int(layout.outdoor_coil_temp),
+            indoor_coil_temp=_int(layout.indoor_coil_temp),
+            target_frequency=_int(layout.target_frequency),
+            actual_frequency=_int(layout.actual_frequency),
+            eev_steps=_int(layout.eev_steps),
+            fan_speed=_int(layout.fan_speed),
+            aux_valve_opening=_int(layout.aux_valve_opening),
+            water_pump=_pump(layout.water_pump),
+            water_pump_rpm=_pump_rpm(layout.water_pump),
+            condensing_temp=_int(layout.condensing_temp),
+            evaporating_temp=_int(layout.evaporating_temp),
+            superheat=_int(layout.superheat),
+            compressor_load=_int(layout.compressor_load),
+            total_hours=_int(layout.total_hours),
+            target_superheat=_int(layout.target_superheat),
+            target_condensing=_int(layout.target_condensing),
             raw=dict(dps),
         )
 
-    def merge(self, dps: dict[str, Any]) -> DeviceState:
+    def merge(
+        self, dps: dict[str, Any], *, layout: DpLayout = LAYOUT_STANDARD
+    ) -> DeviceState:
         """Return a new state with `dps` overlaid onto the current `raw` dict."""
 
         merged = {**self.raw, **dps}
-        return DeviceState.from_dps(merged)
+        return DeviceState.from_dps(merged, layout=layout)

@@ -49,6 +49,19 @@ DEVICE_PROFILES: Final[dict[str, DeviceProfile]] = {
         display_name="Poolex Silverline FI 150",
         known_dps=None,  # live-detect; full DP set TBD once mapping is verified
     ),
+    "silverline_v34": DeviceProfile(
+        # Tuya v3.4 firmware (productKey wfzeiyn1ed3axxde). Distinct DP numbering
+        # — fan on 114, suction/outlet swapped — handled by LAYOUT_V34_WFZEIYN.
+        # Contributed by Martin Čarek (@olomouckyorel) from real hardware.
+        display_name="Poolex Silverline (Tuya v3.4 / wfzeiyn1ed3axxde)",
+        known_dps=frozenset(
+            {
+                1, 2, 3, 4, 13,
+                101, 102, 103, 105, 106, 108, 109, 110, 111, 114,
+                120, 124, 132, 133, 137, 140, 142,
+            }
+        ),
+    ),
     "other": DeviceProfile(
         display_name="Other / Unknown",
         known_dps=None,

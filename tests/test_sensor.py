@@ -365,3 +365,95 @@ async def test_entity_inventory_snapshot(
         key=lambda s: s.entity_id,
     )
     assert states == snapshot(name="entity_states")
+
+
+async def test_v34_model_selects_v34_sensor_catalog(hass: HomeAssistant) -> None:
+    """A `silverline_v34` entry builds the v3.4 sensor catalog (fan on DP 114,
+    pump rpm, coil/valve sensors keyed to the v3.4 numbering) and omits the
+    legacy-only sensors. Exercises the layout → DeviceState → catalog wiring."""
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from homeassistant.const import CONF_HOST, CONF_PORT
+    from pysilverline.layouts import LAYOUT_V34_WFZEIYN
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    from custom_components.poolex_silverline.const import (
+        CONF_DEVICE_ID,
+        CONF_LOCAL_KEY,
+        CONF_MODEL,
+        DOMAIN,
+    )
+
+    device_id = "bf12345678abcdefghijkl"
+    v34_dps = {
+        "1": True, "2": 28, "3": 26, "4": "Heat", "13": 0,
+        "101": 28, "102": 18, "103": 26, "105": 12, "106": 70,
+        "108": 40, "109": 240, "110": 130, "111": 850, "114": 600,
+        "124": 45, "133": -8, "132": 3, "140": 80, "120": 1234, "137": 5, "142": 50,
+    }
+    state = DeviceState.from_dps(v34_dps, layout=LAYOUT_V34_WFZEIYN)
+
+    client = MagicMock()
+    client.host = "10.0.0.50"
+    client.port = 6668
+    client.device_id = device_id
+    client.connected = True
+    client.state = state
+    client.detected_version = "3.4"
+    client.connect = AsyncMock(return_value=None)
+    client.disconnect = AsyncMock(return_value=None)
+    client.get_status = AsyncMock(return_value=state)
+    client.set_dp = AsyncMock(return_value=None)
+    client.set_multiple = AsyncMock(return_value=None)
+    client.add_listener = MagicMock(return_value=lambda: None)
+    client.add_connection_listener = MagicMock(return_value=lambda: None)
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=device_id,
+        data={
+            CONF_HOST: "10.0.0.50",
+            CONF_PORT: 6668,
+            CONF_DEVICE_ID: device_id,
+            CONF_LOCAL_KEY: "0123456789abcdef",
+            CONF_MODEL: "silverline_v34",
+        },
+        version=1,
+        minor_version=1,
+    )
+    entry.add_to_hass(hass)
+    with patch(
+        "custom_components.poolex_silverline.SilverlineClient", return_value=client
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    registry = er.async_get(hass)
+    sensor_keys = {
+        e.unique_id.removeprefix(f"{device_id}_")
+        for e in er.async_entries_for_config_entry(registry, entry.entry_id)
+        if e.domain == "sensor"
+    }
+    # v3.4-specific sensors are present (gated on the v3.4 DP numbers).
+    assert {
+        "fan_speed",
+        "water_pump_rpm",
+        "outdoor_coil_temperature",
+        "indoor_coil_temperature",
+        "aux_valve_opening",
+        "main_valve_opening",
+        "outlet_temperature",
+    } <= sensor_keys
+    # Legacy-only sensors are absent from the v3.4 catalog.
+    assert "inlet_temperature" not in sensor_keys
+    assert "ambient_temperature" not in sensor_keys
+    assert "actual_frequency" not in sensor_keys
+
+    # An enabled v3.4 sensor reads the right value via the layout (DP 105 →
+    # outdoor coil temperature == 12).
+    outdoor_coil = next(
+        e.entity_id
+        for e in er.async_entries_for_config_entry(registry, entry.entry_id)
+        if e.unique_id == f"{device_id}_outdoor_coil_temperature"
+    )
+    assert hass.states.get(outdoor_coil).state == "12"

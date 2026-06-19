@@ -395,9 +395,16 @@ class Frame34Codec:
         """
         retcode: int | None = None
         body = payload
-        if cmd in (const.CMD_CONTROL, const.CMD_DP_QUERY, const.CMD_DP_REFRESH):
+        if cmd in (
+            const.CMD_CONTROL,
+            const.CMD_CONTROL_NEW,
+            const.CMD_DP_QUERY,
+            const.CMD_DP_REFRESH,
+        ):
             # AES-ECB ciphertext length is always a multiple of 16; a 4-byte
-            # retcode prefix is therefore present iff len % 16 == 4.
+            # retcode prefix is therefore present iff len % 16 == 4. This also
+            # covers the v3.4 CONTROL_NEW bare-ACK (a 4-byte cleartext retcode
+            # with no JSON body → len == 4 → empty ciphertext after the peel).
             if len(body) % _BLOCK_SIZE == 4:
                 retcode = struct.unpack(">I", body[:4])[0]
                 body = body[4:]

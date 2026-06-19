@@ -53,18 +53,24 @@ only the PC-SLP090N has been verified directly against live hardware.
 | Steinbach Silent Mini | v3.3 / v3.5 | ✅ | ✅ | ✅ full | ✅ | 🔵 inferred |
 | Phalén Calidi XP | v3.3 / v3.5 | ✅ | ✅ | ✅ full | ✅ | 🔵 inferred |
 | Nulite | v3.3 / v3.5 | ✅ | ✅ | ✅ full | ✅ | 🔵 inferred |
+| Poolex Silverline (Tuya v3.4 firmware) | v3.4 | ✅ | ✅ | ✅ full (own DP map) | ✅ | 🟢 live-verified |
 | Other Poolstar / Tuya WBR3 OEM | auto | ✅ | ✅ | live-detected | ✅ | ⚪ unknown |
 
 **Legend** — 🟢 live-verified · 🔵 high confidence (same OEM platform, not
 tested directly) · ⚪ unknown · ✅ present · ❌ absent · ❓ firmware-dependent
 
 - **The protocol version is auto-detected** (probed in order v3.5 → v3.4 →
-  v3.3) and can be pinned on the config entry. v3.4 and v3.5 are implemented
-  faithfully to the spec (verified line-by-line against the TinyTuya source)
-  and tested against TinyTuya-faithful fakes, but **not yet against real v3.4
-  or v3.5 hardware** — hence v3.3 / v3.5 on the OEM siblings. The v3.4 probe
-  has been field-tested as benign against the live v3.3 device (it falls back
-  cleanly without disturbing the pump).
+  v3.3) and can be pinned on the config entry. v3.5 is implemented faithfully
+  to the spec (verified against the TinyTuya source) but **not yet against real
+  v3.5 hardware**. v3.4 *has* been validated against real hardware — see below.
+  The v3.4 probe is also field-tested as benign against the live v3.3 device
+  (it falls back cleanly without disturbing the pump).
+- **v3.4 support is live-verified** on a real Poolex Silverline (productKey
+  `wfzeiyn1ed3axxde`, 2026 firmware), contributed by Martin Čarek
+  ([@olomouckyorel](https://github.com/olomouckyorel), PR #3). That firmware
+  renumbers its DPs (fan on DP 114, swapped suction/outlet) and uses
+  request-scoped sockets (closes TCP after each query, no heartbeat); both are
+  handled when the **`Poolex Silverline (Tuya v3.4)`** model is selected.
 - **Diagnostic DPs (101–111) are firmware-dependent, not model-dependent:**
   the same SKU can ship full or bare depending on its firmware. The
   integration only registers the DPs the first `DP_QUERY` returns, so missing

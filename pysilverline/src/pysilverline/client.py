@@ -19,6 +19,7 @@ from .exceptions import (
     ProtocolError,
     SilverlineError,
 )
+from .layouts import LAYOUT_STANDARD, DpLayout
 from .models import DeviceState
 from .protocol import (
     Frame,
@@ -55,6 +56,24 @@ def _close_writer_silent(writer: asyncio.StreamWriter) -> None:
         pass
 
 
+def _unwrap_dps(decoded: Any) -> dict[str, Any]:
+    """Extract the ``dps`` mapping from a decoded device body.
+
+    v3.4 ``device22`` firmware wraps DPs as ``{"data": {"dps": {...}}}`` while
+    v3.3 / v3.5 (and most v3.4 query responses) put them at the top level.
+    Accept either shape.
+    """
+    if not isinstance(decoded, dict):
+        return {}
+    data = decoded.get("data")
+    if isinstance(data, dict):
+        inner = data.get("dps")
+        if isinstance(inner, dict):
+            return inner
+    dps = decoded.get("dps", {})
+    return dps if isinstance(dps, dict) else {}
+
+
 class SilverlineClient:
     """Async client for one Tuya device (v3.3, v3.4 or v3.5, auto-detected).
 
@@ -79,12 +98,17 @@ class SilverlineClient:
         port: int = const.DEFAULT_PORT,
         request_timeout: float = _DEFAULT_REQUEST_TIMEOUT,
         protocol_version: str | None = None,
+        dp_layout: DpLayout | None = None,
     ) -> None:
         self.host = host
         self.port = port
         self.device_id = device_id
         self._timeout = request_timeout
         self._protocol_version = protocol_version  # None = auto-probe
+        # Maps semantic DeviceState fields onto wire DP numbers; firmwares with
+        # non-standard numbering (e.g. the v3.4 wfzeiyn pool firmware) pass a
+        # custom layout. Defaults to the legacy numbering.
+        self._dp_layout = dp_layout or LAYOUT_STANDARD
 
         self._codec_33 = FrameCodec(local_key)
         self._codec_34 = Frame34Codec(local_key)
@@ -551,7 +575,7 @@ class SilverlineClient:
         if retcode not in (None, 0):
             raise SilverlineError(f"DP_QUERY failed retcode=0x{retcode:08x}")
         decoded = self._codec.decrypt_body(ciphertext)
-        dps = decoded.get("dps", {}) if isinstance(decoded, dict) else {}
+        dps = _unwrap_dps(decoded)
         if not isinstance(dps, dict):
             raise ProtocolError(f"unexpected dps payload: {decoded!r}")
         # Merge rather than replace: some Tuya firmware variants only
@@ -560,7 +584,7 @@ class SilverlineClient:
         # DPs would flicker to None on every 30s poll. The push path
         # already merges (_dispatch in this module); the poll path
         # has to behave symmetrically.
-        self._state = self._state.merge(dps)
+        self._state = self._state.merge(dps, layout=self._dp_layout)
         return self._state
 
     async def set_dp(self, dp_id: int, value: bool | int | str) -> None:
@@ -572,14 +596,27 @@ class SilverlineClient:
         if not values:
             return
         dps = {str(k): v for k, v in values.items()}
-        body = {
-            "devId": self.device_id,
-            "gwId": self.device_id,
-            "uid": "",
-            "t": int(time.time()),
-            "dps": dps,
-        }
-        frame = await self._request(const.CMD_CONTROL, body)
+        if self._detected_version == "3.4":
+            # v3.4 "device22" firmware (e.g. the wfzeiyn pool pump) accepts
+            # writes via CONTROL_NEW with a protocol-5 wrapper. The local LAN
+            # API still carries raw DP ids inside ``data.dps`` — confirmed on
+            # real v3.4 hardware (contributed by @olomouckyorel).
+            body: dict[str, Any] = {
+                "protocol": 5,
+                "t": int(time.time()),
+                "data": {"dps": dps},
+            }
+            cmd = const.CMD_CONTROL_NEW
+        else:
+            body = {
+                "devId": self.device_id,
+                "gwId": self.device_id,
+                "uid": "",
+                "t": int(time.time()),
+                "dps": dps,
+            }
+            cmd = const.CMD_CONTROL
+        frame = await self._request(cmd, body)
         retcode, _ = self._codec.split_response_payload(frame.cmd, frame.payload)
         if is_invalid_auth_retcode(retcode):
             raise InvalidAuth(f"device rejected CONTROL retcode={retcode}")
@@ -588,11 +625,17 @@ class SilverlineClient:
         # The device usually echoes the new state via a push frame within
         # ~200ms; merge optimistically so callers see the updated DPs even if
         # they query before the push arrives.
-        self._state = self._state.merge(dps)
+        self._state = self._state.merge(dps, layout=self._dp_layout)
 
     async def _request(self, cmd: int, body: dict[str, Any]) -> Frame:
         if not self.connected:
-            raise CannotConnect("not connected")
+            if self._detected_version == "3.4":
+                # v3.4 sockets are request-scoped: the device closes TCP after
+                # each response (see _read_loop), so reconnect lazily here on the
+                # next request rather than running a heartbeat/backoff loop.
+                await self.connect()
+            else:
+                raise CannotConnect("not connected")
         loop = asyncio.get_running_loop()
         future: asyncio.Future[Frame] = loop.create_future()
 
@@ -637,6 +680,8 @@ class SilverlineClient:
         reader = self._reader
         if reader is None:
             return
+        peer_closed = False
+        drop_connection = False
         try:
             while not self._closing:
                 try:
@@ -646,6 +691,7 @@ class SilverlineClient:
                     break
                 if not chunk:
                     _LOGGER.debug("connection closed by peer")
+                    peer_closed = True
                     break
                 buf.extend(chunk)
                 if len(buf) > _MAX_READ_BUFFER:
@@ -656,7 +702,6 @@ class SilverlineClient:
                     )
                     self._close_writer()
                     break
-                drop_connection = False
                 while len(buf) >= 18:
                     try:
                         frame, remainder = self._codec.decode(bytes(buf))
@@ -695,7 +740,25 @@ class SilverlineClient:
                 if not fut.done():
                     fut.set_exception(CannotConnect("connection lost"))
             self._pending.clear()
-            self._on_connection_dropped()
+            if (
+                self._detected_version == "3.4"
+                and peer_closed
+                and not drop_connection
+                and not self._closing
+            ):
+                # The v3.4 WBR3 pool firmware closes TCP after each response
+                # (request-scoped sockets, like TinyTuya's default v3.4 flow).
+                # Treat a clean peer-close as idle: tear the socket down quietly
+                # and let the next request reconnect lazily (see _request),
+                # instead of flapping the connection-lost listener and reconnect
+                # backoff — which would otherwise blip "unavailable" every poll.
+                writer = self._writer
+                if writer is not None:
+                    _close_writer_silent(writer)
+                self._reader = None
+                self._writer = None
+            else:
+                self._on_connection_dropped()
 
     def _take_pending(self, cmd: int, seq: int) -> asyncio.Future[Frame] | None:
         """Pop the request future a response with ``(cmd, seq)`` belongs to.
@@ -745,7 +808,12 @@ class SilverlineClient:
         # delivered to a request future; the cmd gate in front of the match
         # guarantees a push payload is never handed to a request that can't
         # decode it.
-        if frame.cmd in (const.CMD_CONTROL, const.CMD_DP_QUERY, const.CMD_DP_REFRESH):
+        if frame.cmd in (
+            const.CMD_CONTROL,
+            const.CMD_CONTROL_NEW,
+            const.CMD_DP_QUERY,
+            const.CMD_DP_REFRESH,
+        ):
             fut = self._take_pending(frame.cmd, frame.seq)
             if fut is not None:
                 if not fut.done():
@@ -763,10 +831,24 @@ class SilverlineClient:
                 # will land cleanly.
                 _LOGGER.debug("ignoring undecryptable push frame")
                 return
-            dps = decoded.get("dps", {}) if isinstance(decoded, dict) else {}
-            if not isinstance(dps, dict) or not dps:
+            dps = _unwrap_dps(decoded)
+            # v3.4 firmware often acks a CONTROL_NEW write by echoing state via
+            # a STATUS push (sometimes several partial frames, one DP at a time)
+            # rather than a dedicated ACK frame. Resolve any outstanding write
+            # here, before the empty-dps early return below.
+            if self._detected_version == "3.4":
+                fut = self._take_pending(const.CMD_CONTROL_NEW, frame.seq)
+                if fut is not None and not fut.done():
+                    fut.set_result(
+                        Frame(
+                            seq=frame.seq,
+                            cmd=const.CMD_CONTROL_NEW,
+                            payload=b"\x00\x00\x00\x00",
+                        )
+                    )
+            if not dps:
                 return
-            self._state = self._state.merge(dps)
+            self._state = self._state.merge(dps, layout=self._dp_layout)
             for listener in list(self._listeners):
                 try:
                     listener(self._state)
@@ -774,6 +856,12 @@ class SilverlineClient:
                     _LOGGER.exception("push listener raised")
 
     async def _heartbeat_loop(self) -> None:
+        # The observed v3.4 WBR3 pool firmware closes the TCP session shortly
+        # after an encrypted HEART_BEAT. v3.4 sockets are request-scoped (we
+        # reconnect lazily per poll, see _request/_read_loop), so a heartbeat
+        # would only churn the connection — skip it entirely.
+        if self._detected_version == "3.4":
+            return
         try:
             while not self._closing and self.connected:
                 await asyncio.sleep(_HEARTBEAT_INTERVAL)

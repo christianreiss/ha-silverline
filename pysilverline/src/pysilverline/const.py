@@ -30,17 +30,22 @@ CMD_CONTROL: Final = 0x07
 CMD_STATUS: Final = 0x08
 CMD_HEART_BEAT: Final = 0x09
 CMD_DP_QUERY: Final = 0x0A
+CMD_CONTROL_NEW: Final = 0x0D   # v3.4 "device22" control write (protocol:5 wrapper)
+CMD_DP_QUERY_NEW: Final = 0x10
 CMD_DP_REFRESH: Final = 0x12
 
 CMDS_WITHOUT_HEADER: Final = frozenset({CMD_DP_QUERY})
 
 #: v3.4 omits the inner version header for these commands (mirrors TinyTuya's
-#: ``NO_PROTOCOL_HEADER_CMDS``). Among the commands this client sends, only
-#: CONTROL carries the header; everything else — DP_QUERY, heartbeat, refresh,
-#: and the three session-negotiation frames — does not.
+#: ``NO_PROTOCOL_HEADER_CMDS``). Among the commands this client sends, CONTROL
+#: and CONTROL_NEW carry the header; everything else — DP_QUERY(_NEW),
+#: heartbeat, refresh, and the three session-negotiation frames — does not.
+#: Confirmed against real v3.4 WBR3 pool firmware (productKey wfzeiyn1ed3axxde,
+#: contributed by Martin Čarek / @olomouckyorel).
 CMDS_34_WITHOUT_HEADER: Final = frozenset(
     {
         CMD_DP_QUERY,
+        CMD_DP_QUERY_NEW,
         CMD_HEART_BEAT,
         CMD_DP_REFRESH,
         SESS_KEY_NEG_START,
