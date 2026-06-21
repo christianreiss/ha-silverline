@@ -130,7 +130,12 @@ class Frame35Codec:
         """
         retcode: int | None = None
         body = payload
-        if cmd in (const.CMD_CONTROL, const.CMD_DP_QUERY, const.CMD_DP_REFRESH):
+        if cmd in (
+            const.CMD_CONTROL,
+            const.CMD_CONTROL_NEW,
+            const.CMD_DP_QUERY,
+            const.CMD_DP_REFRESH,
+        ):
             if len(body) >= 4:
                 retcode = struct.unpack(">I", body[:4])[0]
                 body = body[4:]

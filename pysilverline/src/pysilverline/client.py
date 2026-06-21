@@ -298,11 +298,16 @@ class SilverlineClient:
         if not values:
             return
         dps = {str(k): v for k, v in values.items()}
-        if self._detected_version == "3.4":
-            # v3.4 "device22" firmware (e.g. the wfzeiyn pool pump) accepts
-            # writes via CONTROL_NEW with a protocol-5 wrapper. The local LAN
-            # API still carries raw DP ids inside ``data.dps`` — confirmed on
-            # real v3.4 hardware (contributed by @olomouckyorel).
+        if self._detected_version in ("3.4", "3.5"):
+            # v3.4/v3.5 firmware accepts writes via CONTROL_NEW (0x0d) wrapped in
+            # a protocol-5 envelope; the local LAN API still carries raw DP ids
+            # inside ``data.dps``. A plain CONTROL (0x07) — the v3.3 opcode — is
+            # silently ignored by these stacks, so the write never gets a
+            # response and times out ("waiting for cmd 0x07"). v3.4 confirmed on
+            # real wfzeiyn hardware (@olomouckyorel); v3.5 mirrors TinyTuya
+            # (CONTROL→CONTROL_NEW for version >= 3.4), pending confirmation on a
+            # real v3.5 pump (forum report, Ha Zemos82, Silverline Full Inverter
+            # 70).
             body: dict[str, Any] = {
                 "protocol": 5,
                 "t": int(time.time()),
@@ -535,8 +540,12 @@ class SilverlineClient:
             # v3.4 firmware often acks a CONTROL_NEW write by echoing state via
             # a STATUS push (sometimes several partial frames, one DP at a time)
             # rather than a dedicated ACK frame. Resolve any outstanding write
-            # here, before the empty-dps early return below.
-            if self._detected_version == "3.4":
+            # here, before the empty-dps early return below. Enabled for v3.5
+            # too as insurance (unconfirmed on real v3.5 silicon): if a v3.5 pump
+            # acks the same way, the dedicated-frame path in _dispatch never
+            # fires and the write would otherwise time out; if it sends a real
+            # 0x0d ACK instead, that path wins and this never matches.
+            if self._detected_version in ("3.4", "3.5"):
                 fut = self._take_pending(const.CMD_CONTROL_NEW, frame.seq)
                 if fut is not None and not fut.done():
                     fut.set_result(

@@ -230,12 +230,13 @@ def _dp_query_handler(dps: dict[str, Any]) -> Any:
     return handler
 
 
-def _control_handler() -> Any:
+def _control_new_handler() -> Any:
     def handler(seq: int, body: dict[str, Any], session_key: bytes) -> bytes:
-        payload = (
-            struct.pack(">I", 0) + json.dumps({"dps": body.get("dps", {})}).encode()
-        )
-        return _encode_35(seq, const.CMD_CONTROL, payload, session_key)
+        # Real v3.5 firmware accepts control writes on CONTROL_NEW (0x0d) wrapped
+        # in a protocol-5 envelope (``data.dps``), not the v3.3 CONTROL (0x07).
+        dps = body.get("data", {}).get("dps", {})
+        payload = struct.pack(">I", 0) + json.dumps({"dps": dps}).encode()
+        return _encode_35(seq, const.CMD_CONTROL_NEW, payload, session_key)
 
     return handler
 
@@ -360,9 +361,17 @@ async def test_v35_handshake_with_retcode_in_resp() -> None:
 
 
 async def test_v35_set_multiple_round_trip() -> None:
-    """A CONTROL command negotiates and is accepted over v3.5."""
+    """A CONTROL_NEW write negotiates and is accepted over v3.5.
+
+    Real v3.5 firmware mirrors TinyTuya (CONTROL→CONTROL_NEW for version >= 3.4):
+    control writes go out on opcode 0x0d wrapped in a protocol-5 envelope, not
+    the v3.3 0x07 CONTROL. A device that only handles 0x0d leaves a 0x07 write
+    unanswered → ``timeout waiting for cmd 0x07`` (forum report, v3.5 pump). The
+    mock therefore answers CONTROL_NEW; a green run guards the intended wire
+    behaviour but does not substitute for validation on a real v3.5 device.
+    """
     async with FakeTuya35Server() as server:
-        server.handlers[const.CMD_CONTROL] = _control_handler()
+        server.handlers[const.CMD_CONTROL_NEW] = _control_new_handler()
         client = SilverlineClient(
             host="127.0.0.1",
             port=server.port,
@@ -374,10 +383,12 @@ async def test_v35_set_multiple_round_trip() -> None:
         await client.connect()
         try:
             await client.set_multiple({const.DP_TEMP_SET: 28, const.DP_POWER: True})
-            # The device received exactly one CONTROL carrying both DPs.
-            controls = [r for r in server.received if r[1] == const.CMD_CONTROL]
+            # The device received exactly one CONTROL_NEW carrying both DPs in
+            # the protocol-5 envelope (raw DP ids under data.dps).
+            controls = [r for r in server.received if r[1] == const.CMD_CONTROL_NEW]
             assert len(controls) == 1
-            assert controls[0][2]["dps"] == {"2": 28, "1": True}
+            assert controls[0][2]["protocol"] == 5
+            assert controls[0][2]["data"]["dps"] == {"2": 28, "1": True}
             # Optimistic local merge reflects the write.
             assert client.state.temp_set == 28
             assert client.state.power is True
