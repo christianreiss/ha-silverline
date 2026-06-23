@@ -21,6 +21,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from pysilverline import const as tuya_const
 
 from .const import (
+    AUTO_MODE_STRINGS,
     COOL_PREFIX_TO_PRESET,
     DOMAIN,
     HEAT_PREFIX_TO_PRESET,
@@ -114,15 +115,18 @@ class SilverlinePresetSelect(SilverlineEntity, SelectEntity):
         current_mode = state.mode if state is not None else None
         if state is None or not state.power:
             return
-        if current_mode == "Auto":
+        if current_mode in AUTO_MODE_STRINGS:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
                 translation_key="preset_not_available_in_auto",
             )
+        profile = self.coordinator.profile
         if current_mode in HEAT_PREFIX_TO_PRESET:
-            mode_string = PRESET_TO_HEAT_DP[option]
+            table = profile.preset_to_heat_dp if profile and profile.preset_to_heat_dp is not None else PRESET_TO_HEAT_DP
+            mode_string = table[option]
         elif current_mode in COOL_PREFIX_TO_PRESET:
-            mode_string = PRESET_TO_COOL_DP[option]
+            table = profile.preset_to_cool_dp if profile and profile.preset_to_cool_dp is not None else PRESET_TO_COOL_DP
+            mode_string = table[option]
         else:
             # Unknown DP-4 string — refuse rather than guess heat/cool.
             return
@@ -159,12 +163,15 @@ class SilverlineOperatingModeSelect(SilverlineEntity, SelectEntity):
             await self._write_dps({tuya_const.DP_POWER: False})
             return
 
+        profile = self.coordinator.profile
         if option == OPMODE_HEAT:
-            mode_string = "Heat"
+            heat_map = profile.preset_to_heat_dp if profile and profile.preset_to_heat_dp is not None else PRESET_TO_HEAT_DP
+            mode_string = heat_map[PRESET_NONE]
         elif option == OPMODE_COOL:
-            mode_string = "Cool"
+            cool_map = profile.preset_to_cool_dp if profile and profile.preset_to_cool_dp is not None else PRESET_TO_COOL_DP
+            mode_string = cool_map[PRESET_NONE]
         elif option == OPMODE_HEAT_COOL:
-            mode_string = "Auto"
+            mode_string = profile.auto_dp if profile and profile.auto_dp is not None else "Auto"
         else:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,

@@ -182,7 +182,8 @@ class SilverlineClimate(SilverlineEntity, ClimateEntity, RestoreEntity):
             mode_string = self._mode_string_for(hvac_mode, self._last_preset)
             self._last_direction = hvac_mode
         elif hvac_mode == HVACMode.HEAT_COOL:
-            mode_string = "Auto"
+            profile = self.coordinator.profile
+            mode_string = profile.auto_dp if profile and profile.auto_dp is not None else "Auto"
             self._last_direction = HVACMode.HEAT_COOL
             self._last_preset = PRESET_NONE
         else:
@@ -247,7 +248,10 @@ class SilverlineClimate(SilverlineEntity, ClimateEntity, RestoreEntity):
     async def async_turn_off(self) -> None:
         await self.async_set_hvac_mode(HVACMode.OFF)
 
-    @staticmethod
-    def _mode_string_for(direction: HVACMode, preset: str) -> str:
-        table = PRESET_TO_HEAT_DP if direction == HVACMode.HEAT else PRESET_TO_COOL_DP
+    def _mode_string_for(self, direction: HVACMode, preset: str) -> str:
+        profile = self.coordinator.profile
+        if direction == HVACMode.HEAT:
+            table = (profile.preset_to_heat_dp if profile and profile.preset_to_heat_dp is not None else PRESET_TO_HEAT_DP)
+        else:
+            table = (profile.preset_to_cool_dp if profile and profile.preset_to_cool_dp is not None else PRESET_TO_COOL_DP)
         return table.get(preset, table[PRESET_NONE])

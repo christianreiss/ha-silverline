@@ -13,6 +13,7 @@ from homeassistant.components.climate.const import HVACAction, HVACMode
 from pysilverline import DeviceState
 
 from .const import (
+    AUTO_MODE_STRINGS,
     AUTO_TEMP_MAX,
     AUTO_TEMP_MIN,
     COOL_PREFIX_TO_PRESET,
@@ -52,7 +53,7 @@ def derive_hvac_mode(state: DeviceState) -> HVACMode | None:
     if not state.power:
         return HVACMode.OFF
     mode = state.mode or ""
-    if mode == "Auto":
+    if mode in AUTO_MODE_STRINGS:
         return HVACMode.HEAT_COOL
     if mode in HEAT_PREFIX_TO_PRESET:
         return HVACMode.HEAT

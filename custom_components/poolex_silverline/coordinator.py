@@ -27,6 +27,7 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DEVICE_PROFILES,
     DOMAIN,
+    DeviceProfile,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -76,6 +77,12 @@ class SilverlineCoordinator(DataUpdateCoordinator[DeviceState]):
         self._runtime_today_seconds: float = 0.0
         self._runtime_last_tick: datetime | None = None
         self._runtime_local_date: date | None = None
+
+    @property
+    def profile(self) -> DeviceProfile | None:
+        """Return the DeviceProfile for the configured model, or None."""
+        model_key = self.config_entry.data.get(CONF_MODEL, "")
+        return DEVICE_PROFILES.get(model_key)
 
     @property
     def runtime_today_seconds(self) -> float:

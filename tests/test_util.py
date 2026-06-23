@@ -7,10 +7,15 @@ from __future__ import annotations
 from homeassistant.components.climate.const import HVACAction
 from pysilverline import DeviceState
 
+from homeassistant.components.climate.const import HVACMode
+
 from custom_components.poolex_silverline.util import (
     compute_hvac_action,
+    derive_hvac_mode,
+    derive_preset,
     mask_device_id,
 )
+from custom_components.poolex_silverline.const import PRESET_BOOST, PRESET_ECO, PRESET_NONE
 
 
 def test_compute_hvac_action_cool_idle_when_actual_frequency_zero() -> None:
@@ -35,6 +40,57 @@ def test_compute_hvac_action_heat_cool_idle_when_at_target() -> None:
     cooling is needed."""
     state = DeviceState.from_dps({"1": True, "4": "Auto", "2": 27, "3": 27})
     assert compute_hvac_action(state) is HVACAction.IDLE
+
+
+# --- PC-INV-120V2 mode vocabulary (issue #5) ---
+
+
+def test_derive_hvac_mode_pc_inv_120_heat_strings() -> None:
+    """heat / h_powerful / h_silent all decode to HVACMode.HEAT."""
+    for mode_str in ("heat", "h_powerful", "h_silent"):
+        state = DeviceState.from_dps({"1": True, "4": mode_str})
+        assert derive_hvac_mode(state) is HVACMode.HEAT, f"failed for {mode_str!r}"
+
+
+def test_derive_hvac_mode_pc_inv_120_cool_strings() -> None:
+    """cool / c_powerful / c_silent all decode to HVACMode.COOL."""
+    for mode_str in ("cool", "c_powerful", "c_silent"):
+        state = DeviceState.from_dps({"1": True, "4": mode_str})
+        assert derive_hvac_mode(state) is HVACMode.COOL, f"failed for {mode_str!r}"
+
+
+def test_derive_hvac_mode_pc_inv_120_auto_strings() -> None:
+    """auto / a_powerful / a_silent all decode to HVACMode.HEAT_COOL."""
+    for mode_str in ("auto", "a_powerful", "a_silent"):
+        state = DeviceState.from_dps({"1": True, "4": mode_str})
+        assert derive_hvac_mode(state) is HVACMode.HEAT_COOL, f"failed for {mode_str!r}"
+
+
+def test_derive_preset_pc_inv_120_heat_presets() -> None:
+    """h_powerful → boost, h_silent → eco, heat → none."""
+    assert derive_preset(DeviceState.from_dps({"1": True, "4": "heat"})) == PRESET_NONE
+    assert derive_preset(DeviceState.from_dps({"1": True, "4": "h_powerful"})) == PRESET_BOOST
+    assert derive_preset(DeviceState.from_dps({"1": True, "4": "h_silent"})) == PRESET_ECO
+
+
+def test_derive_preset_pc_inv_120_cool_presets() -> None:
+    """c_powerful → boost, c_silent → eco, cool → none."""
+    assert derive_preset(DeviceState.from_dps({"1": True, "4": "cool"})) == PRESET_NONE
+    assert derive_preset(DeviceState.from_dps({"1": True, "4": "c_powerful"})) == PRESET_BOOST
+    assert derive_preset(DeviceState.from_dps({"1": True, "4": "c_silent"})) == PRESET_ECO
+
+
+def test_derive_hvac_mode_off_overrides_mode_string() -> None:
+    """DP 1 = False → HVACMode.OFF regardless of what DP 4 carries."""
+    state = DeviceState.from_dps({"1": False, "4": "heat"})
+    assert derive_hvac_mode(state) is HVACMode.OFF
+
+
+def test_derive_hvac_mode_auto_variants_idle() -> None:
+    """auto/a_powerful/a_silent each still produce IDLE when DP 108 == 0."""
+    for mode_str in ("auto", "a_powerful", "a_silent"):
+        state = DeviceState.from_dps({"1": True, "4": mode_str, "2": 27, "3": 25, "108": 0})
+        assert compute_hvac_action(state) is HVACAction.IDLE, f"failed for {mode_str!r}"
 
 
 def test_mask_device_id_truncates_long_id() -> None:
