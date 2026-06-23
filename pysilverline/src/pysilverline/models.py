@@ -15,7 +15,10 @@ class DeviceState:
 
     power: bool | None = None
     temp_set: int | None = None
-    temp_current: int | None = None
+    # float because some OEM firmware reports DP 3 in tenths of a degree (scaled
+    # by the layout's temp_current_divisor → e.g. 27.7); whole-°C firmware keeps
+    # an int here (divisor 1, no division applied). See DpLayout.
+    temp_current: float | None = None
     mode: str | None = None
     fault: int | None = None
     suction_temp: int | None = None
@@ -106,10 +109,21 @@ class DeviceState:
             value = dps.get(str(dp))
             return value if isinstance(value, str) else None
 
+        def _temp_current() -> float | None:
+            # DP 3 carries the current water temperature. Most firmware reports
+            # whole °C, but some OEM siblings (e.g. PC-INV-120V2, issue #5) send
+            # tenths of a degree; the per-firmware divisor scales those down.
+            # Divisor 1 leaves the value an int so unaffected devices and their
+            # diagnostic dumps are byte-for-byte unchanged.
+            raw = _int(const.DP_TEMP_CURRENT)
+            if raw is None or layout.temp_current_divisor == 1:
+                return raw
+            return raw / layout.temp_current_divisor
+
         return cls(
             power=_bool(const.DP_POWER),
             temp_set=_int(const.DP_TEMP_SET),
-            temp_current=_int(const.DP_TEMP_CURRENT),
+            temp_current=_temp_current(),
             mode=_str(const.DP_MODE),
             fault=_int(const.DP_FAULT),
             suction_temp=_int(layout.suction_temp),

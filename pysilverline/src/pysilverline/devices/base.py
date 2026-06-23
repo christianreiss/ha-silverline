@@ -11,8 +11,15 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True, slots=True)
 class DpLayout:
-    """Wire DP id for each semantic field; ``None`` = not exposed on this firmware."""
+    """Wire DP id for each semantic field; ``None`` = not exposed on this firmware.
 
+    ``temp_current_divisor`` scales the core current-water-temperature DP (DP 3):
+    most firmware reports whole °C (divisor 1), but some OEM siblings report
+    tenths of a degree (divisor 10, e.g. raw 277 = 27.7 °C). It is the only
+    scaled field — DP 2 (setpoint) stays whole °C on every variant seen so far.
+    """
+
+    temp_current_divisor: int = 1
     outlet_temp: int | None = 106
     ambient_temp: int | None = 102
     pool_temp: int | None = 103

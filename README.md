@@ -48,7 +48,8 @@ only the PC-SLP090N has been verified directly against live hardware.
 |---|---|---|---|---|---|---|
 | Poolex PC-SLP090N (Silverline FI 90) | v3.3 | ✅ | ✅ | ❌ none (5-DP firmware) | ✅ | 🟢 live-verified |
 | Poolex Silverline FI 120 / 180 / 200 | v3.3 | ✅ | ✅ | ❓ firmware-dependent | ✅ | 🔵 inferred |
-| Poolex JetLine Selection FI | v3.3 | ✅ | ✅ | ✅ full | ✅ | 🔵 inferred |
+| Poolex Silverline FI 120 V2 / PC-INV-120V2 | v3.3 | ✅ | ✅ | ❌ none (5-DP, tenths °C) | ❌ (DP 9, not 13) | 🟡 user-reported |
+| Poolex JetLine Selection FI | v3.3 | ✅ | ✅ | ❓ firmware-dependent (some units 5-DP) | ✅ | 🟡 user-reported |
 | Brustec BR series | v3.3 / v3.5 | ✅ | ✅ | ✅ full | ✅ | 🔵 inferred |
 | Steinbach Silent Mini | v3.3 / v3.5 | ✅ | ✅ | ✅ full | ✅ | 🔵 inferred |
 | Phalén Calidi XP | v3.3 / v3.5 | ✅ | ✅ | ✅ full | ✅ | 🔵 inferred |
@@ -57,7 +58,8 @@ only the PC-SLP090N has been verified directly against live hardware.
 | Other Poolstar / Tuya WBR3 OEM | auto | ✅ | ✅ | live-detected | ✅ | ⚪ unknown |
 
 **Legend** — 🟢 live-verified · 🔵 high confidence (same OEM platform, not
-tested directly) · ⚪ unknown · ✅ present · ❌ absent · ❓ firmware-dependent
+tested directly) · 🟡 user-reported (confirmed from a reporter's device, not
+in-house) · ⚪ unknown · ✅ present · ❌ absent · ❓ firmware-dependent
 
 - **The protocol version is auto-detected** (probed in order v3.5 → v3.4 →
   v3.3) and can be pinned on the config entry. v3.5 is implemented faithfully
@@ -75,6 +77,24 @@ tested directly) · ⚪ unknown · ✅ present · ❌ absent · ❓ firmware-dep
   the same SKU can ship full or bare depending on its firmware. The
   integration only registers the DPs the first `DP_QUERY` returns, so missing
   diagnostics never show up as `unavailable` clutter.
+- **The same product key spans full and minimal firmware.** Product key
+  `3bhylhz5zhogklel` is shared across the PC-SLP090N and the JetLine Selection
+  FI family, and some JetLine Selection FI 95 units report only the minimal
+  5-DP set (`1, 2, 3, 4, 13`) — no DP 108, so no diagnostics (issue #6). If your
+  unit only exposes those five DPs, the behaviour matches the PC-SLP090N
+  profile.
+- **The "Compressor" binary sensor needs DP 108 (actual compressor frequency).**
+  It is the only authoritative compressor telemetry; on minimal firmware that
+  doesn't expose it, the sensor is not created at all (it would otherwise echo
+  heating *demand* during the startup delay rather than real running state —
+  issue #6). The climate card's heating/cooling colour still reflects demand.
+- **PC-INV-120V2 / Silverline FI 120 V2 reports water temperature in tenths
+  of a degree.** This OEM Poolstar variant sends DP 3 as e.g. `277` for 27.7 °C
+  (issue #5). Select the **`Poolex Silverline FI 120 V2 / PC-INV-120V2`** model
+  during setup (or via *Reconfigure*) to apply the ÷10 scaling; the setpoint
+  (DP 2) stays whole °C and is unaffected. Note this firmware uses a different
+  DP-4 mode vocabulary (e.g. `h_powerful`); full mode mapping for it is still
+  being collected.
 - **°C only.** °F shifts the fault bitmap and is not supported (see
   [Known limitations](#known-limitations)).
 - Presets `boost` / `eco` do not apply in `heat_cool` (Auto) — a device

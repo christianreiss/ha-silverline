@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Final
 
 from .base import DpLayout as DpLayout
+from .pc_inv_120 import LAYOUT_PC_INV_120 as LAYOUT_PC_INV_120
 from .standard import LAYOUT_STANDARD as LAYOUT_STANDARD
 from .v34_wfzeiyn import LAYOUT_V34_WFZEIYN as LAYOUT_V34_WFZEIYN
 
@@ -18,11 +19,13 @@ from .v34_wfzeiyn import LAYOUT_V34_WFZEIYN as LAYOUT_V34_WFZEIYN
 #: imports them instead of duplicating the literal strings across the boundary.
 MODEL_STANDARD: Final = "standard"
 MODEL_SILVERLINE_V34: Final = "silverline_v34"
+MODEL_PC_INV_120: Final = "pc_inv_120v2"
 
 #: Canonical model key -> layout. Keys are the persisted ``CONF_MODEL`` values.
 _REGISTRY: Final[dict[str, DpLayout]] = {
     MODEL_STANDARD: LAYOUT_STANDARD,
     MODEL_SILVERLINE_V34: LAYOUT_V34_WFZEIYN,
+    MODEL_PC_INV_120: LAYOUT_PC_INV_120,
 }
 
 
@@ -39,6 +42,7 @@ def get_layout(model_key: str) -> DpLayout:
 LAYOUT_BY_NAME: dict[str, DpLayout] = {
     "standard": LAYOUT_STANDARD,
     "v34_wfzeiyn": LAYOUT_V34_WFZEIYN,
+    "pc_inv_120v2": LAYOUT_PC_INV_120,
 }
 
 
@@ -49,8 +53,10 @@ def layout_for_model(model_key: str) -> DpLayout:
 
 __all__ = [
     "LAYOUT_BY_NAME",
+    "LAYOUT_PC_INV_120",
     "LAYOUT_STANDARD",
     "LAYOUT_V34_WFZEIYN",
+    "MODEL_PC_INV_120",
     "MODEL_SILVERLINE_V34",
     "MODEL_STANDARD",
     "DpLayout",

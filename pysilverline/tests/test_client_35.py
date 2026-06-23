@@ -230,13 +230,16 @@ def _dp_query_handler(dps: dict[str, Any]) -> Any:
     return handler
 
 
-def _control_new_handler() -> Any:
+def _control_new_handler(ack: bytes = b"\x01\x00\x00\x00") -> Any:
     def handler(seq: int, body: dict[str, Any], session_key: bytes) -> bytes:
         # Real v3.5 firmware accepts control writes on CONTROL_NEW (0x0d) wrapped
         # in a protocol-5 envelope (``data.dps``), not the v3.3 CONTROL (0x07).
-        dps = body.get("data", {}).get("dps", {})
-        payload = struct.pack(">I", 0) + json.dumps({"dps": dps}).encode()
-        return _encode_35(seq, const.CMD_CONTROL_NEW, payload, session_key)
+        # The default ack mirrors the device in issue #7 (productKey
+        # b4zr9ugt1q8xn9af): a 4-byte 01 00 00 00 that the codec peels as a
+        # 0x01000000 "retcode" even though the write applied. A previous version
+        # of this test answered with a 4-byte ZERO retcode, which was circular —
+        # it only proved the client accepts the exact ack the mock chose to send.
+        return _encode_35(seq, const.CMD_CONTROL_NEW, ack, session_key)
 
     return handler
 
@@ -366,8 +369,12 @@ async def test_v35_set_multiple_round_trip() -> None:
     Real v3.5 firmware mirrors TinyTuya (CONTROL→CONTROL_NEW for version >= 3.4):
     control writes go out on opcode 0x0d wrapped in a protocol-5 envelope, not
     the v3.3 0x07 CONTROL. A device that only handles 0x0d leaves a 0x07 write
-    unanswered → ``timeout waiting for cmd 0x07`` (forum report, v3.5 pump). The
-    mock therefore answers CONTROL_NEW; a green run guards the intended wire
+    unanswered → ``timeout waiting for cmd 0x07`` (forum report, v3.5 pump).
+
+    The mock answers CONTROL_NEW with the real device's ``01 00 00 00`` ack
+    (issue #7), which the codec peels as a 0x01000000 "retcode". This call must
+    therefore NOT raise: a non-zero retcode on a v3.5 control-ack is not a
+    failure signal (see ``set_multiple``). A green run guards the intended wire
     behaviour but does not substitute for validation on a real v3.5 device.
     """
     async with FakeTuya35Server() as server:

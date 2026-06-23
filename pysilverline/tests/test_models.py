@@ -130,6 +130,31 @@ def test_from_dps_v34_layout_remaps_dp_numbers() -> None:
     assert state.actual_frequency is None
 
 
+def test_from_dps_scales_current_temp_tenths_layout() -> None:
+    """PC-INV-120V2 (issue #5) reports DP 3 in tenths of a degree. The layout's
+    ÷10 divisor turns raw 277 into 27.7 °C while the whole-°C setpoint (DP 2)
+    is left untouched."""
+    from pysilverline.layouts import LAYOUT_PC_INV_120
+
+    state = DeviceState.from_dps(
+        {"1": True, "2": 15, "3": 277, "4": "h_powerful", "9": 0},
+        layout=LAYOUT_PC_INV_120,
+    )
+    assert state.temp_current == 27.7
+    assert isinstance(state.temp_current, float)
+    assert state.temp_set == 15  # setpoint stays whole °C, unscaled
+    # raw is preserved verbatim regardless of scaling, for diagnostics.
+    assert state.raw["3"] == 277
+
+
+def test_from_dps_default_layout_keeps_current_temp_int() -> None:
+    """Whole-°C firmware (divisor 1) leaves DP 3 an int, so existing devices and
+    their diagnostic dumps are unchanged by the scaling machinery."""
+    state = DeviceState.from_dps({"3": 26})
+    assert state.temp_current == 26
+    assert isinstance(state.temp_current, int)
+
+
 def test_from_dps_default_layout_unchanged_by_v34_fields() -> None:
     """The legacy default layout leaves the new v3.4-only fields None and keeps
     fan on DP 110 — backward compatibility for existing devices."""

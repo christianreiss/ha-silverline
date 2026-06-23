@@ -84,10 +84,17 @@ BINARY_SENSORS: tuple[SilverlineBinarySensorDescription, ...] = (
         translation_key="compressor_running",
         device_class=BinarySensorDeviceClass.RUNNING,
         value_fn=_compressor_active,
-        # DP 1 (power) + DP 4 (mode) are present on every firmware we've
-        # ever seen — including the minimal PC-SLP090N. The DP 108
-        # (actual_frequency) refinement is opportunistic.
-        dp_keys=("1", "4"),
+        # Gate on DP 108 (actual_frequency) — the only authoritative compressor
+        # telemetry. On minimal firmware that never exposes it (e.g. PC-SLP090N,
+        # JetLine Selection FI 95 — issue #6) _compressor_active would fall back
+        # to the temp-delta-vs-setpoint heuristic, which reads "running" the
+        # instant there's heating demand — including the unit's startup delay,
+        # before the physical compressor has actually spun up. That made the
+        # "Compressor" sensor a demand indicator masquerading as telemetry, so
+        # we don't register it at all unless DP 108 is present. The climate
+        # entity's hvac_action still uses the heuristic to colour the card —
+        # that's demand, and acceptable there.
+        dp_keys=("108",),
     ),
     SilverlineBinarySensorDescription(
         key="water_pump",

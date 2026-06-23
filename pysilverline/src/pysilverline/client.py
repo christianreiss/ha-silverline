@@ -328,7 +328,24 @@ class SilverlineClient:
         if is_invalid_auth_retcode(retcode):
             raise InvalidAuth(f"device rejected CONTROL retcode={retcode}")
         if retcode not in (None, 0):
-            raise SilverlineError(f"CONTROL failed retcode=0x{retcode:08x}")
+            if self._detected_version == "3.5":
+                # The 4-byte field on a v3.5 CONTROL_NEW ack is NOT a reliable
+                # success/failure code. Real firmware (issue #7, productKey
+                # b4zr9ugt1q8xn9af) acks a write with a leading 01 00 00 00 that
+                # decodes to 0x01000000 even though the write applies. TinyTuya
+                # reads the same bytes (no_retcode=False, big-endian ">I") and
+                # ignores them on control writes — it never fails a write on the
+                # retcode. Mirror that: accept the ack, note the unexpected code
+                # at debug, and let the STATUS-push echo / next poll confirm the
+                # new state. v3.3 (0x07) and v3.4 (0x0d, confirmed on real
+                # wfzeiyn silicon) keep returning retcode 0, so they stay strict.
+                _LOGGER.debug(
+                    "v3.5 CONTROL_NEW ack carried retcode=0x%08x; accepting "
+                    "(write-ack retcode is not a reliable failure signal)",
+                    retcode,
+                )
+            else:
+                raise SilverlineError(f"CONTROL failed retcode=0x{retcode:08x}")
         # The device usually echoes the new state via a push frame within
         # ~200ms; merge optimistically so callers see the updated DPs even if
         # they query before the push arrives.

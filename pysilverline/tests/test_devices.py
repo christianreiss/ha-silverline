@@ -5,6 +5,7 @@ from __future__ import annotations
 from pysilverline.devices import get_layout
 from pysilverline.layouts import (
     LAYOUT_BY_NAME,
+    LAYOUT_PC_INV_120,
     LAYOUT_STANDARD,
     LAYOUT_V34_WFZEIYN,
     layout_for_model,
@@ -13,6 +14,16 @@ from pysilverline.layouts import (
 
 def test_layout_for_model_canonical_key() -> None:
     assert layout_for_model("silverline_v34") is LAYOUT_V34_WFZEIYN
+
+
+def test_layout_for_model_pc_inv_120v2_key() -> None:
+    layout = layout_for_model("pc_inv_120v2")
+    assert layout is LAYOUT_PC_INV_120
+    assert layout.temp_current_divisor == 10
+
+
+def test_standard_layout_has_no_temp_scaling() -> None:
+    assert LAYOUT_STANDARD.temp_current_divisor == 1
 
 
 def test_layout_for_model_standard_key() -> None:

@@ -145,11 +145,13 @@ async def test_firmware_capability_filter_skips_missing_dps(
     PC-SLP090N) should produce: 1 climate, 1 power switch, 1 target-
     temperature number, 2 selects (preset + operating_mode), 1 fault-
     code sensor, 1 temperature-delta sensor (depends only on DPs 2+3),
-    the compressor-running binary sensor (DPs 1+4 always present), and
-    10 fault binary sensors (5 enabled by default + 5 disabled by
+    and 10 fault binary sensors (5 enabled by default + 5 disabled by
     default for the rarely-fired bits) — and nothing else. The 10
     diagnostic temperature/frequency/eev/fan sensors and the water-pump
-    binary sensor (DPs 101-111) must NOT register."""
+    binary sensor (DPs 101-111) must NOT register. Neither does the
+    compressor-running binary sensor: it is gated on DP 108
+    (actual_frequency), which this firmware never exposes (issue #6) —
+    without it the sensor would only echo heating demand, not telemetry."""
     mock_client_factory.get_status = AsyncMock(return_value=state_minimal_firmware)
     mock_client_factory.state = state_minimal_firmware
     config_entry.add_to_hass(hass)
@@ -166,7 +168,6 @@ async def test_firmware_capability_filter_skips_missing_dps(
         "binary_sensor.pool_heatpump_antifreeze_fault",
         "binary_sensor.pool_heatpump_coil_sensor_fault",
         "binary_sensor.pool_heatpump_communication_fault",
-        "binary_sensor.pool_heatpump_compressor",
         "binary_sensor.pool_heatpump_defrost_sensor_fault",
         "binary_sensor.pool_heatpump_high_pressure_fault",
         "binary_sensor.pool_heatpump_inlet_sensor_fault",

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Final
 
-from pysilverline.devices import MODEL_SILVERLINE_V34
+from pysilverline.devices import MODEL_PC_INV_120, MODEL_SILVERLINE_V34
 
 DOMAIN: Final = "poolex_silverline"
 MANUFACTURER: Final = "Poolex"
@@ -51,6 +51,14 @@ DEVICE_PROFILES: Final[dict[str, DeviceProfile]] = {
     "fi_150": DeviceProfile(
         display_name="Poolex Silverline FI 150",
         known_dps=None,  # live-detect; full DP set TBD once mapping is verified
+    ),
+    MODEL_PC_INV_120: DeviceProfile(
+        # OEM Poolstar PC-INV-120V2 (Poolex Silverline FI 120 V2 sibling),
+        # issue #5. Reports DP 3 (current temp) in tenths of a degree — the
+        # ÷10 scaling lives in LAYOUT_PC_INV_120. Minimal-DP firmware
+        # (1, 2, 3, 4, 9 observed), so live-detect the entity set.
+        display_name="Poolex Silverline FI 120 V2 / PC-INV-120V2 (tenths °C)",
+        known_dps=None,
     ),
     MODEL_SILVERLINE_V34: DeviceProfile(
         # Tuya v3.4 firmware (productKey wfzeiyn1ed3axxde). Distinct DP numbering
