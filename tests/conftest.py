@@ -166,7 +166,7 @@ def config_entry() -> MockConfigEntry:
         unique_id=DEVICE_ID,
         data=ENTRY_DATA,
         version=1,
-        minor_version=1,
+        minor_version=3,
     )
 
 

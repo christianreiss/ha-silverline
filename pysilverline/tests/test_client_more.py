@@ -271,8 +271,36 @@ async def test_set_dp_wraps_set_multiple() -> None:
 
 
 async def test_set_multiple_empty_is_noop() -> None:
-    """set_multiple({}) returns immediately without writing anything."""
-    async with _Server() as server:
+    """set_multiple({}) returns via the early-return guard without sending
+    a CONTROL frame."""
+
+    async def handler(
+        srv: _Server, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> None:
+        codec = FrameCodec(KEY)
+        buf = bytearray()
+        try:
+            while True:
+                chunk = await reader.read(4096)
+                if not chunk:
+                    return
+                buf.extend(chunk)
+                while len(buf) >= 24:
+                    try:
+                        frame, remainder = codec.decode(bytes(buf))
+                    except Exception:
+                        return
+                    buf = bytearray(remainder)
+                    # Only the command matters here: we're proving no CONTROL
+                    # frame is emitted, so no body decode is needed.
+                    srv.received.append((frame.seq, frame.cmd, {}))
+                    if frame.cmd == const.CMD_CONTROL:
+                        writer.write(_build_frame(frame.seq, const.CMD_CONTROL, {}))
+                        await writer.drain()
+        finally:
+            writer.close()
+
+    async with _Server(handler) as server:
         client = SilverlineClient(
             host="127.0.0.1",
             port=server.port,
@@ -284,8 +312,12 @@ async def test_set_multiple_empty_is_noop() -> None:
         await client.connect()
         try:
             await client.set_multiple({})
-            # No wire traffic beyond the connect.
-            assert server.connections == 1
+            # The early-return guard means no CONTROL frame ever hit the wire.
+            # set_multiple is a blocking request/response (see
+            # test_set_dp_wraps_set_multiple), so a regression that sent an
+            # empty-dps CONTROL would have awaited the handler's reply and the
+            # frame would already be recorded by the time set_multiple returned.
+            assert not [r for r in server.received if r[1] == const.CMD_CONTROL]
         finally:
             await client.disconnect()
 

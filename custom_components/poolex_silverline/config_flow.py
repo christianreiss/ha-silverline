@@ -45,6 +45,9 @@ class SilverlineConfigFlow(ConfigFlow, domain=DOMAIN):
         # the model-selection step (cleared in __init__ and reset on each new
         # credentials submission so back-navigation is safe).
         self._pending_data: dict[str, Any] = {}
+        # True while a reconfigure flow is in progress, so async_step_model
+        # updates the existing entry instead of creating a new one.
+        self._is_reconfigure: bool = False
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -70,7 +73,8 @@ class SilverlineConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         """Second step: user picks their device model."""
         if user_input is not None:
-            is_reconfigure = self._pending_data.pop("_reconfigure", False)
+            is_reconfigure = self._is_reconfigure
+            self._is_reconfigure = False
             data = {**self._pending_data, CONF_MODEL: user_input[CONF_MODEL]}
             if is_reconfigure:
                 entry = self._get_reconfigure_entry()
@@ -135,7 +139,7 @@ class SilverlineConfigFlow(ConfigFlow, domain=DOMAIN):
                 )
                 # Mark this as a reconfigure so async_step_model can update
                 # (not create) the entry.
-                self._pending_data["_reconfigure"] = True
+                self._is_reconfigure = True
                 return await self.async_step_model()
             errors["base"] = error
 

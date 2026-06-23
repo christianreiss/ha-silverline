@@ -59,6 +59,15 @@ class SilverlineSensorDescription(SensorEntityDescription):
     coord_fn: Callable[[SilverlineCoordinator], float | int | str | None] | None = None
 
 
+# Several ``key`` / ``translation_key`` values below are legacy entity-id
+# misnomers that do NOT match what their ``value_fn`` reads (e.g.
+# _RETURN_TEMPERATURE reads d.ambient_temp, _COIL_TEMPERATURE reads
+# d.pool_temp). The keys are frozen for entity_id stability — renaming one
+# would silently change every existing user's entity_id. ``value_fn`` is the
+# authoritative source of what each sensor actually measures; human-readable
+# names live in translations/<lang>.json. Do NOT rename the keys to "match"
+# the lambdas.
+
 # ---- shared descriptions (byte-identical in both catalogs) ------------------
 
 _TEMPERATURE_DELTA = SilverlineSensorDescription(

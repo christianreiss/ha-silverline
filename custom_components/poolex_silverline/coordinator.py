@@ -99,6 +99,14 @@ class SilverlineCoordinator(DataUpdateCoordinator[DeviceState]):
     async def _async_setup(self) -> None:
         try:
             await self.client.connect()
+        except InvalidAuth as err:
+            # A wrong or rotated local_key fails the v3.4/v3.5 session
+            # handshake inside connect(), before the first poll. Surface it as
+            # an auth failure so HA starts the reauth flow — mirroring the poll
+            # path in _async_update_data. Without this, connect-time auth
+            # failures fall through to the generic setup-retry path and the user
+            # is never prompted to re-enter the key (it just keeps retrying).
+            raise ConfigEntryAuthFailed(err) from err
         except CannotConnect as err:
             raise UpdateFailed(f"connect failed: {err}") from err
         self._unsub_push = self.client.add_listener(self._handle_push)

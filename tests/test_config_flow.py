@@ -73,6 +73,11 @@ async def test_user_flow_validation_errors(
     result = await hass.config_entries.flow.async_configure(flow_id, ENTRY_DATA)
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"base": expected_error}
+    # The validator must close the socket even when validation fails
+    # (_validate disconnects in a finally). Assert here, before the
+    # recovery retry — the success path below also disconnects, so a
+    # check at the end of the test would be vacuous.
+    assert mock_client_factory.disconnect.called
 
     # Recover: clear side_effect, retry → model step → create entry
     mock_client_factory.get_status.side_effect = None
@@ -109,6 +114,9 @@ async def test_reauth_flow_happy_path(
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reauth_successful"
     assert config_entry.data[CONF_LOCAL_KEY] == "fedcba9876543210"
+    # The reauth probe detected v3.3, so the conditional that persists the
+    # detected protocol version onto the entry must have fired.
+    assert config_entry.data.get(CONF_PROTOCOL_VERSION) == "3.3"
     # async_update_reload_and_abort schedules the reload as a background
     # task; without draining here the new coordinator's refresh timer
     # outlives the test and trips the lingering-timer cleanup check.

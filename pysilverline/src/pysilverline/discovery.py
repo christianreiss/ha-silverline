@@ -43,7 +43,6 @@ import logging
 import struct
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from typing import Any
 
 from . import const
 from .protocol import aes_decrypt
@@ -101,7 +100,7 @@ def _decode_broadcast(data: bytes, *, encrypted: bool) -> DiscoveryInfo | None:
     else:
         plaintext = body
     try:
-        parsed: Any = json.loads(plaintext)
+        parsed: object = json.loads(plaintext)
     except (UnicodeDecodeError, json.JSONDecodeError):
         return None
     if not isinstance(parsed, dict):

@@ -1,4 +1,4 @@
-"""High-level async client for a Poolex Silverline / Tuya heat pump (v3.3 and v3.5)."""
+"""High-level async client for a Poolex / Tuya heat pump (v3.3, v3.4 and v3.5)."""
 
 from __future__ import annotations
 
@@ -43,7 +43,7 @@ PushListener = Callable[[DeviceState], None]
 ConnectionListener = Callable[[bool], None]
 
 
-def _unwrap_dps(decoded: Any) -> dict[str, Any]:
+def _unwrap_dps(decoded: object) -> dict[str, Any]:
     """Extract the ``dps`` mapping from a decoded device body.
 
     v3.4 ``device22`` firmware wraps DPs as ``{"data": {"dps": {...}}}`` while
@@ -278,8 +278,6 @@ class SilverlineClient:
             raise SilverlineError(f"DP_QUERY failed retcode=0x{retcode:08x}")
         decoded = self._codec.decrypt_body(ciphertext)
         dps = _unwrap_dps(decoded)
-        if not isinstance(dps, dict):
-            raise ProtocolError(f"unexpected dps payload: {decoded!r}")
         # Merge rather than replace: some Tuya firmware variants only
         # ship certain DPs in spontaneous STATUS pushes, not in
         # DP_QUERY responses. If we replaced wholesale, those push-only
@@ -391,13 +389,8 @@ class SilverlineClient:
         block of ``_read_loop`` then notifies listeners and schedules a
         reconnect.
         """
-        writer = self._writer
-        if writer is None:
-            return
-        try:
-            writer.close()
-        except OSError:
-            pass
+        if self._writer is not None:
+            close_writer_silent(self._writer)
 
     async def _read_loop(self) -> None:
         buf = bytearray()

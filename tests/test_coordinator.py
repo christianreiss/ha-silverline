@@ -210,5 +210,7 @@ async def test_unknown_model_leaves_supported_dps_empty(
     coordinator = entry.runtime_data
     # After setup, first poll ran and populated from mock state (all DPs in
     # state_pool_running); it should not be empty any more, but the key point
-    # is that the profile did not pre-populate it with a fixed set.
-    assert coordinator.supported_dps  # populated by poll, not by profile
+    # is that the profile did not pre-populate it with a fixed set. DP 101 is
+    # not in the 'other' profile, so its presence proves the poll populated
+    # supported_dps rather than the model profile.
+    assert "101" in coordinator.supported_dps  # populated by poll, not by profile

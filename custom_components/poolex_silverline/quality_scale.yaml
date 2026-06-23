@@ -4,12 +4,14 @@ rules:
     status: exempt
     comment: Integration registers no custom service actions in v0.1.
   appropriate-polling:
-    status: exempt
+    status: done
     comment: |
-      iot_class is local_push: the coordinator holds a persistent TCP
-      socket and processes spontaneous CMD_STATUS pushes via
-      async_set_updated_data. The 30 s DataUpdateCoordinator poll is a
-      heartbeat/fallback rather than the primary state path.
+      The DataUpdateCoordinator polls every 30 s
+      (DEFAULT_SCAN_INTERVAL) via get_status(), which is within HA's
+      recommended range. iot_class is local_push, so this poll is a
+      heartbeat/fallback alongside the spontaneous CMD_STATUS pushes the
+      persistent TCP socket delivers via async_set_updated_data; the poll
+      is not the primary state path but it does run, so the rule applies.
   brands:
     status: done
     comment: |
@@ -79,7 +81,9 @@ rules:
       short-lived encrypted session against the new IP under the stored
       local_key — only the genuine device can respond, which blocks a LAN
       attacker who minted a spoofed UDP broadcast (the Tuya discovery key
-      is public). Regression test: test_init.test_discovery_loop_suppresses_duplicate_ip_but_refires_on_change.
+      is public). Regression tests:
+      test_config_flow.test_discovery_rewrites_host_only_on_verified_response
+      and test_config_flow.test_discovery_ignores_unverified_host.
   docs-data-update: done
   docs-examples: done
   docs-known-limitations: done

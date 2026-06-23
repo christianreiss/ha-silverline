@@ -114,6 +114,24 @@ async def test_setup_triggers_reauth_on_invalid_key(
     assert any(flow["context"].get("source") == "reauth" for flow in flows)
 
 
+async def test_setup_triggers_reauth_on_invalid_key_at_connect(
+    hass: HomeAssistant, mock_client_factory, config_entry: MockConfigEntry
+) -> None:
+    """A wrong/rotated key fails the v3.4/v3.5 handshake inside connect()
+    (before the first poll). That must trigger reauth, exactly like the poll
+    path — not the generic setup-retry path. Regression: _async_setup
+    previously caught only CannotConnect, so a connect-time InvalidAuth became
+    ConfigEntryNotReady/SETUP_RETRY and never prompted the user for a new key.
+    """
+    mock_client_factory.connect.side_effect = InvalidAuth("rotated")
+    config_entry.add_to_hass(hass)
+    assert not await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+    assert config_entry.state is ConfigEntryState.SETUP_ERROR
+    flows = hass.config_entries.flow.async_progress_by_handler(config_entry.domain)
+    assert any(flow["context"].get("source") == "reauth" for flow in flows)
+
+
 async def test_setup_disconnects_client_when_first_refresh_fails(
     hass: HomeAssistant, mock_client_factory, config_entry: MockConfigEntry
 ) -> None:

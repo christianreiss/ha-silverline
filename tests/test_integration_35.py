@@ -51,6 +51,14 @@ async def test_setup_entry_against_fake_v35_device(
         assert server.finish_hmac_ok is True
         assert server.queries >= 1
 
+        # The GCM-decoded DP payload must reach entity state, not just the
+        # handshake: DP1=True + DP4='Heat' -> hvac_mode heat, DP3=26 ->
+        # current_temperature 26.
+        climate_state = hass.states.get("climate.pool_heatpump")
+        assert climate_state is not None
+        assert climate_state.state == "heat"
+        assert climate_state.attributes["current_temperature"] == 26
+
         registry = er.async_get(hass)
         entity_ids = {
             entity.entity_id

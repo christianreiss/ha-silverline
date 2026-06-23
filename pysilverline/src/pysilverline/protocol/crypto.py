@@ -99,7 +99,9 @@ def derive_session_key_35(
     """
     xored = bytes(a ^ b for a, b in zip(local_nonce, remote_nonce))
     iv = local_nonce[:_GCM_IV_SIZE]
-    # AESGCM.encrypt returns ciphertext(16B) + tag(16B) for 16-byte plaintext.
-    # Prepend IV to match TinyTuya's (IV||CT||tag)[12:28] = CT[0:16].
+    # AESGCM.encrypt returns ciphertext(16B) + tag(16B) for a 16-byte plaintext;
+    # the session key is CT[0:16]. TinyTuya frames the same bytes as
+    # (IV||CT||tag)[12:28] — the 12-byte IV prefix never goes on the wire here,
+    # so we slice the ciphertext directly instead of prepending it.
     ct_tag = AESGCM(real_key).encrypt(iv, xored, None)
     return ct_tag[:_BLOCK_SIZE]  # first 16 bytes = ciphertext = session key
