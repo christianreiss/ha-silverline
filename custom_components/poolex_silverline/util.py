@@ -24,6 +24,8 @@ from .const import (
     HEAT_TEMP_MAX,
     HEAT_TEMP_MIN,
     PRESET_NONE,
+    PRESET_TO_COOL_DP,
+    PRESET_TO_HEAT_DP,
 )
 
 
@@ -76,6 +78,27 @@ def derive_preset(state: DeviceState) -> str:
     if state.mode in COOL_PREFIX_TO_PRESET:
         return COOL_PREFIX_TO_PRESET[state.mode]
     return PRESET_NONE
+
+
+def resolve_heat_map(profile: DeviceProfile | None) -> dict[str, str]:
+    """Preset→DP-4 heat strings for this model, else the global default."""
+    if profile is not None and profile.preset_to_heat_dp is not None:
+        return profile.preset_to_heat_dp
+    return PRESET_TO_HEAT_DP
+
+
+def resolve_cool_map(profile: DeviceProfile | None) -> dict[str, str]:
+    """Preset→DP-4 cool strings for this model, else the global default."""
+    if profile is not None and profile.preset_to_cool_dp is not None:
+        return profile.preset_to_cool_dp
+    return PRESET_TO_COOL_DP
+
+
+def resolve_auto_dp(profile: DeviceProfile | None) -> str:
+    """DP-4 string to write for HEAT_COOL on this model, else ``"Auto"``."""
+    if profile is not None and profile.auto_dp is not None:
+        return profile.auto_dp
+    return "Auto"
 
 
 def mode_temp_range(

@@ -26,12 +26,18 @@ from .const import (
     PRESET_BOOST,
     PRESET_ECO,
     PRESET_NONE,
-    PRESET_TO_COOL_DP,
-    PRESET_TO_HEAT_DP,
 )
 from .coordinator import SilverlineConfigEntry, SilverlineCoordinator
 from .entity import SilverlineEntity
-from .util import compute_hvac_action, derive_hvac_mode, derive_preset, mode_temp_range
+from .util import (
+    compute_hvac_action,
+    derive_hvac_mode,
+    derive_preset,
+    mode_temp_range,
+    resolve_auto_dp,
+    resolve_cool_map,
+    resolve_heat_map,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -182,10 +188,7 @@ class SilverlineClimate(SilverlineEntity, ClimateEntity, RestoreEntity):
             mode_string = self._mode_string_for(hvac_mode, self._last_preset)
             self._last_direction = hvac_mode
         elif hvac_mode == HVACMode.HEAT_COOL:
-            profile = self.coordinator.profile
-            mode_string = (
-                profile.auto_dp if profile and profile.auto_dp is not None else "Auto"
-            )
+            mode_string = resolve_auto_dp(self.coordinator.profile)
             self._last_direction = HVACMode.HEAT_COOL
             self._last_preset = PRESET_NONE
         else:
@@ -267,17 +270,8 @@ class SilverlineClimate(SilverlineEntity, ClimateEntity, RestoreEntity):
         await self.async_set_hvac_mode(HVACMode.OFF)
 
     def _mode_string_for(self, direction: HVACMode, preset: str) -> str:
-        profile = self.coordinator.profile
         if direction == HVACMode.HEAT:
-            table = (
-                profile.preset_to_heat_dp
-                if profile and profile.preset_to_heat_dp is not None
-                else PRESET_TO_HEAT_DP
-            )
+            table = resolve_heat_map(self.coordinator.profile)
         else:
-            table = (
-                profile.preset_to_cool_dp
-                if profile and profile.preset_to_cool_dp is not None
-                else PRESET_TO_COOL_DP
-            )
+            table = resolve_cool_map(self.coordinator.profile)
         return table.get(preset, table[PRESET_NONE])

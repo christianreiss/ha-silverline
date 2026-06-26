@@ -29,12 +29,16 @@ from .const import (
     PRESET_BOOST,
     PRESET_ECO,
     PRESET_NONE,
-    PRESET_TO_COOL_DP,
-    PRESET_TO_HEAT_DP,
 )
 from .coordinator import SilverlineConfigEntry, SilverlineCoordinator
 from .entity import SilverlineEntity
-from .util import derive_hvac_mode, derive_preset
+from .util import (
+    derive_hvac_mode,
+    derive_preset,
+    resolve_auto_dp,
+    resolve_cool_map,
+    resolve_heat_map,
+)
 
 PARALLEL_UPDATES = 1
 
@@ -120,21 +124,10 @@ class SilverlinePresetSelect(SilverlineEntity, SelectEntity):
                 translation_domain=DOMAIN,
                 translation_key="preset_not_available_in_auto",
             )
-        profile = self.coordinator.profile
         if current_mode in HEAT_PREFIX_TO_PRESET:
-            table = (
-                profile.preset_to_heat_dp
-                if profile and profile.preset_to_heat_dp is not None
-                else PRESET_TO_HEAT_DP
-            )
-            mode_string = table[option]
+            mode_string = resolve_heat_map(self.coordinator.profile)[option]
         elif current_mode in COOL_PREFIX_TO_PRESET:
-            table = (
-                profile.preset_to_cool_dp
-                if profile and profile.preset_to_cool_dp is not None
-                else PRESET_TO_COOL_DP
-            )
-            mode_string = table[option]
+            mode_string = resolve_cool_map(self.coordinator.profile)[option]
         else:
             # Unknown DP-4 string — refuse rather than guess heat/cool.
             return
@@ -171,25 +164,12 @@ class SilverlineOperatingModeSelect(SilverlineEntity, SelectEntity):
             await self._write_dps({tuya_const.DP_POWER: False})
             return
 
-        profile = self.coordinator.profile
         if option == OPMODE_HEAT:
-            heat_map = (
-                profile.preset_to_heat_dp
-                if profile and profile.preset_to_heat_dp is not None
-                else PRESET_TO_HEAT_DP
-            )
-            mode_string = heat_map[PRESET_NONE]
+            mode_string = resolve_heat_map(self.coordinator.profile)[PRESET_NONE]
         elif option == OPMODE_COOL:
-            cool_map = (
-                profile.preset_to_cool_dp
-                if profile and profile.preset_to_cool_dp is not None
-                else PRESET_TO_COOL_DP
-            )
-            mode_string = cool_map[PRESET_NONE]
+            mode_string = resolve_cool_map(self.coordinator.profile)[PRESET_NONE]
         elif option == OPMODE_HEAT_COOL:
-            mode_string = (
-                profile.auto_dp if profile and profile.auto_dp is not None else "Auto"
-            )
+            mode_string = resolve_auto_dp(self.coordinator.profile)
         else:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,

@@ -14,12 +14,19 @@ from custom_components.poolex_silverline.util import (
     derive_hvac_mode,
     derive_preset,
     mask_device_id,
+    resolve_auto_dp,
+    resolve_cool_map,
+    resolve_heat_map,
 )
 from custom_components.poolex_silverline.const import (
+    DEVICE_PROFILES,
     PRESET_BOOST,
     PRESET_ECO,
     PRESET_NONE,
+    PRESET_TO_COOL_DP,
+    PRESET_TO_HEAT_DP,
 )
+from pysilverline.devices import MODEL_PC_INV_120
 
 
 def test_compute_hvac_action_cool_idle_when_actual_frequency_zero() -> None:
@@ -112,6 +119,56 @@ def test_derive_hvac_mode_auto_variants_idle() -> None:
 def test_mask_device_id_truncates_long_id() -> None:
     """A real 22-char Tuya device_id collapses to first 6 chars + ellipsis."""
     assert mask_device_id("bf12345678abcdefghijkl") == "bf1234..."
+
+
+# --- DP-4 write-vocabulary resolution (per-model override vs global) ---
+
+
+def test_resolve_heat_map_defaults_to_global_when_no_override() -> None:
+    """profile=None (and the standard profile, which leaves the field None)
+    both fall back to the global PRESET_TO_HEAT_DP write strings."""
+    assert resolve_heat_map(None) is PRESET_TO_HEAT_DP
+
+
+def test_resolve_heat_map_uses_profile_override() -> None:
+    """pc_inv_120v2 carries its own heat vocabulary (heat/h_powerful/h_silent);
+    resolve_heat_map must return that override, not the global default."""
+    profile = DEVICE_PROFILES[MODEL_PC_INV_120]
+    assert resolve_heat_map(profile) is profile.preset_to_heat_dp
+    assert resolve_heat_map(profile) == {
+        "none": "heat",
+        "boost": "h_powerful",
+        "eco": "h_silent",
+    }
+
+
+def test_resolve_cool_map_defaults_to_global_when_no_override() -> None:
+    """profile=None falls back to the global PRESET_TO_COOL_DP write strings."""
+    assert resolve_cool_map(None) is PRESET_TO_COOL_DP
+
+
+def test_resolve_cool_map_uses_profile_override() -> None:
+    """pc_inv_120v2 carries its own cool vocabulary (cool/c_powerful/c_silent);
+    resolve_cool_map must return that override, not the global default."""
+    profile = DEVICE_PROFILES[MODEL_PC_INV_120]
+    assert resolve_cool_map(profile) is profile.preset_to_cool_dp
+    assert resolve_cool_map(profile) == {
+        "none": "cool",
+        "boost": "c_powerful",
+        "eco": "c_silent",
+    }
+
+
+def test_resolve_auto_dp_defaults_to_global_when_no_override() -> None:
+    """profile=None resolves HEAT_COOL to the standard 'Auto' DP-4 string."""
+    assert resolve_auto_dp(None) == "Auto"
+
+
+def test_resolve_auto_dp_uses_profile_override() -> None:
+    """pc_inv_120v2 writes lower-case 'auto' for HEAT_COOL; resolve_auto_dp
+    must return that override, not the global 'Auto'."""
+    profile = DEVICE_PROFILES[MODEL_PC_INV_120]
+    assert resolve_auto_dp(profile) == "auto"
 
 
 def test_mask_device_id_passes_through_short_id() -> None:
