@@ -549,7 +549,18 @@ class SilverlineClient:
                 # ProtocolError = AES decrypted but JSON parse failed —
                 # transient corruption; ignore the push, the next one
                 # will land cleanly.
-                _LOGGER.debug("ignoring undecryptable push frame")
+                # Dump the decrypted plaintext (truncated hex) so a STATUS push
+                # from an unmapped firmware variant — one that decrypts cleanly
+                # but is not JSON in the expected shape — can be captured for
+                # diagnosis (jetline_fi v3.5 reports). These bytes are DP state,
+                # not credentials. Behaviour is unchanged: the push is still
+                # dropped.
+                _LOGGER.debug(
+                    "ignoring undecryptable push frame (cmd=0x%02x, %d bytes): %s",
+                    frame.cmd,
+                    len(frame.payload),
+                    frame.payload[:256].hex(),
+                )
                 return
             dps = _unwrap_dps(decoded)
             # v3.4 firmware often acks a CONTROL_NEW write by echoing state via
