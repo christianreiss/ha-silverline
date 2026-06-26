@@ -15,7 +15,11 @@ from custom_components.poolex_silverline.util import (
     derive_preset,
     mask_device_id,
 )
-from custom_components.poolex_silverline.const import PRESET_BOOST, PRESET_ECO, PRESET_NONE
+from custom_components.poolex_silverline.const import (
+    PRESET_BOOST,
+    PRESET_ECO,
+    PRESET_NONE,
+)
 
 
 def test_compute_hvac_action_cool_idle_when_actual_frequency_zero() -> None:
@@ -69,15 +73,25 @@ def test_derive_hvac_mode_pc_inv_120_auto_strings() -> None:
 def test_derive_preset_pc_inv_120_heat_presets() -> None:
     """h_powerful → boost, h_silent → eco, heat → none."""
     assert derive_preset(DeviceState.from_dps({"1": True, "4": "heat"})) == PRESET_NONE
-    assert derive_preset(DeviceState.from_dps({"1": True, "4": "h_powerful"})) == PRESET_BOOST
-    assert derive_preset(DeviceState.from_dps({"1": True, "4": "h_silent"})) == PRESET_ECO
+    assert (
+        derive_preset(DeviceState.from_dps({"1": True, "4": "h_powerful"}))
+        == PRESET_BOOST
+    )
+    assert (
+        derive_preset(DeviceState.from_dps({"1": True, "4": "h_silent"})) == PRESET_ECO
+    )
 
 
 def test_derive_preset_pc_inv_120_cool_presets() -> None:
     """c_powerful → boost, c_silent → eco, cool → none."""
     assert derive_preset(DeviceState.from_dps({"1": True, "4": "cool"})) == PRESET_NONE
-    assert derive_preset(DeviceState.from_dps({"1": True, "4": "c_powerful"})) == PRESET_BOOST
-    assert derive_preset(DeviceState.from_dps({"1": True, "4": "c_silent"})) == PRESET_ECO
+    assert (
+        derive_preset(DeviceState.from_dps({"1": True, "4": "c_powerful"}))
+        == PRESET_BOOST
+    )
+    assert (
+        derive_preset(DeviceState.from_dps({"1": True, "4": "c_silent"})) == PRESET_ECO
+    )
 
 
 def test_derive_hvac_mode_off_overrides_mode_string() -> None:
@@ -89,7 +103,9 @@ def test_derive_hvac_mode_off_overrides_mode_string() -> None:
 def test_derive_hvac_mode_auto_variants_idle() -> None:
     """auto/a_powerful/a_silent each still produce IDLE when DP 108 == 0."""
     for mode_str in ("auto", "a_powerful", "a_silent"):
-        state = DeviceState.from_dps({"1": True, "4": mode_str, "2": 27, "3": 25, "108": 0})
+        state = DeviceState.from_dps(
+            {"1": True, "4": mode_str, "2": 27, "3": 25, "108": 0}
+        )
         assert compute_hvac_action(state) is HVACAction.IDLE, f"failed for {mode_str!r}"
 
 

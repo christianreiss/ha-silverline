@@ -90,15 +90,39 @@ def mode_temp_range(
     already-resolved mode. Unknown modes fall back to the Heat range.
     """
     if mode == HVACMode.COOL:
-        lo = profile.cool_temp_min if profile and profile.cool_temp_min is not None else COOL_TEMP_MIN
-        hi = profile.cool_temp_max if profile and profile.cool_temp_max is not None else COOL_TEMP_MAX
+        lo = (
+            profile.cool_temp_min
+            if profile and profile.cool_temp_min is not None
+            else COOL_TEMP_MIN
+        )
+        hi = (
+            profile.cool_temp_max
+            if profile and profile.cool_temp_max is not None
+            else COOL_TEMP_MAX
+        )
         return lo, hi
     if mode == HVACMode.HEAT_COOL:
-        lo = profile.auto_temp_min if profile and profile.auto_temp_min is not None else AUTO_TEMP_MIN
-        hi = profile.auto_temp_max if profile and profile.auto_temp_max is not None else AUTO_TEMP_MAX
+        lo = (
+            profile.auto_temp_min
+            if profile and profile.auto_temp_min is not None
+            else AUTO_TEMP_MIN
+        )
+        hi = (
+            profile.auto_temp_max
+            if profile and profile.auto_temp_max is not None
+            else AUTO_TEMP_MAX
+        )
         return lo, hi
-    lo = profile.heat_temp_min if profile and profile.heat_temp_min is not None else HEAT_TEMP_MIN
-    hi = profile.heat_temp_max if profile and profile.heat_temp_max is not None else HEAT_TEMP_MAX
+    lo = (
+        profile.heat_temp_min
+        if profile and profile.heat_temp_min is not None
+        else HEAT_TEMP_MIN
+    )
+    hi = (
+        profile.heat_temp_max
+        if profile and profile.heat_temp_max is not None
+        else HEAT_TEMP_MAX
+    )
     return lo, hi
 
 

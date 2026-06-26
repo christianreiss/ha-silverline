@@ -122,10 +122,18 @@ class SilverlinePresetSelect(SilverlineEntity, SelectEntity):
             )
         profile = self.coordinator.profile
         if current_mode in HEAT_PREFIX_TO_PRESET:
-            table = profile.preset_to_heat_dp if profile and profile.preset_to_heat_dp is not None else PRESET_TO_HEAT_DP
+            table = (
+                profile.preset_to_heat_dp
+                if profile and profile.preset_to_heat_dp is not None
+                else PRESET_TO_HEAT_DP
+            )
             mode_string = table[option]
         elif current_mode in COOL_PREFIX_TO_PRESET:
-            table = profile.preset_to_cool_dp if profile and profile.preset_to_cool_dp is not None else PRESET_TO_COOL_DP
+            table = (
+                profile.preset_to_cool_dp
+                if profile and profile.preset_to_cool_dp is not None
+                else PRESET_TO_COOL_DP
+            )
             mode_string = table[option]
         else:
             # Unknown DP-4 string — refuse rather than guess heat/cool.
@@ -165,13 +173,23 @@ class SilverlineOperatingModeSelect(SilverlineEntity, SelectEntity):
 
         profile = self.coordinator.profile
         if option == OPMODE_HEAT:
-            heat_map = profile.preset_to_heat_dp if profile and profile.preset_to_heat_dp is not None else PRESET_TO_HEAT_DP
+            heat_map = (
+                profile.preset_to_heat_dp
+                if profile and profile.preset_to_heat_dp is not None
+                else PRESET_TO_HEAT_DP
+            )
             mode_string = heat_map[PRESET_NONE]
         elif option == OPMODE_COOL:
-            cool_map = profile.preset_to_cool_dp if profile and profile.preset_to_cool_dp is not None else PRESET_TO_COOL_DP
+            cool_map = (
+                profile.preset_to_cool_dp
+                if profile and profile.preset_to_cool_dp is not None
+                else PRESET_TO_COOL_DP
+            )
             mode_string = cool_map[PRESET_NONE]
         elif option == OPMODE_HEAT_COOL:
-            mode_string = profile.auto_dp if profile and profile.auto_dp is not None else "Auto"
+            mode_string = (
+                profile.auto_dp if profile and profile.auto_dp is not None else "Auto"
+            )
         else:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
