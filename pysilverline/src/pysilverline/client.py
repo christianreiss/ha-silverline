@@ -301,6 +301,7 @@ class SilverlineClient:
         if not values:
             return
         dps = {str(k): v for k, v in values.items()}
+        _LOGGER.debug("writing DPs %s (protocol %s)", dps, self._detected_version)
         if self._detected_version in ("3.4", "3.5"):
             # v3.4/v3.5 firmware accepts writes via CONTROL_NEW (0x0d) wrapped in
             # a protocol-5 envelope; the local LAN API still carries raw DP ids
