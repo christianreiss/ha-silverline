@@ -542,7 +542,29 @@ async def test_async_turn_on_off_dispatch(
         {ATTR_ENTITY_ID: ENTITY_ID},
         blocking=True,
     )
-    # _last_direction starts at HVACMode.HEAT, so turn_on restores Heat.
+    # The device still reports DP 4 (mode "Heat") while off, so turn_on
+    # restores power only and lets the unit resume its own mode — it must NOT
+    # bundle a DP-4 write, which issue #7 firmware rejects with a power revert.
+    mock_client_factory.set_multiple.assert_awaited_with({1: True})
+
+
+async def test_async_turn_on_falls_back_to_mode_when_dp4_absent(
+    hass: HomeAssistant, mock_client_factory, init_integration
+) -> None:
+    """When the firmware drops DP 4 while off (no mode to resume), turn_on
+    falls back to writing power + the remembered direction so the unit still
+    starts in a defined mode."""
+    coordinator = init_integration.runtime_data
+    # Simulate firmware that reports no mode (DP 4 absent) while off.
+    coordinator.async_set_updated_data(DeviceState.from_dps({"1": False, "3": 22}))
+
+    await hass.services.async_call(
+        CLIMATE_DOMAIN,
+        "turn_on",
+        {ATTR_ENTITY_ID: ENTITY_ID},
+        blocking=True,
+    )
+    # _last_direction starts at HVACMode.HEAT, so the fallback restores Heat.
     mock_client_factory.set_multiple.assert_awaited_with({1: True, 4: "Heat"})
 
 
@@ -585,14 +607,15 @@ async def test_write_surfaces_invalid_auth_as_homeassistant_error(
 
 
 async def test_restore_state_recovers_last_direction_and_preset(
-    hass: HomeAssistant, mock_client_factory, config_entry, state_pool_off
+    hass: HomeAssistant, mock_client_factory, config_entry
 ) -> None:
-    """When HA reloads with the device powered off, async_added_to_hass
-    restores _last_direction and _last_preset from the previous state
-    attributes so a subsequent turn_on uses the right preset+direction.
-
-    The device must come up OFF — if it's ON in Heat, _sync_from_state
-    overwrites the restored direction back to Heat as expected.
+    """When HA reloads with the device powered off AND the firmware drops
+    DP 4 while off (so the device can't tell us the last mode),
+    async_added_to_hass restores _last_direction and _last_preset from the
+    previous state attributes so a subsequent turn_on starts in the right
+    preset+direction. (When the firmware retains DP 4 while off, the device's
+    own mode is authoritative and turn_on is power-only — see
+    test_async_turn_on_off_dispatch.)
     """
     from unittest.mock import AsyncMock
     from pytest_homeassistant_custom_component.common import mock_restore_cache
@@ -611,7 +634,10 @@ async def test_restore_state_recovers_last_direction_and_preset(
             )
         ],
     )
-    mock_client_factory.get_status = AsyncMock(return_value=state_pool_off)
+    # Firmware that does not report DP 4 while off → mode is None → turn_on
+    # falls back to the restored direction/preset.
+    state_off_no_mode = DeviceState.from_dps({"1": False, "3": 22, "13": 0})
+    mock_client_factory.get_status = AsyncMock(return_value=state_off_no_mode)
     config_entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()

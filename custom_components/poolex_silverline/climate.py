@@ -264,6 +264,20 @@ class SilverlineClimate(SilverlineEntity, ClimateEntity, RestoreEntity):
         await self._write_dps({tuya_const.DP_TEMP_SET: value})
 
     async def async_turn_on(self) -> None:
+        # When the device still reports its operating mode (DP 4) while off —
+        # as the JetLine FI / v3.5 firmware does — restore power only and let
+        # the unit resume that mode on its own. Bundling a DP-4 mode write with
+        # the power-on (what async_set_hvac_mode does) is rejected by some
+        # firmware, which powers on then immediately reverts to off (issue #7):
+        # the device confirms 1=true, then pushes 1=false ~7 s later with no HA
+        # write between. Sending power only — exactly what the standalone power
+        # switch sends, and what the Tuya app sends when it holds — sidesteps
+        # that. Fall back to writing the remembered mode only when the firmware
+        # drops DP 4 while off and we have nothing on the device to resume.
+        state = self.coordinator.data
+        if state is not None and state.mode is not None:
+            await self._write_dps({tuya_const.DP_POWER: True})
+            return
         await self.async_set_hvac_mode(self._last_direction)
 
     async def async_turn_off(self) -> None:
