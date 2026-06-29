@@ -333,16 +333,18 @@ class SilverlineClient:
             raise InvalidAuth(f"device rejected CONTROL retcode={retcode}")
         if retcode not in (None, 0):
             if self._detected_version == "3.5":
-                # The 4-byte field on a v3.5 CONTROL_NEW ack is NOT a reliable
-                # success/failure code. Real firmware (issue #7, productKey
-                # b4zr9ugt1q8xn9af) acks a write with a leading 01 00 00 00 that
-                # decodes to 0x01000000 even though the write applies. TinyTuya
-                # reads the same bytes (no_retcode=False, big-endian ">I") and
-                # ignores them on control writes — it never fails a write on the
-                # retcode. Mirror that: accept the ack, note the unexpected code
-                # at debug, and let the STATUS-push echo / next poll confirm the
-                # new state. v3.3 (0x07) and v3.4 (0x0d, confirmed on real
-                # wfzeiyn silicon) keep returning retcode 0, so they stay strict.
+                # A leading 0x01000000 on a v3.5 CONTROL_NEW ack was the device
+                # REJECTING a header-less write (issue #7) — root-caused to the
+                # missing 15-byte version header, now prepended in
+                # ``Frame35Codec.encode``, so a correct write should return
+                # retcode 0. We still accept (not raise on) a non-zero code here:
+                # the shape of a *successful* ack on this firmware is not yet
+                # confirmed on hardware, and a success ack carrying a version
+                # header would make ``split_response_payload`` read a bogus
+                # non-zero retcode. Tightening to strict is deferred until the
+                # success-ack shape is confirmed. TinyTuya likewise never fails a
+                # write on this retcode. v3.3 (0x07) and v3.4 (0x0d, confirmed on
+                # real wfzeiyn silicon) return retcode 0 and stay strict.
                 _LOGGER.debug(
                     "v3.5 CONTROL_NEW ack carried retcode=0x%08x; accepting "
                     "(write-ack retcode is not a reliable failure signal)",

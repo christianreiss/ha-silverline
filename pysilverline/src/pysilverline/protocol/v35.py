@@ -7,6 +7,9 @@ v3.5 frame on the wire:
 with `length = N + 28`. GCM tag authenticates header bytes[4:18] as AAD.
 Every TCP connection requires a 3-message session-key handshake (cmds 0x03/0x04/0x05)
 before any data frame. See `Frame35Codec` and `derive_session_key_35`.
+
+Control writes (CONTROL/CONTROL_NEW) prepend a 15-byte Tuya version header to the
+JSON inside the ciphertext; reads and the handshake do not. See `encode`.
 """
 
 from __future__ import annotations
@@ -26,8 +29,10 @@ _35_HEADER_FMT = ">IHIII"  # prefix(4) unknown(2) seq(4) cmd(4) length(4)
 _35_HEADER_SIZE = struct.calcsize(_35_HEADER_FMT)  # 18 bytes
 
 # Some firmware prepends a Tuya "version header" to the JSON body of a push:
-# 3 version bytes (b"3.5") + 12 reserved bytes = 15. See split_request_payload.
-_35_VERSION_HEADER_SIZE = 15
+# 3 version bytes (b"3.5") + 12 reserved bytes = 15. The same header is required
+# on outbound control writes (see ``Frame35Codec.encode``). See
+# split_request_payload.
+_35_VERSION_HEADER_SIZE = len(const.PROTOCOL_35_HEADER)
 
 
 class Frame35Codec:
@@ -69,8 +74,20 @@ class Frame35Codec:
         return int.from_bytes(wire[6:10], "big")
 
     def encode(self, cmd: int, body: dict[str, Any]) -> bytes:
-        """Build a 6699 frame with JSON-serialised ``body``."""
+        """Build a 6699 frame with JSON-serialised ``body``.
+
+        Control writes (CONTROL / CONTROL_NEW) carry a 15-byte Tuya version
+        header (``b"3.5"`` + 12 reserved bytes) prepended to the JSON, encrypted
+        inside the GCM ciphertext. Real v3.5 firmware rejects header-less writes
+        with retcode 0x01000000 while still answering header-less reads — issue
+        #7, confirmed against a tinytuya write that powered the same unit on.
+        DP_QUERY(_NEW), heartbeat, refresh and the handshake stay header-less
+        (``CMDS_35_WITHOUT_HEADER``). Mirrors ``Frame34Codec.encode`` and
+        tinytuya's ``NO_PROTOCOL_HEADER_CMDS`` logic.
+        """
         plaintext = json.dumps(body, separators=(",", ":")).encode("utf-8")
+        if cmd not in const.CMDS_35_WITHOUT_HEADER:
+            plaintext = const.PROTOCOL_35_HEADER + plaintext
         return self._build_frame(cmd, plaintext)
 
     def encode_raw(self, cmd: int, payload: bytes) -> bytes:

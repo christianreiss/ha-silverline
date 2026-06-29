@@ -101,7 +101,7 @@ def test_codec_rejects_short_key() -> None:
         Frame35Codec("short")
 
 
-def test_frame35_encode_decode_roundtrip() -> None:
+def test_frame35_control_roundtrip_with_inner_header() -> None:
     codec = Frame35Codec(KEY)
     body = {"dps": {"1": True, "2": 28}}
     wire = codec.encode(const.CMD_CONTROL, body)
@@ -110,10 +110,47 @@ def test_frame35_encode_decode_roundtrip() -> None:
     assert wire[:4] == b"\x00\x00\x66\x99"
     assert wire[-4:] == b"\x00\x00\x99\x66"
 
+    # The version header is ENCRYPTED — it must not appear in the wire.
+    assert const.PROTOCOL_35_HEADER not in wire
+
     frame, remainder = codec.decode(wire)
     assert remainder == b""
     assert frame.cmd == const.CMD_CONTROL
+    # Control writes carry the 15-byte version header before the JSON.
+    assert frame.payload.startswith(const.PROTOCOL_35_HEADER)
+    assert json.loads(frame.payload[len(const.PROTOCOL_35_HEADER) :]) == body
+
+
+def test_frame35_dp_query_roundtrip_without_header() -> None:
+    codec = Frame35Codec(KEY)
+    body = {"gwId": "x", "devId": "x"}
+    wire = codec.encode(const.CMD_DP_QUERY, body)
+    frame, _ = codec.decode(wire)
+    # DP_QUERY is header-less; the decrypted plaintext is JSON directly. This is
+    # why reads worked on real v3.5 firmware while header-less writes did not.
+    assert not frame.payload.startswith(const.PROTOCOL_35_HEADER)
     assert json.loads(frame.payload) == body
+
+
+def test_frame35_control_new_plaintext_matches_tinytuya() -> None:
+    """The decrypted CONTROL_NEW plaintext is byte-identical to the tinytuya
+    write that powered Paulus385's unit on (issue #7).
+
+    tinytuya put ``b"3.5" + 12*b"\\x00"`` + the compact protocol-5 envelope on the
+    wire for ``set_value(1, True)`` and the heat pump switched on; pysilverline's
+    header-less write was rejected (0x01000000). This pins our outbound plaintext
+    to that confirmed-working byte sequence so the header can never regress.
+    """
+    codec = Frame35Codec(KEY)
+    # Same envelope set_multiple builds, with a fixed timestamp for determinism.
+    body = {"protocol": 5, "t": 1782749201, "data": {"dps": {"1": True}}}
+    wire = codec.encode(const.CMD_CONTROL_NEW, body)
+    frame, _ = codec.decode(wire)
+
+    expected_json = b'{"protocol":5,"t":1782749201,"data":{"dps":{"1":true}}}'
+    assert frame.payload == const.PROTOCOL_35_HEADER + expected_json
+    # Header is exactly b"3.5" + 12 zero bytes (all-zero reserved, per tinytuya).
+    assert const.PROTOCOL_35_HEADER == b"3.5" + b"\x00" * 12
 
 
 def test_frame35_encode_decode_empty_body() -> None:

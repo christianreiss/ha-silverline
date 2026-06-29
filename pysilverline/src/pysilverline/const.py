@@ -22,6 +22,15 @@ PROTOCOL_34_HEADER: Final = PROTOCOL_VERSION_34 + b"\x00" * 12  # 15 bytes
 FRAME_PREFIX_35: Final = 0x00006699
 FRAME_SUFFIX_35: Final = 0x00009966
 
+# v3.5 prepends the same 15-byte inner version header as v3.4 to control writes,
+# encrypted inside the GCM ciphertext. Omitting it made real v3.5 firmware reject
+# CONTROL_NEW writes with retcode 0x01000000 while reads (header-less DP_QUERY)
+# kept working — issue #7. Confirmed by a tinytuya write carrying this exact
+# header powering the same unit on (Paulus385), where pysilverline's header-less
+# write did not. See ``Frame35Codec.encode``.
+PROTOCOL_VERSION_35: Final = b"3.5"
+PROTOCOL_35_HEADER: Final = PROTOCOL_VERSION_35 + b"\x00" * 12  # 15 bytes
+
 SESS_KEY_NEG_START: Final = 0x03
 SESS_KEY_NEG_RESP: Final = 0x04
 SESS_KEY_NEG_FINISH: Final = 0x05
@@ -53,6 +62,12 @@ CMDS_34_WITHOUT_HEADER: Final = frozenset(
         SESS_KEY_NEG_FINISH,
     }
 )
+
+#: v3.5 uses the same no-inner-header command set as v3.4 — tinytuya keys
+#: ``NO_PROTOCOL_HEADER_CMDS`` off the command, not the protocol version, so
+#: CONTROL/CONTROL_NEW carry the header while DP_QUERY(_NEW), heartbeat, refresh
+#: and the session-negotiation frames do not.
+CMDS_35_WITHOUT_HEADER: Final = CMDS_34_WITHOUT_HEADER
 
 DP_POWER: Final = 1
 DP_TEMP_SET: Final = 2
