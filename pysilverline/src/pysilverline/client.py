@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import itertools
 import logging
 import time
 from collections.abc import Callable
@@ -636,7 +637,16 @@ class SilverlineClient:
             )
 
     async def _reconnect_loop(self) -> None:
-        """Walk the backoff schedule trying to reopen the socket.
+        """Walk the backoff schedule, then keep retrying at its final
+        interval forever, trying to reopen the socket.
+
+        A power-cycled device (issue #9: a pump switched off for an hour or
+        more by an external timer) can outlast the finite backoff schedule
+        by orders of magnitude. Giving up permanently there left the client
+        with no code path that ever calls ``connect()`` again for v3.3/v3.5
+        devices, so recovery required a manual integration reload. Repeating
+        the last (steepest) backoff step indefinitely keeps retrying — at a
+        gentle 60s cadence — for as long as the outage lasts, with no cap.
 
         The body runs inside a ``try/finally`` that clears
         ``self._reconnect_task`` on exit. Without that, a peer that drops
@@ -666,7 +676,17 @@ class SilverlineClient:
                         pass
                 setattr(self, task_attr, None)
 
-            for delay in _RECONNECT_BACKOFF:
+            schedule = itertools.chain(
+                _RECONNECT_BACKOFF, itertools.repeat(_RECONNECT_BACKOFF[-1])
+            )
+            for attempt, delay in enumerate(schedule):
+                if attempt == len(_RECONNECT_BACKOFF):
+                    _LOGGER.error(
+                        "exhausted reconnect backoff to %s; "
+                        "retrying every %.0fs until reconnected",
+                        self.host,
+                        _RECONNECT_BACKOFF[-1],
+                    )
                 if self._closing:
                     return
                 await asyncio.sleep(delay)
@@ -697,10 +717,6 @@ class SilverlineClient:
                 if not self.connected:
                     continue
                 return
-            _LOGGER.error(
-                "exhausted reconnect backoff to %s; giving up until next connect()",
-                self.host,
-            )
         finally:
             # Clearing this here is what makes back-to-back drops keep
             # triggering reconnects: any drop signal that arrives after

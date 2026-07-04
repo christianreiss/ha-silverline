@@ -990,12 +990,15 @@ async def test_send_heartbeat_is_noop_when_writer_gone() -> None:
     await client._send_heartbeat()
 
 
-async def test_reconnect_gives_up_after_backoff_exhausted(
+async def test_reconnect_keeps_retrying_past_backoff_schedule(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """If every reconnect attempt fails, the reconnect task walks the
-    full backoff schedule and exits — clearing _reconnect_task so a
-    later connect() can start over.
+    """A device that stays unreachable longer than the whole backoff
+    schedule must not be given up on permanently (issue #9: a pump
+    power-cycled for an hour+ by an external timer outlasts the ~2-minute
+    schedule easily). The reconnect task keeps retrying at the schedule's
+    final interval forever, and reconnects as soon as the peer is dialable
+    again — no manual reload required.
 
     To make the failures deterministic (not racing TIME_WAIT on the
     kernel side), we stub ``asyncio.open_connection`` at the very edge
@@ -1008,20 +1011,34 @@ async def test_reconnect_gives_up_after_backoff_exhausted(
 
     # Drop the live socket on demand so the client schedules a reconnect.
     drop_now = asyncio.Event()
+    connection_count = 0
 
     async def serve(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-        # Wait for the test to ask us to disconnect, then slam the socket
-        # so the client's read loop sees EOF and reconnect kicks in.
-        await drop_now.wait()
-        writer.close()
-        try:
-            await writer.wait_closed()
-        except OSError:
-            pass
+        nonlocal connection_count
+        connection_count += 1
+        if connection_count == 1:
+            # Wait for the test to ask us to disconnect, then slam the
+            # socket so the client's read loop sees EOF and reconnect
+            # kicks in.
+            await drop_now.wait()
+            writer.close()
+            try:
+                await writer.wait_closed()
+            except OSError:
+                pass
+        else:
+            # The reconnect that succeeds: keep the socket open so the
+            # client observes a live connection instead of another drop.
+            try:
+                while await reader.read(4096):
+                    pass
+            except (OSError, ConnectionError):
+                pass
 
     server = await asyncio.start_server(serve, "127.0.0.1", 0)
     port = server.sockets[0].getsockname()[1]
 
+    events: list[bool] = []
     client = SilverlineClient(
         host="127.0.0.1",
         port=port,
@@ -1030,6 +1047,7 @@ async def test_reconnect_gives_up_after_backoff_exhausted(
         protocol_version="3.3",
         request_timeout=0.1,
     )
+    client.add_connection_listener(events.append)
     await client.connect()
     assert client.connected
 
@@ -1046,9 +1064,7 @@ async def test_reconnect_gives_up_after_backoff_exhausted(
     # Now ask the live socket to drop.
     drop_now.set()
     try:
-        # First, wait for the reconnect task to have been scheduled. Then
-        # wait for it to walk through both backoff steps and exit. The
-        # finally block in _reconnect_loop clears _reconnect_task to None.
+        # Wait for the reconnect task to have been scheduled.
         for _ in range(50):
             if client._reconnect_task is not None:
                 break
@@ -1056,14 +1072,33 @@ async def test_reconnect_gives_up_after_backoff_exhausted(
         assert client._reconnect_task is not None, (
             "reconnect task was never scheduled after the drop"
         )
+
+        # Let it walk well past the 2-step backoff schedule (0.02 + 0.02s)
+        # while every dial attempt fails, then confirm it is STILL alive
+        # instead of having given up — this is the direct regression check
+        # for issue #9.
+        await asyncio.sleep(0.3)
+        assert client._reconnect_task is not None, (
+            "reconnect task gave up after the backoff schedule exhausted"
+        )
+        assert not client.connected
+
+        # Now let dialing succeed again and confirm the client recovers on
+        # its own, with no manual connect()/reload involved.
+        monkeypatch.setattr(client_mod.asyncio, "open_connection", real_open)
         for _ in range(200):
+            if client.connected:
+                break
+            await asyncio.sleep(0.02)
+        assert client.connected, "client never reconnected once dialing succeeded"
+        for _ in range(50):
             if client._reconnect_task is None:
                 break
             await asyncio.sleep(0.02)
         assert client._reconnect_task is None, (
-            "reconnect task never exited after backoff exhausted"
+            "reconnect task never exited after a successful reconnect"
         )
-        assert not client.connected
+        assert True in events, "connection listener never saw a True (reconnected) event"
     finally:
         # Restore so disconnect()'s cleanup path doesn't trip over the stub.
         monkeypatch.setattr(client_mod.asyncio, "open_connection", real_open)
