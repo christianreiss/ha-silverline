@@ -421,8 +421,52 @@ async def test_v34_lazy_reconnect_after_idle_close() -> None:
             # Second poll must transparently re-open + re-handshake (connection #2).
             assert (await client.get_status()).temp_current == 26
             assert server.connections >= 2
-            # The idle close must NOT have surfaced as a connection-lost (False).
-            assert False not in lost
+            # The idle close must NOT have surfaced as a connection-lost
+            # (False), and the lazy reconnect must not have fired a True.
+            assert lost == []
+        finally:
+            await client.disconnect()
+
+
+async def test_v34_lazy_reconnect_emits_no_connection_events() -> None:
+    """Regression: the v3.4 per-poll lazy reconnect must fire no True notify.
+
+    The quiet peer-close after each response never delivers a False, so the
+    ``connect()`` inside ``_request`` must not notify True either. Before the
+    fix it did — under Home Assistant that spurious True made the coordinator
+    log INFO "connection restored" AND schedule an extra refresh on every
+    30s poll, for the life of the config entry, on real v3.4 hardware.
+    """
+    async with FakeTuya34Server() as server:
+        server.close_after_response = True
+        server.handlers[const.CMD_DP_QUERY] = _dp_query_handler({"1": True, "3": 26})
+        events: list[bool] = []
+        client = SilverlineClient(
+            host="127.0.0.1",
+            port=server.port,
+            device_id=DEVICE_ID,
+            local_key=KEY,
+            protocol_version="3.4",
+            request_timeout=2.0,
+        )
+        client.add_connection_listener(events.append)
+        await client.connect()
+        try:
+            # Three polls; after each response the device quietly closes the
+            # socket, so polls 2 and 3 each ride a lazy reconnect — the
+            # steady state of a real v3.4 unit under the 30s poll loop.
+            for poll in range(1, 4):
+                assert (await client.get_status()).temp_current == 26
+                assert server.connections == poll
+                for _ in range(50):
+                    if not client.connected:
+                        break
+                    await asyncio.sleep(0.02)
+                assert not client.connected  # quiet teardown after the response
+            assert events == [], (
+                f"lazy reconnects must be silent (no False was ever "
+                f"delivered); events={events}"
+            )
         finally:
             await client.disconnect()
 

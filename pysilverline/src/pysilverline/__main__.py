@@ -14,7 +14,9 @@ def main(argv: list[str] | None = None) -> int:
         prog="pysilverline",
         description="Tuya pool heat-pump local client tools.",
     )
-    parser.add_argument("--version", action="version", version=f"pysilverline {__version__}")
+    parser.add_argument(
+        "--version", action="version", version=f"pysilverline {__version__}"
+    )
     sub = parser.add_subparsers(dest="command")
 
     diagnose = sub.add_parser(

@@ -354,8 +354,13 @@ async def test_request_before_connect_raises() -> None:
         await client.get_status()
 
 
-async def test_connection_listener_receives_connect_event() -> None:
-    """A successful connect() fires the connection listener with True."""
+async def test_connection_listener_silent_on_initial_connect() -> None:
+    """The initial connect() fires no connection event.
+
+    True is reserved for recovery after a delivered False — an initial
+    connect (or a v3.4 lazy reconnect after a quiet peer-close) must stay
+    silent so consumers don't log a spurious "restored".
+    """
     async with FakeTuyaServer() as server:
         events: list[bool] = []
         client = SilverlineClient(
@@ -369,7 +374,7 @@ async def test_connection_listener_receives_connect_event() -> None:
         client.add_connection_listener(events.append)
         await client.connect()
         try:
-            assert events == [True]
+            assert events == []
         finally:
             await client.disconnect()
 
@@ -545,14 +550,19 @@ async def test_reconnect_on_peer_close(monkeypatch: pytest.MonkeyPatch) -> None:
         await client.get_status()  # consumes the first response
         # Wait for the server to close our socket.
         await asyncio.wait_for(close_first.wait(), timeout=1.0)
-        # Wait for the reconnect listener to fire True a second time.
+        # Wait for the recovery listener to fire True after the False.
+        # (The initial connect is silent, so [False, True] is the full
+        # expected sequence.)
         for _ in range(80):
-            if events.count(True) >= 2 and False in events:
+            if True in events and False in events:
                 break
             await asyncio.sleep(0.05)
         try:
             assert False in events, f"never saw disconnect event; events={events}"
-            assert events.count(True) >= 2, f"never reconnected; events={events}"
+            assert True in events, f"never reconnected; events={events}"
+            assert events.index(False) < events.index(True), (
+                f"recovery True must follow the False; events={events}"
+            )
             assert connection_count >= 2
             # The reconnected client can serve a fresh DP_QUERY.
             state = await client.get_status()

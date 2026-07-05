@@ -97,10 +97,14 @@ _MODEL_SCHEMA = vol.Schema(
         vol.Required(CONF_MODEL, default="other"): SelectSelector(
             SelectSelectorConfig(
                 options=[
+                    # display_name is only the fallback label; the frontend
+                    # localizes each option via translation_key="model" →
+                    # strings.json selector.model.options.<profile key>.
                     SelectOptionDict(value=k, label=v.display_name)
                     for k, v in DEVICE_PROFILES.items()
                 ],
                 mode=SelectSelectorMode.DROPDOWN,
+                translation_key="model",
             )
         )
     }

@@ -1557,41 +1557,6 @@
       'unique_id': 'bf12345678abcdefghijkl_fault_communication',
       'unit_of_measurement': None,
     }),
-    'binary_sensor.pool_heatpump_compressor': EntityRegistryEntrySnapshot({
-      'aliases': list([
-        None,
-      ]),
-      'area_id': None,
-      'capabilities': None,
-      'config_entry_id': <ANY>,
-      'config_subentry_id': <ANY>,
-      'device_class': None,
-      'device_id': <ANY>,
-      'disabled_by': None,
-      'domain': 'binary_sensor',
-      'entity_category': None,
-      'entity_id': 'binary_sensor.pool_heatpump_compressor',
-      'has_entity_name': True,
-      'hidden_by': None,
-      'icon': None,
-      'id': <ANY>,
-      'labels': set({
-      }),
-      'name': None,
-      'object_id_base': 'Compressor',
-      'options': dict({
-      }),
-      'original_device_class': <BinarySensorDeviceClass.RUNNING: 'running'>,
-      'original_icon': None,
-      'original_name': 'Compressor',
-      'platform': 'poolex_silverline',
-      'previous_unique_id': None,
-      'suggested_object_id': None,
-      'supported_features': 0,
-      'translation_key': 'compressor_running',
-      'unique_id': 'bf12345678abcdefghijkl_compressor_running',
-      'unit_of_measurement': None,
-    }),
     'binary_sensor.pool_heatpump_defrost_sensor_fault': EntityRegistryEntrySnapshot({
       'aliases': list([
         None,
@@ -2866,18 +2831,6 @@
       'last_reported': <ANY>,
       'last_updated': <ANY>,
       'state': 'off',
-    }),
-    StateSnapshot({
-      'attributes': ReadOnlyDict({
-        'device_class': 'running',
-        'friendly_name': 'Pool Heatpump Compressor',
-      }),
-      'context': <ANY>,
-      'entity_id': 'binary_sensor.pool_heatpump_compressor',
-      'last_changed': <ANY>,
-      'last_reported': <ANY>,
-      'last_updated': <ANY>,
-      'state': 'on',
     }),
     StateSnapshot({
       'attributes': ReadOnlyDict({

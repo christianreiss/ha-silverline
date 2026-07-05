@@ -1,0 +1,240 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connessione alla Poolex Silverline",
+        "description": "Inserisci i dati di rete locale della pompa di calore e le sue credenziali Tuya. Il dispositivo deve trovarsi sulla stessa rete di Home Assistant; l'app Smart Life non deve essere connessa contemporaneamente.",
+        "data": {
+          "host": "Host o IP",
+          "port": "Porta",
+          "device_id": "ID dispositivo",
+          "local_key": "Chiave locale"
+        },
+        "data_description": {
+          "host": "Nome host o indirizzo IP della pompa di calore nella rete locale.",
+          "port": "Porta locale Tuya (predefinita 6668).",
+          "device_id": "ID dispositivo Tuya (22 caratteri esadecimali), reperibile nella console sviluppatori Smart Life o tramite tinytuya scan.",
+          "local_key": "Chiave di cifratura specifica del dispositivo (16 caratteri), ottenuta dal cloud Tuya."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Riautenticare la Poolex Silverline",
+        "description": "Il dispositivo ha rifiutato la chiave locale memorizzata. Inserisci la chiave attuale.",
+        "data": {
+          "local_key": "Chiave locale"
+        },
+        "data_description": {
+          "local_key": "Chiave specifica del dispositivo (16 caratteri). Viene rigenerata ogni volta che il dispositivo viene riassociato in Smart Life."
+        }
+      },
+      "reconfigure": {
+        "title": "Riconfigurare la Poolex Silverline",
+        "description": "Aggiorna i dati di connessione di questa pompa di calore.",
+        "data": {
+          "host": "Host o IP",
+          "port": "Porta",
+          "device_id": "ID dispositivo",
+          "local_key": "Chiave locale"
+        },
+        "data_description": {
+          "host": "Nome host o indirizzo IP della pompa di calore nella rete locale.",
+          "port": "Porta locale Tuya (predefinita 6668).",
+          "device_id": "Deve corrispondere al dispositivo aggiunto originariamente.",
+          "local_key": "Chiave di cifratura specifica del dispositivo (16 caratteri)."
+        }
+      },
+      "discovery_confirm": {
+        "title": "Aggiungere la Poolex Silverline rilevata",
+        "description": "È stata rilevata una pompa di calore all'indirizzo {host}. Inserisci la sua chiave locale per completare la configurazione.",
+        "data": {
+          "local_key": "Chiave locale"
+        },
+        "data_description": {
+          "local_key": "Chiave di cifratura specifica del dispositivo (16 caratteri), ottenuta dalla console cloud Tuya."
+        }
+      },
+      "model": {
+        "title": "Seleziona il modello del dispositivo",
+        "description": "Scegli il modello della tua pompa di calore. Questo imposta il nome corretto in Home Assistant e preconfigura quali sensori sono disponibili.",
+        "data": {
+          "model": "Modello del dispositivo"
+        },
+        "data_description": {
+          "model": "Seleziona il modello esatto per una disponibilità accurata dei sensori. In caso di dubbio scegli Altro / Sconosciuto — i sensori verranno rilevati automaticamente."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Connessione alla pompa di calore non riuscita.",
+      "invalid_auth": "La chiave locale è stata rifiutata dal dispositivo.",
+      "unknown": "Errore imprevisto."
+    },
+    "abort": {
+      "already_configured": "Questo dispositivo è già configurato.",
+      "reauth_successful": "La riautenticazione è avvenuta con successo.",
+      "reconfigure_successful": "La riconfigurazione è avvenuta con successo.",
+      "device_id_mismatch": "L'ID dispositivo inserito non corrisponde al dispositivo originale.",
+      "unverified_host": "Un annuncio LAN ha indicato che questo dispositivo si trova a un nuovo IP, ma il nuovo host non si è autenticato con la chiave locale memorizzata. L'host memorizzato non è stato modificato.",
+      "unsupported_product": "Questo dispositivo Tuya non è riconosciuto come una pompa di calore Poolex / Silverline (il productKey non corrisponde a nessun modello noto). Se ritieni che sia una pompa di calore che dovrebbe essere supportata, apri una segnalazione con il productKey presente nei log."
+    }
+  },
+  "entity": {
+    "climate": {
+      "heatpump": {
+        "name": "Pompa di calore",
+        "state_attributes": {
+          "preset_mode": {
+            "state": {
+              "none": "Inverter",
+              "boost": "Boost",
+              "eco": "Silenzioso"
+            }
+          }
+        }
+      }
+    },
+    "sensor": {
+      "temperature_delta": { "name": "Delta di temperatura" },
+      "exhaust_temperature": { "name": "Temperatura di aspirazione del compressore" },
+      "return_temperature": { "name": "Temperatura ambiente esterna" },
+      "coil_temperature": { "name": "Temperatura dell'acqua della piscina" },
+      "ambient_temperature": { "name": "Temperatura di mandata del compressore" },
+      "inlet_temperature": { "name": "Temperatura dell'acqua in ingresso" },
+      "outlet_temperature": { "name": "Temperatura dell'acqua in uscita" },
+      "target_frequency": { "name": "Frequenza obiettivo del compressore" },
+      "actual_frequency": { "name": "Frequenza effettiva del compressore" },
+      "eev_steps": { "name": "Passi della valvola di espansione elettronica" },
+      "main_valve_opening": { "name": "Apertura della valvola principale" },
+      "aux_valve_opening": { "name": "Apertura della valvola ausiliaria" },
+      "outdoor_coil_temperature": { "name": "Temperatura della batteria esterna" },
+      "indoor_coil_temperature": { "name": "Temperatura della batteria interna" },
+      "water_pump_rpm": { "name": "Velocità della pompa di circolazione" },
+      "fan_speed": { "name": "Velocità della ventola" },
+      "fault_code": { "name": "Codice di guasto" },
+      "runtime_today": { "name": "Tempo di funzionamento oggi" },
+      "condensing_temperature": { "name": "Temperatura di condensazione del refrigerante" },
+      "evaporating_temperature": { "name": "Temperatura di evaporazione del refrigerante" },
+      "superheat": { "name": "Surriscaldamento del compressore" },
+      "compressor_load": { "name": "Carico del compressore" },
+      "total_operating_hours": { "name": "Ore di funzionamento totali" },
+      "target_superheat": { "name": "Surriscaldamento obiettivo" },
+      "target_condensing_temperature": { "name": "Temperatura di condensazione obiettivo" }
+    },
+    "binary_sensor": {
+      "compressor_running": { "name": "Compressore" },
+      "water_pump": { "name": "Pompa dell'acqua" },
+      "fault_water_flow": { "name": "Guasto flusso d'acqua" },
+      "fault_antifreeze": { "name": "Guasto protezione antigelo" },
+      "fault_high_pressure": { "name": "Guasto alta pressione" },
+      "fault_low_pressure": { "name": "Guasto bassa pressione" },
+      "fault_communication": { "name": "Guasto di comunicazione" },
+      "fault_inverter_comms": { "name": "Guasto comunicazione inverter" },
+      "fault_inlet_sensor": { "name": "Guasto sensore di ingresso" },
+      "fault_outlet_sensor": { "name": "Guasto sensore di uscita" },
+      "fault_defrost_sensor": { "name": "Guasto sensore di sbrinamento" },
+      "fault_coil_sensor": { "name": "Guasto sensore della batteria" }
+    },
+    "switch": {
+      "power": { "name": "Alimentazione" }
+    },
+    "number": {
+      "target_temperature": { "name": "Temperatura obiettivo" }
+    },
+    "select": {
+      "preset_mode": {
+        "name": "Preimpostazione",
+        "state": {
+          "none": "Inverter",
+          "boost": "Boost",
+          "eco": "Silenzioso"
+        }
+      },
+      "operating_mode": {
+        "name": "Modalità di funzionamento",
+        "state": {
+          "off": "Spento",
+          "heat": "Riscaldamento",
+          "cool": "Raffreddamento",
+          "heat_cool": "Auto"
+        }
+      }
+    }
+  },
+  "issues": {
+    "fault_E03": {
+      "title": "Guasto flusso d'acqua (E03)",
+      "description": "La pompa di calore non rileva flusso d'acqua. Controlla che la pompa di filtrazione sia in funzione e che il filtro sia pulito. Il riscaldamento resta sospeso finché il flusso non viene ripristinato. Questa scheda scompare automaticamente quando il dispositivo azzera il guasto."
+    },
+    "fault_E04": {
+      "title": "Guasto protezione antigelo (E04)",
+      "description": "La protezione antigelo è scattata: l'acqua nello scambiatore di calore è troppo fredda. Aumenta la temperatura ambiente o interrompi il funzionamento finché non supera la soglia antigelo."
+    },
+    "fault_E05": {
+      "title": "Guasto alta pressione (E05)",
+      "description": "È intervenuto il pressostato di alta pressione del circuito frigorifero. Cause probabili: flusso d'aria ostruito sulla batteria, eccesso di refrigerante o guasto della ventola del condensatore."
+    },
+    "fault_E06": {
+      "title": "Guasto bassa pressione (E06)",
+      "description": "È intervenuto il pressostato di bassa pressione del circuito frigorifero. Possibile perdita di refrigerante o problema alla valvola di espansione: se si ripete è necessaria assistenza tecnica."
+    },
+    "fault_E09": {
+      "title": "Errore di comunicazione (E09)",
+      "description": "La comunicazione interna tra il regolatore e l'inverter è fallita. L'unità di solito si ripristina da sola."
+    },
+    "fault_E10": {
+      "title": "Errore di comunicazione inverter (E10)",
+      "description": "L'inverter non risponde. L'unità di solito si ripristina al ciclo successivo del compressore."
+    },
+    "fault_P1": {
+      "title": "Guasto sensore di sbrinamento (P1)",
+      "description": "Il sensore di temperatura di sbrinamento restituisce una lettura non valida. I cicli di sbrinamento possono risultare irregolari finché il guasto non viene risolto."
+    },
+    "fault_P3": {
+      "title": "Guasto sensore di ingresso (P3)",
+      "description": "Il sensore di temperatura dell'acqua in ingresso restituisce una lettura non valida. La temperatura della piscina indicata può essere errata finché il guasto non viene risolto."
+    },
+    "fault_P4": {
+      "title": "Guasto sensore di uscita (P4)",
+      "description": "Il sensore di temperatura dell'acqua in uscita restituisce una lettura non valida. L'unità può funzionare senza un monitoraggio preciso della temperatura di uscita."
+    },
+    "fault_P7": {
+      "title": "Guasto sensore della batteria (P7)",
+      "description": "Il sensore di temperatura della batteria dell'evaporatore restituisce una lettura non valida. La tempistica dello sbrinamento può risentirne finché il guasto non viene risolto."
+    }
+  },
+  "selector": {
+    "model": {
+      "options": {
+        "pc_slp090n": "Poolex PC-SLP090N",
+        "jetline_fi": "Poolex JetLine Selection FI",
+        "brustec_br80": "Brustec BR-80",
+        "phalen_calidi": "Phalén Calidi XP",
+        "nulite": "Nulite",
+        "fi_150": "Poolex Silverline FI 150",
+        "pc_inv_120v2": "Poolex Silverline FI 120 V2 / PC-INV-120V2 (decimi di °C)",
+        "silverline_v34": "Poolex Silverline (Tuya v3.4 / wfzeiyn1ed3axxde)",
+        "other": "Altro / Sconosciuto"
+      }
+    }
+  },
+  "exceptions": {
+    "auth_failed": {
+      "message": "La pompa di calore ha rifiutato le credenziali. È necessaria una riautenticazione."
+    },
+    "set_failed": {
+      "message": "Aggiornamento della pompa di calore non riuscito: {reason}"
+    },
+    "preset_not_available_in_auto": {
+      "message": "Le preimpostazioni Boost e Silenzioso non sono disponibili quando la pompa di calore è in modalità auto."
+    },
+    "unsupported_hvac_mode": {
+      "message": "La modalità HVAC {mode} non è supportata."
+    },
+    "unsupported_preset_mode": {
+      "message": "La preimpostazione {preset} non è supportata."
+    },
+    "missing_target_temperature": {
+      "message": "set_temperature richiede una temperatura obiettivo."
+    }
+  }
+}

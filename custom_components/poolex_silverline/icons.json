@@ -22,9 +22,21 @@
       "target_frequency": { "default": "mdi:sine-wave" },
       "actual_frequency": { "default": "mdi:sine-wave" },
       "eev_steps": { "default": "mdi:valve" },
+      "main_valve_opening": { "default": "mdi:valve" },
+      "aux_valve_opening": { "default": "mdi:valve" },
+      "outdoor_coil_temperature": { "default": "mdi:sun-thermometer-outline" },
+      "indoor_coil_temperature": { "default": "mdi:home-thermometer-outline" },
+      "water_pump_rpm": { "default": "mdi:pump" },
       "fan_speed": { "default": "mdi:fan" },
       "fault_code": { "default": "mdi:alert-circle-outline" },
-      "runtime_today": { "default": "mdi:timer-outline" }
+      "runtime_today": { "default": "mdi:timer-outline" },
+      "condensing_temperature": { "default": "mdi:thermometer-high" },
+      "evaporating_temperature": { "default": "mdi:thermometer-low" },
+      "superheat": { "default": "mdi:thermometer-plus" },
+      "compressor_load": { "default": "mdi:gauge" },
+      "total_operating_hours": { "default": "mdi:counter" },
+      "target_superheat": { "default": "mdi:thermometer-plus" },
+      "target_condensing_temperature": { "default": "mdi:thermometer-high" }
     },
     "binary_sensor": {
       "compressor_running": {

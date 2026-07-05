@@ -19,7 +19,7 @@ import pytest
 
 import pysilverline.client as client_mod
 from pysilverline import SilverlineClient, const
-from pysilverline.exceptions import CannotConnect
+from pysilverline.exceptions import CannotConnect, InvalidAuth
 from tests.test_client_35 import (
     DEVICE_ID,
     KEY,
@@ -113,6 +113,131 @@ async def test_v35_reconnect_re_handshakes(
             assert state.temp_current == 25
         finally:
             await client.disconnect()
+
+
+async def test_v35_reconnect_survives_invalid_auth_and_surfaces_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A rejected re-handshake (rotated key) must NOT kill the reconnect task,
+    and must still reach the reauth path.
+
+    While the handshake keeps failing, ``get_status`` raises ``InvalidAuth``
+    (not a bare "not connected" ``CannotConnect``) so the HA coordinator can
+    raise ConfigEntryAuthFailed and prompt reauth. And because the retry loop
+    stays alive, a transient failure self-heals: once the device accepts the
+    key again, the client reconnects with no outside help.
+
+    Finally, the successful re-handshake must CLEAR the recorded auth
+    failure (connect() resets _reconnect_auth_error): a later, ordinary
+    outage with the still-correct key surfaces as a plain CannotConnect,
+    not a stale InvalidAuth that would falsely re-trigger reauth.
+    """
+    monkeypatch.setattr(client_mod, "_RECONNECT_BACKOFF", (0.05, 0.05))
+    async with FakeTuya35Server() as server:
+        server.handlers[const.CMD_DP_QUERY] = _dp_query_handler({"1": True})
+        server.drop_after_handshake = True  # hang up connection #1 post-handshake
+        client = SilverlineClient(
+            host="127.0.0.1",
+            port=server.port,
+            device_id=DEVICE_ID,
+            local_key=KEY,
+            protocol_version="3.5",
+            request_timeout=2.0,
+        )
+        await client.connect()
+        try:
+            # From now on every NEG_RESP is encrypted under a wrong key, so
+            # each reconnect handshake raises InvalidAuth inside connect().
+            server._resp_key = b"wrongkeywrongk!!"
+            # Connection #2 is the first failed handshake; #3 only happens if
+            # the reconnect loop survived #2's InvalidAuth and dialed again.
+            for _ in range(200):
+                if server.connections >= 3:
+                    break
+                await asyncio.sleep(0.02)
+            assert server.connections >= 3, (
+                "reconnect task died after the first InvalidAuth handshake"
+            )
+            task = client._reconnect_task
+            assert task is not None and not task.done(), (
+                "reconnect task is gone — InvalidAuth killed the retry loop"
+            )
+            # The poll path surfaces the auth failure — the reauth trigger.
+            with pytest.raises(InvalidAuth):
+                await client.get_status()
+            # Device accepts the key again (transient corruption cleared):
+            # the still-running loop reconnects on its own.
+            server._resp_key = None
+            for _ in range(200):
+                if client.connected:
+                    break
+                await asyncio.sleep(0.02)
+            assert client.connected, "reconnect loop never self-healed"
+            state = await client.get_status()
+            assert state.power is True
+            # A second, unrelated outage with the CORRECT key: the device
+            # goes dark (no new connections) and the live socket drops.
+            assert server._server is not None
+            server._server.close()  # refuse all further reconnect attempts
+            assert server._writer is not None
+            server._writer.close()  # drop the live connection
+            for _ in range(200):
+                if not client.connected:
+                    break
+                await asyncio.sleep(0.02)
+            assert not client.connected, "second connection drop never registered"
+            # The self-heal handshake cleared the auth failure, so this is a
+            # plain not-connected CannotConnect — NOT a stale InvalidAuth.
+            with pytest.raises(CannotConnect):
+                await client.get_status()
+        finally:
+            await client.disconnect()
+
+
+async def test_v35_disconnect_clears_stale_reconnect_auth_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """disconnect() during a still-rejected re-handshake clears the recorded
+    auth failure.
+
+    Unlike the self-heal path above, the correct key is never restored: the
+    consumer gives up and calls ``disconnect`` while the reconnect loop is
+    still failing with InvalidAuth. An explicit disconnect ends the session
+    cleanly, so a later poll must report a plain not-connected
+    ``CannotConnect`` — not a stale ``InvalidAuth`` from a session the caller
+    deliberately tore down.
+    """
+    monkeypatch.setattr(client_mod, "_RECONNECT_BACKOFF", (0.05, 0.05))
+    async with FakeTuya35Server() as server:
+        server.handlers[const.CMD_DP_QUERY] = _dp_query_handler({"1": True})
+        server.drop_after_handshake = True  # hang up connection #1 post-handshake
+        client = SilverlineClient(
+            host="127.0.0.1",
+            port=server.port,
+            device_id=DEVICE_ID,
+            local_key=KEY,
+            protocol_version="3.5",
+            request_timeout=2.0,
+        )
+        await client.connect()
+        try:
+            # Every subsequent NEG_RESP is encrypted under a wrong key, so
+            # each reconnect handshake raises InvalidAuth inside connect().
+            server._resp_key = b"wrongkeywrongk!!"
+            for _ in range(200):
+                if client._reconnect_auth_error is not None:
+                    break
+                await asyncio.sleep(0.02)
+            # The client is in the auth-failure state: polls raise InvalidAuth.
+            with pytest.raises(InvalidAuth):
+                await client.get_status()
+        finally:
+            # Tear down WITHOUT restoring the key — the loop never self-heals.
+            await client.disconnect()
+        # The explicit disconnect cleared the recorded handshake failure:
+        # a poll now raises a plain CannotConnect, not a stale InvalidAuth.
+        with pytest.raises(CannotConnect):
+            await client.get_status()
 
 
 async def test_v35_malformed_frame_drops_connection(

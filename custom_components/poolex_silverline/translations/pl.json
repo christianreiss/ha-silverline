@@ -1,0 +1,240 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Połączenie z Poolex Silverline",
+        "description": "Wprowadź dane sieci lokalnej pompy ciepła oraz jej dane uwierzytelniające Tuya. Urządzenie musi znajdować się w tej samej sieci co Home Assistant; aplikacja Smart Life nie może być połączona w tym samym czasie.",
+        "data": {
+          "host": "Host lub IP",
+          "port": "Port",
+          "device_id": "Identyfikator urządzenia",
+          "local_key": "Klucz lokalny"
+        },
+        "data_description": {
+          "host": "Nazwa hosta lub adres IP pompy ciepła w sieci lokalnej.",
+          "port": "Lokalny port Tuya (domyślnie 6668).",
+          "device_id": "Identyfikator urządzenia Tuya (22 znaki szesnastkowe), dostępny w konsoli deweloperskiej Smart Life lub przez tinytuya scan.",
+          "local_key": "16-znakowy klucz szyfrujący przypisany do urządzenia, pochodzący z chmury Tuya."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Ponowne uwierzytelnienie Poolex Silverline",
+        "description": "Urządzenie odrzuciło zapisany klucz lokalny. Wprowadź aktualny klucz.",
+        "data": {
+          "local_key": "Klucz lokalny"
+        },
+        "data_description": {
+          "local_key": "16-znakowy klucz przypisany do urządzenia. Jest generowany na nowo przy każdym ponownym sparowaniu urządzenia w Smart Life."
+        }
+      },
+      "reconfigure": {
+        "title": "Ponowna konfiguracja Poolex Silverline",
+        "description": "Zaktualizuj dane połączenia tej pompy ciepła.",
+        "data": {
+          "host": "Host lub IP",
+          "port": "Port",
+          "device_id": "Identyfikator urządzenia",
+          "local_key": "Klucz lokalny"
+        },
+        "data_description": {
+          "host": "Nazwa hosta lub adres IP pompy ciepła w sieci lokalnej.",
+          "port": "Lokalny port Tuya (domyślnie 6668).",
+          "device_id": "Musi być zgodny z pierwotnie dodanym urządzeniem.",
+          "local_key": "16-znakowy klucz szyfrujący przypisany do urządzenia."
+        }
+      },
+      "discovery_confirm": {
+        "title": "Dodaj wykrytą pompę Poolex Silverline",
+        "description": "Wykryto pompę ciepła pod adresem {host}. Wprowadź jej klucz lokalny, aby zakończyć konfigurację.",
+        "data": {
+          "local_key": "Klucz lokalny"
+        },
+        "data_description": {
+          "local_key": "16-znakowy klucz szyfrujący przypisany do urządzenia, pochodzący z konsoli chmury Tuya."
+        }
+      },
+      "model": {
+        "title": "Wybierz model urządzenia",
+        "description": "Wybierz model swojej pompy ciepła. Ustawia to poprawną nazwę w Home Assistant i wstępnie konfiguruje dostępne czujniki.",
+        "data": {
+          "model": "Model urządzenia"
+        },
+        "data_description": {
+          "model": "Wybierz dokładny model, aby zapewnić prawidłową dostępność czujników. W razie wątpliwości wybierz Inny / Nieznany — czujniki zostaną wykryte automatycznie."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Nie udało się połączyć z pompą ciepła.",
+      "invalid_auth": "Klucz lokalny został odrzucony przez urządzenie.",
+      "unknown": "Nieoczekiwany błąd."
+    },
+    "abort": {
+      "already_configured": "To urządzenie jest już skonfigurowane.",
+      "reauth_successful": "Ponowne uwierzytelnienie powiodło się.",
+      "reconfigure_successful": "Ponowna konfiguracja powiodła się.",
+      "device_id_mismatch": "Podany identyfikator urządzenia nie zgadza się z pierwotnym urządzeniem.",
+      "unverified_host": "Komunikat rozgłoszeniowy LAN wskazał, że urządzenie ma nowy adres IP, ale nowy host nie uwierzytelnił się zapisanym kluczem lokalnym. Zapisany host nie został zmieniony.",
+      "unsupported_product": "To urządzenie Tuya nie zostało rozpoznane jako obsługiwana pompa ciepła Poolex / Silverline (productKey nie pasuje do żadnego znanego modelu). Jeśli uważasz, że ta pompa ciepła powinna być obsługiwana, zgłoś problem, podając productKey z logów."
+    }
+  },
+  "entity": {
+    "climate": {
+      "heatpump": {
+        "name": "Pompa ciepła",
+        "state_attributes": {
+          "preset_mode": {
+            "state": {
+              "none": "Inwerter",
+              "boost": "Boost",
+              "eco": "Cichy"
+            }
+          }
+        }
+      }
+    },
+    "sensor": {
+      "temperature_delta": { "name": "Różnica temperatur" },
+      "exhaust_temperature": { "name": "Temperatura ssania sprężarki" },
+      "return_temperature": { "name": "Temperatura otoczenia na zewnątrz" },
+      "coil_temperature": { "name": "Temperatura wody w basenie" },
+      "ambient_temperature": { "name": "Temperatura tłoczenia sprężarki" },
+      "inlet_temperature": { "name": "Temperatura wody na wlocie" },
+      "outlet_temperature": { "name": "Temperatura wody na wylocie" },
+      "target_frequency": { "name": "Częstotliwość zadana sprężarki" },
+      "actual_frequency": { "name": "Częstotliwość rzeczywista sprężarki" },
+      "eev_steps": { "name": "Kroki elektronicznego zaworu rozprężnego" },
+      "main_valve_opening": { "name": "Otwarcie zaworu głównego" },
+      "aux_valve_opening": { "name": "Otwarcie zaworu pomocniczego" },
+      "outdoor_coil_temperature": { "name": "Temperatura wymiennika zewnętrznego" },
+      "indoor_coil_temperature": { "name": "Temperatura wymiennika wewnętrznego" },
+      "water_pump_rpm": { "name": "Prędkość pompy obiegowej" },
+      "fan_speed": { "name": "Prędkość wentylatora" },
+      "fault_code": { "name": "Kod błędu" },
+      "runtime_today": { "name": "Czas pracy dzisiaj" },
+      "condensing_temperature": { "name": "Temperatura skraplania czynnika chłodniczego" },
+      "evaporating_temperature": { "name": "Temperatura parowania czynnika chłodniczego" },
+      "superheat": { "name": "Przegrzanie sprężarki" },
+      "compressor_load": { "name": "Obciążenie sprężarki" },
+      "total_operating_hours": { "name": "Łączny czas pracy" },
+      "target_superheat": { "name": "Przegrzanie zadane" },
+      "target_condensing_temperature": { "name": "Zadana temperatura skraplania" }
+    },
+    "binary_sensor": {
+      "compressor_running": { "name": "Sprężarka" },
+      "water_pump": { "name": "Pompa wody" },
+      "fault_water_flow": { "name": "Błąd przepływu wody" },
+      "fault_antifreeze": { "name": "Błąd ochrony przeciwzamrożeniowej" },
+      "fault_high_pressure": { "name": "Błąd wysokiego ciśnienia" },
+      "fault_low_pressure": { "name": "Błąd niskiego ciśnienia" },
+      "fault_communication": { "name": "Błąd komunikacji" },
+      "fault_inverter_comms": { "name": "Błąd komunikacji z inwerterem" },
+      "fault_inlet_sensor": { "name": "Błąd czujnika wlotu" },
+      "fault_outlet_sensor": { "name": "Błąd czujnika wylotu" },
+      "fault_defrost_sensor": { "name": "Błąd czujnika odszraniania" },
+      "fault_coil_sensor": { "name": "Błąd czujnika wymiennika" }
+    },
+    "switch": {
+      "power": { "name": "Zasilanie" }
+    },
+    "number": {
+      "target_temperature": { "name": "Temperatura zadana" }
+    },
+    "select": {
+      "preset_mode": {
+        "name": "Tryb pracy (preset)",
+        "state": {
+          "none": "Inwerter",
+          "boost": "Boost",
+          "eco": "Cichy"
+        }
+      },
+      "operating_mode": {
+        "name": "Tryb działania",
+        "state": {
+          "off": "Wyłączony",
+          "heat": "Grzanie",
+          "cool": "Chłodzenie",
+          "heat_cool": "Auto"
+        }
+      }
+    }
+  },
+  "issues": {
+    "fault_E03": {
+      "title": "Błąd przepływu wody (E03)",
+      "description": "Pompa ciepła nie wykrywa przepływu wody. Sprawdź, czy pompa filtrująca działa i czy filtr jest czysty. Grzanie jest wstrzymane do czasu przywrócenia przepływu. Ta karta zniknie automatycznie, gdy urządzenie skasuje błąd."
+    },
+    "fault_E04": {
+      "title": "Błąd ochrony przeciwzamrożeniowej (E04)",
+      "description": "Zadziałała ochrona przeciwzamrożeniowa — woda w wymienniku ciepła jest zbyt zimna. Podnieś temperaturę otoczenia lub wstrzymaj pracę, aż przekroczy próg ochrony przeciwzamrożeniowej."
+    },
+    "fault_E05": {
+      "title": "Błąd wysokiego ciśnienia (E05)",
+      "description": "Zadziałał presostat wysokiego ciśnienia czynnika chłodniczego. Prawdopodobne przyczyny: zablokowany przepływ powietrza przez wymiennik, nadmiar czynnika chłodniczego lub awaria wentylatora skraplacza."
+    },
+    "fault_E06": {
+      "title": "Błąd niskiego ciśnienia (E06)",
+      "description": "Zadziałał presostat niskiego ciśnienia czynnika chłodniczego. Możliwy wyciek czynnika chłodniczego lub problem z zaworem rozprężnym — jeśli błąd się powtarza, wymagany jest serwis."
+    },
+    "fault_E09": {
+      "title": "Awaria komunikacji (E09)",
+      "description": "Wewnętrzna komunikacja między sterownikiem a inwerterem nie powiodła się. Urządzenie zwykle samoczynnie wraca do pracy."
+    },
+    "fault_E10": {
+      "title": "Awaria komunikacji z inwerterem (E10)",
+      "description": "Inwerter nie odpowiada. Urządzenie zwykle samoczynnie wraca do pracy przy następnym cyklu sprężarki."
+    },
+    "fault_P1": {
+      "title": "Błąd czujnika odszraniania (P1)",
+      "description": "Czujnik temperatury odszraniania zwraca nieprawidłowy odczyt. Do czasu usunięcia błędu cykle odszraniania mogą przebiegać nieregularnie."
+    },
+    "fault_P3": {
+      "title": "Błąd czujnika wlotu (P3)",
+      "description": "Czujnik temperatury wody na wlocie zwraca nieprawidłowy odczyt. Do czasu usunięcia błędu wskazywana temperatura basenu może być błędna."
+    },
+    "fault_P4": {
+      "title": "Błąd czujnika wylotu (P4)",
+      "description": "Czujnik temperatury wody na wylocie zwraca nieprawidłowy odczyt. Urządzenie może pracować bez dokładnego monitorowania temperatury wylotowej."
+    },
+    "fault_P7": {
+      "title": "Błąd czujnika wymiennika (P7)",
+      "description": "Czujnik temperatury wymiennika parownika zwraca nieprawidłowy odczyt. Do czasu usunięcia błędu może to wpływać na harmonogram odszraniania."
+    }
+  },
+  "selector": {
+    "model": {
+      "options": {
+        "pc_slp090n": "Poolex PC-SLP090N",
+        "jetline_fi": "Poolex JetLine Selection FI",
+        "brustec_br80": "Brustec BR-80",
+        "phalen_calidi": "Phalén Calidi XP",
+        "nulite": "Nulite",
+        "fi_150": "Poolex Silverline FI 150",
+        "pc_inv_120v2": "Poolex Silverline FI 120 V2 / PC-INV-120V2 (dziesiąte części °C)",
+        "silverline_v34": "Poolex Silverline (Tuya v3.4 / wfzeiyn1ed3axxde)",
+        "other": "Inny / Nieznany"
+      }
+    }
+  },
+  "exceptions": {
+    "auth_failed": {
+      "message": "Pompa ciepła odrzuciła dane uwierzytelniające. Wymagane jest ponowne uwierzytelnienie."
+    },
+    "set_failed": {
+      "message": "Nie udało się zaktualizować pompy ciepła: {reason}"
+    },
+    "preset_not_available_in_auto": {
+      "message": "Tryby Boost i Cichy nie są dostępne, gdy pompa ciepła pracuje w trybie automatycznym."
+    },
+    "unsupported_hvac_mode": {
+      "message": "Tryb HVAC {mode} nie jest obsługiwany."
+    },
+    "unsupported_preset_mode": {
+      "message": "Preset {preset} nie jest obsługiwany."
+    },
+    "missing_target_temperature": {
+      "message": "set_temperature wymaga temperatury zadanej."
+    }
+  }
+}

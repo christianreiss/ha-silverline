@@ -202,6 +202,21 @@
       "description": "The evaporator coil temperature sensor reports an invalid reading. Defrost timing may be affected until cleared."
     }
   },
+  "selector": {
+    "model": {
+      "options": {
+        "pc_slp090n": "Poolex PC-SLP090N",
+        "jetline_fi": "Poolex JetLine Selection FI",
+        "brustec_br80": "Brustec BR-80",
+        "phalen_calidi": "Phalén Calidi XP",
+        "nulite": "Nulite",
+        "fi_150": "Poolex Silverline FI 150",
+        "pc_inv_120v2": "Poolex Silverline FI 120 V2 / PC-INV-120V2 (tenths °C)",
+        "silverline_v34": "Poolex Silverline (Tuya v3.4 / wfzeiyn1ed3axxde)",
+        "other": "Other / Unknown"
+      }
+    }
+  },
   "exceptions": {
     "auth_failed": {
       "message": "The heat pump rejected the credentials. Re-authentication is required."

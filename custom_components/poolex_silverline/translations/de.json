@@ -45,12 +45,22 @@
       },
       "discovery_confirm": {
         "title": "Entdeckte Poolex Silverline hinzufügen",
-        "description": "Eine Wärmepumpe wurde unter {host} entdeckt. Geben Sie den Local Key ein, um die Einrichtung abzuschließen.",
+        "description": "Eine Wärmepumpe wurde unter {host} entdeckt. Gib den Local Key ein, um die Einrichtung abzuschließen.",
         "data": {
           "local_key": "Local Key"
         },
         "data_description": {
           "local_key": "16 Zeichen langer gerätespezifischer Schlüssel aus der Tuya-Cloud-Konsole."
+        }
+      },
+      "model": {
+        "title": "Gerätemodell auswählen",
+        "description": "Wähle das Modell deiner Wärmepumpe. Dadurch werden der korrekte Name in Home Assistant gesetzt und die verfügbaren Sensoren vorkonfiguriert.",
+        "data": {
+          "model": "Gerätemodell"
+        },
+        "data_description": {
+          "model": "Wähle dein exaktes Modell für eine korrekte Sensor-Verfügbarkeit. Im Zweifel „Andere / Unbekannt“ wählen — die Sensoren werden dann automatisch erkannt."
         }
       }
     },
@@ -180,16 +190,31 @@
       "description": "Der Abtau-Temperaturfühler liefert einen ungültigen Wert. Abtauzyklen können bis zur Behebung außerplanmäßig sein."
     },
     "fault_P3": {
-      "title": "Vorlauffühler-Fehler (P3)",
-      "description": "Der Vorlauf-Temperaturfühler liefert einen ungültigen Wert. Die angezeigte Beckentemperatur kann bis zur Behebung falsch sein."
+      "title": "Wassereintritts-Fühler-Fehler (P3)",
+      "description": "Der Wassereintritts-Temperaturfühler liefert einen ungültigen Wert. Die angezeigte Beckentemperatur kann bis zur Behebung falsch sein."
     },
     "fault_P4": {
-      "title": "Rücklauffühler-Fehler (P4)",
-      "description": "Der Rücklauf-Temperaturfühler liefert einen ungültigen Wert. Das Gerät arbeitet ohne präzise Auslauftemperatur-Überwachung."
+      "title": "Wasseraustritts-Fühler-Fehler (P4)",
+      "description": "Der Wasseraustritts-Temperaturfühler liefert einen ungültigen Wert. Das Gerät arbeitet ohne präzise Austrittstemperatur-Überwachung."
     },
     "fault_P7": {
       "title": "Verdampferfühler-Fehler (P7)",
       "description": "Der Verdampferspulen-Temperaturfühler liefert einen ungültigen Wert. Das Abtau-Timing kann betroffen sein."
+    }
+  },
+  "selector": {
+    "model": {
+      "options": {
+        "pc_slp090n": "Poolex PC-SLP090N",
+        "jetline_fi": "Poolex JetLine Selection FI",
+        "brustec_br80": "Brustec BR-80",
+        "phalen_calidi": "Phalén Calidi XP",
+        "nulite": "Nulite",
+        "fi_150": "Poolex Silverline FI 150",
+        "pc_inv_120v2": "Poolex Silverline FI 120 V2 / PC-INV-120V2 (Zehntel °C)",
+        "silverline_v34": "Poolex Silverline (Tuya v3.4 / wfzeiyn1ed3axxde)",
+        "other": "Andere / Unbekannt"
+      }
     }
   },
   "exceptions": {

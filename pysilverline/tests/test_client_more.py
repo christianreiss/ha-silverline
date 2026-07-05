@@ -163,6 +163,9 @@ async def test_connection_listener_exception_does_not_break_client() -> None:
         )
         client.add_connection_listener(boom)
         client.add_connection_listener(seen.append)
+        # Prime the recovery flag so this connect() delivers a True notify
+        # (initial connects are silent since the v3.4 lazy-reconnect fix).
+        client._connection_lost_handled = True
         await client.connect()
         try:
             assert seen == [True]
@@ -865,7 +868,7 @@ async def test_heartbeat_failure_triggers_reconnect(
         await client.connect()
         try:
             for _ in range(80):
-                if events.count(True) >= 2:
+                if server.connections >= 2 and True in events:
                     break
                 await asyncio.sleep(0.05)
             # Either the read loop saw EOF first or the heartbeat write did;
@@ -1098,7 +1101,9 @@ async def test_reconnect_keeps_retrying_past_backoff_schedule(
         assert client._reconnect_task is None, (
             "reconnect task never exited after a successful reconnect"
         )
-        assert True in events, "connection listener never saw a True (reconnected) event"
+        assert True in events, (
+            "connection listener never saw a True (reconnected) event"
+        )
     finally:
         # Restore so disconnect()'s cleanup path doesn't trip over the stub.
         monkeypatch.setattr(client_mod.asyncio, "open_connection", real_open)

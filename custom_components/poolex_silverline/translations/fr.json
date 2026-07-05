@@ -1,0 +1,240 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connexion à la Poolex Silverline",
+        "description": "Saisissez les informations réseau locales de la pompe à chaleur et ses identifiants Tuya. L'appareil doit être sur le même réseau que Home Assistant ; l'application Smart Life ne doit pas être connectée en même temps.",
+        "data": {
+          "host": "Hôte ou IP",
+          "port": "Port",
+          "device_id": "ID de l'appareil",
+          "local_key": "Clé locale"
+        },
+        "data_description": {
+          "host": "Nom d'hôte ou adresse IP de la pompe à chaleur sur le réseau local.",
+          "port": "Port local Tuya (6668 par défaut).",
+          "device_id": "ID d'appareil Tuya (22 caractères hexadécimaux), disponible dans la console développeur Smart Life ou via tinytuya scan.",
+          "local_key": "Clé de chiffrement propre à l'appareil (16 caractères), issue du cloud Tuya."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Réauthentifier la Poolex Silverline",
+        "description": "L'appareil a rejeté la clé locale enregistrée. Saisissez la clé actuelle.",
+        "data": {
+          "local_key": "Clé locale"
+        },
+        "data_description": {
+          "local_key": "Clé propre à l'appareil (16 caractères). Elle est régénérée à chaque nouvel appairage de l'appareil dans Smart Life."
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigurer la Poolex Silverline",
+        "description": "Mettez à jour les paramètres de connexion de cette pompe à chaleur.",
+        "data": {
+          "host": "Hôte ou IP",
+          "port": "Port",
+          "device_id": "ID de l'appareil",
+          "local_key": "Clé locale"
+        },
+        "data_description": {
+          "host": "Nom d'hôte ou adresse IP de la pompe à chaleur sur le réseau local.",
+          "port": "Port local Tuya (6668 par défaut).",
+          "device_id": "Doit correspondre à l'appareil ajouté à l'origine.",
+          "local_key": "Clé de chiffrement propre à l'appareil (16 caractères)."
+        }
+      },
+      "discovery_confirm": {
+        "title": "Ajouter la Poolex Silverline découverte",
+        "description": "Une pompe à chaleur a été découverte à l'adresse {host}. Saisissez sa clé locale pour terminer la configuration.",
+        "data": {
+          "local_key": "Clé locale"
+        },
+        "data_description": {
+          "local_key": "Clé de chiffrement propre à l'appareil (16 caractères), issue de la console cloud Tuya."
+        }
+      },
+      "model": {
+        "title": "Sélectionner le modèle de l'appareil",
+        "description": "Choisissez le modèle de votre pompe à chaleur. Cela définit le nom correct dans Home Assistant et préconfigure les capteurs disponibles.",
+        "data": {
+          "model": "Modèle de l'appareil"
+        },
+        "data_description": {
+          "model": "Sélectionnez votre modèle exact pour une disponibilité fiable des capteurs. En cas de doute, choisissez Autre / Inconnu — les capteurs seront détectés automatiquement."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Échec de la connexion à la pompe à chaleur.",
+      "invalid_auth": "La clé locale a été rejetée par l'appareil.",
+      "unknown": "Erreur inattendue."
+    },
+    "abort": {
+      "already_configured": "Cet appareil est déjà configuré.",
+      "reauth_successful": "La réauthentification a réussi.",
+      "reconfigure_successful": "La reconfiguration a réussi.",
+      "device_id_mismatch": "L'ID d'appareil saisi ne correspond pas à l'appareil d'origine.",
+      "unverified_host": "Une annonce LAN a indiqué que cet appareil se trouve à une nouvelle IP, mais le nouvel hôte ne s'est pas authentifié avec la clé locale enregistrée. L'hôte enregistré n'a pas été modifié.",
+      "unsupported_product": "Cet appareil Tuya n'est pas reconnu comme une pompe à chaleur Poolex / Silverline (le productKey ne correspond à aucun modèle connu). S'il s'agit d'une pompe à chaleur qui devrait être prise en charge, veuillez ouvrir un ticket avec le productKey des journaux."
+    }
+  },
+  "entity": {
+    "climate": {
+      "heatpump": {
+        "name": "Pompe à chaleur",
+        "state_attributes": {
+          "preset_mode": {
+            "state": {
+              "none": "Inverter",
+              "boost": "Boost",
+              "eco": "Silencieux"
+            }
+          }
+        }
+      }
+    },
+    "sensor": {
+      "temperature_delta": { "name": "Delta de température" },
+      "exhaust_temperature": { "name": "Température d'aspiration du compresseur" },
+      "return_temperature": { "name": "Température ambiante extérieure" },
+      "coil_temperature": { "name": "Température de l'eau du bassin" },
+      "ambient_temperature": { "name": "Température de refoulement du compresseur" },
+      "inlet_temperature": { "name": "Température d'entrée d'eau" },
+      "outlet_temperature": { "name": "Température de sortie d'eau" },
+      "target_frequency": { "name": "Fréquence cible du compresseur" },
+      "actual_frequency": { "name": "Fréquence réelle du compresseur" },
+      "eev_steps": { "name": "Pas du détendeur électronique" },
+      "main_valve_opening": { "name": "Ouverture de la vanne principale" },
+      "aux_valve_opening": { "name": "Ouverture de la vanne auxiliaire" },
+      "outdoor_coil_temperature": { "name": "Température de l'échangeur extérieur" },
+      "indoor_coil_temperature": { "name": "Température de l'échangeur intérieur" },
+      "water_pump_rpm": { "name": "Vitesse de la pompe de circulation" },
+      "fan_speed": { "name": "Vitesse du ventilateur" },
+      "fault_code": { "name": "Code d'erreur" },
+      "runtime_today": { "name": "Durée de fonctionnement aujourd'hui" },
+      "condensing_temperature": { "name": "Température de condensation du frigorigène" },
+      "evaporating_temperature": { "name": "Température d'évaporation du frigorigène" },
+      "superheat": { "name": "Surchauffe du compresseur" },
+      "compressor_load": { "name": "Charge du compresseur" },
+      "total_operating_hours": { "name": "Heures de fonctionnement totales" },
+      "target_superheat": { "name": "Surchauffe cible" },
+      "target_condensing_temperature": { "name": "Température de condensation cible" }
+    },
+    "binary_sensor": {
+      "compressor_running": { "name": "Compresseur" },
+      "water_pump": { "name": "Pompe à eau" },
+      "fault_water_flow": { "name": "Défaut de débit d'eau" },
+      "fault_antifreeze": { "name": "Défaut antigel" },
+      "fault_high_pressure": { "name": "Défaut haute pression" },
+      "fault_low_pressure": { "name": "Défaut basse pression" },
+      "fault_communication": { "name": "Défaut de communication" },
+      "fault_inverter_comms": { "name": "Défaut de communication inverter" },
+      "fault_inlet_sensor": { "name": "Défaut sonde d'entrée" },
+      "fault_outlet_sensor": { "name": "Défaut sonde de sortie" },
+      "fault_defrost_sensor": { "name": "Défaut sonde de dégivrage" },
+      "fault_coil_sensor": { "name": "Défaut sonde d'échangeur" }
+    },
+    "switch": {
+      "power": { "name": "Alimentation" }
+    },
+    "number": {
+      "target_temperature": { "name": "Température cible" }
+    },
+    "select": {
+      "preset_mode": {
+        "name": "Préréglage",
+        "state": {
+          "none": "Inverter",
+          "boost": "Boost",
+          "eco": "Silencieux"
+        }
+      },
+      "operating_mode": {
+        "name": "Mode de fonctionnement",
+        "state": {
+          "off": "Arrêt",
+          "heat": "Chauffage",
+          "cool": "Refroidissement",
+          "heat_cool": "Auto"
+        }
+      }
+    }
+  },
+  "issues": {
+    "fault_E03": {
+      "title": "Défaut de débit d'eau (E03)",
+      "description": "La pompe à chaleur ne détecte pas de débit d'eau. Vérifiez que la pompe de filtration fonctionne et que le filtre est propre. Le chauffage est suspendu jusqu'au rétablissement du débit. Cette carte disparaît automatiquement dès que l'appareil efface le défaut."
+    },
+    "fault_E04": {
+      "title": "Défaut antigel (E04)",
+      "description": "La protection antigel s'est déclenchée — l'eau dans l'échangeur de chaleur est trop froide. Augmentez la température ambiante ou arrêtez le fonctionnement jusqu'à ce qu'elle repasse au-dessus du seuil antigel."
+    },
+    "fault_E05": {
+      "title": "Défaut haute pression (E05)",
+      "description": "Le pressostat haute pression du circuit frigorifique s'est déclenché. Causes probables : flux d'air bloqué sur l'échangeur, excès de frigorigène ou panne du ventilateur du condenseur."
+    },
+    "fault_E06": {
+      "title": "Défaut basse pression (E06)",
+      "description": "Le pressostat basse pression du circuit frigorifique s'est déclenché. Fuite de frigorigène ou problème de détendeur possible — une intervention est nécessaire si le défaut se répète."
+    },
+    "fault_E09": {
+      "title": "Panne de communication (E09)",
+      "description": "La communication interne entre le régulateur et l'inverter a échoué. L'appareil se rétablit généralement de lui-même."
+    },
+    "fault_E10": {
+      "title": "Panne de communication inverter (E10)",
+      "description": "L'inverter ne répond pas. L'appareil se rétablit généralement au prochain cycle du compresseur."
+    },
+    "fault_P1": {
+      "title": "Défaut sonde de dégivrage (P1)",
+      "description": "La sonde de température de dégivrage renvoie une valeur invalide. Les cycles de dégivrage peuvent être décalés jusqu'à la résolution."
+    },
+    "fault_P3": {
+      "title": "Défaut sonde d'entrée (P3)",
+      "description": "La sonde de température d'entrée d'eau renvoie une valeur invalide. La température du bassin affichée peut être erronée jusqu'à la résolution."
+    },
+    "fault_P4": {
+      "title": "Défaut sonde de sortie (P4)",
+      "description": "La sonde de température de sortie d'eau renvoie une valeur invalide. L'appareil peut fonctionner sans surveillance précise de la température de sortie."
+    },
+    "fault_P7": {
+      "title": "Défaut sonde d'échangeur (P7)",
+      "description": "La sonde de température de l'échangeur de l'évaporateur renvoie une valeur invalide. Le déclenchement du dégivrage peut être affecté jusqu'à la résolution."
+    }
+  },
+  "selector": {
+    "model": {
+      "options": {
+        "pc_slp090n": "Poolex PC-SLP090N",
+        "jetline_fi": "Poolex JetLine Selection FI",
+        "brustec_br80": "Brustec BR-80",
+        "phalen_calidi": "Phalén Calidi XP",
+        "nulite": "Nulite",
+        "fi_150": "Poolex Silverline FI 150",
+        "pc_inv_120v2": "Poolex Silverline FI 120 V2 / PC-INV-120V2 (dixièmes de °C)",
+        "silverline_v34": "Poolex Silverline (Tuya v3.4 / wfzeiyn1ed3axxde)",
+        "other": "Autre / Inconnu"
+      }
+    }
+  },
+  "exceptions": {
+    "auth_failed": {
+      "message": "La pompe à chaleur a rejeté les identifiants. Une réauthentification est nécessaire."
+    },
+    "set_failed": {
+      "message": "Échec de la mise à jour de la pompe à chaleur : {reason}"
+    },
+    "preset_not_available_in_auto": {
+      "message": "Les préréglages Boost et Silencieux ne sont pas disponibles lorsque la pompe à chaleur est en mode auto."
+    },
+    "unsupported_hvac_mode": {
+      "message": "Le mode CVC {mode} n'est pas pris en charge."
+    },
+    "unsupported_preset_mode": {
+      "message": "Le préréglage {preset} n'est pas pris en charge."
+    },
+    "missing_target_temperature": {
+      "message": "set_temperature nécessite une température cible."
+    }
+  }
+}

@@ -18,7 +18,7 @@ pumps (Tuya v3.3 / v3.4 / v3.5) and OEM siblings. Connects directly over LAN —
 - ✅ Presets incl. boost + silent variants that standard Tuya integrations miss
 - ✅ Firmware-aware diagnostics + fault sensors
 - ✅ Reauth/reconfigure flow for key/IP changes
-- ✅ HACS-installable, multilingual (DE/EN)
+- ✅ HACS-installable, multilingual (EN/DE/FR/ES/IT/NL/PL)
 
 ## Features
 
@@ -26,20 +26,25 @@ pumps (Tuya v3.3 / v3.4 / v3.5) and OEM siblings. Connects directly over LAN —
   (`inverter`, `boost`, `silent`) covering all seven device modes including
   Boost-Cool and Silent-Cool, which the official HA Tuya integration cannot
   reach (see [home-assistant/core#117566][issue-117566]).
-- Up to eleven firmware-dependent diagnostic sensors: compressor
-  exhaust/return temperatures, evaporator and ambient temperatures, water
-  inlet/outlet temperatures, target/actual compressor frequency, EEV step
-  count, fan rpm, and a decoded fault-code enum. The integration only
+- Up to 25 firmware-dependent diagnostic sensors (13 of them disabled by
+  default): water/ambient/coil/refrigerant temperatures, target/actual
+  compressor frequency and load, EEV/valve steps, fan and pump rpm,
+  runtime counters, and a decoded fault-code enum. The integration only
   registers entities for the DPs your firmware actually exposes — the
   minimal Poolex PC-SLP090N firmware ships five DPs and gets none of the
   101–111 diagnostics, while the Brustec / Steinbach variants ship the
   full set.
-- Binary sensors for the water-pump relay and the five most common fault
-  bits (water flow, antifreeze, high/low pressure, communication).
+- 12 binary sensors: compressor running, water pump, and all ten fault
+  bits — the five most common (water flow, antifreeze, high/low pressure,
+  communication) enabled by default, the other five (inverter comms and
+  the four temperature-sensor faults) disabled by default.
+- A power `switch`, a target-temperature `number`, and two `select`
+  entities (preset, operating mode) expose the climate controls
+  individually for automations.
 - Reauth flow when the local key rotates and reconfigure flow for IP
   changes.
 - Full diagnostics download with secrets redacted.
-- German and English translations.
+- Translations for English, German, French, Spanish, Italian, Dutch, and Polish.
 
 ## Supported devices
 
@@ -99,11 +104,14 @@ in-house) · ⚪ unknown · ✅ present · ❌ absent · ❓ firmware-dependent
   5-DP set (`1, 2, 3, 4, 13`) — no DP 108, so no diagnostics (issue #6). If your
   unit only exposes those five DPs, the behaviour matches the PC-SLP090N
   profile.
-- **The "Compressor" binary sensor needs DP 108 (actual compressor frequency).**
-  It is the only authoritative compressor telemetry; on minimal firmware that
-  doesn't expose it, the sensor is not created at all (it would otherwise echo
-  heating *demand* during the startup delay rather than real running state —
-  issue #6). The climate card's heating/cooling colour still reflects demand.
+- **The "Compressor" binary sensor needs the actual-compressor-frequency DP
+  (DP 108 on the standard layout).** It is the only authoritative compressor
+  telemetry; on firmware that doesn't expose it — including the minimal 5-DP
+  units (issue #6) and the v3.4 `wfzeiyn1ed3axxde` firmware, where DP 108 is
+  the indoor coil temperature instead — the sensor is not created at all (it
+  would otherwise echo heating *demand* during the startup delay rather than
+  real running state). The climate card's heating/cooling colour still
+  reflects demand.
 - **PC-INV-120V2 / Silverline FI 120 V2 reports water temperature in tenths
   of a degree.** This OEM Poolstar variant sends DP 3 as e.g. `277` for 27.7 °C
   (issue #5). Select the **`Poolex Silverline FI 120 V2 / PC-INV-120V2`** model
@@ -132,7 +140,7 @@ Assistant `config/custom_components/` and restart.
 
 ## Setup
 
-You need three pieces of information from the Tuya cloud:
+You need four pieces of information:
 
 | Field | What it is | Where to find it |
 |---|---|---|
@@ -149,12 +157,21 @@ device before creating the config entry. A failure surfaces as
 `cannot_connect` (network/host) or `invalid_auth` (wrong local key) right
 in the form.
 
+After the credentials validate, a second step asks for your **device model**
+in a dropdown. The choice sets the device's model name in Home Assistant and
+pre-configures which sensors are available for that model. If your model is
+not listed (or you are unsure), pick **Other / Unknown** — the integration
+then detects the supported sensors automatically from the device's first
+status report.
+
 ## Configuration parameters
 
-There is no options flow in v0.1; all configuration happens during setup or
-via the **Reconfigure** action on the device entry. To change the host, port,
-device ID, or local key after setup, click the three-dot menu on the device
-in **Settings → Devices** and choose **Reconfigure**.
+There is no options flow; all configuration happens during setup or via the
+**Reconfigure** action on the device entry. To change the host, port, device
+ID, local key, or device model after setup, click the three-dot menu on the
+device in **Settings → Devices** and choose **Reconfigure**. Reconfigure
+re-validates the connection details and then shows the same model dropdown,
+pre-selected with the current choice.
 
 ## Data update model
 
@@ -251,8 +268,9 @@ Also test the control path? … [y/N]: n
 It then prints the report and offers to save it. Paste the output into a
 [bug report](https://github.com/christianreiss/ha-silverline/issues/new/choose).
 
-- Your **local key** is in Home Assistant under *Settings → Devices & Services →
-  Poolex Silverline → ⋮ → Download diagnostics* (or run `python -m tinytuya wizard`).
+- Your **local key** comes from `python -m tinytuya wizard` or the Tuya IoT
+  Platform (Cloud → Devices) — the same place you found it during setup. Home
+  Assistant's diagnostics download redacts it deliberately, so don't look there.
 - Say **yes** to the control-path test only if you want it: it writes the
   setpoint (DP 2) back to its *current* value, so it changes nothing, but it
   reveals whether local writes are accepted (the signal behind issue #7).

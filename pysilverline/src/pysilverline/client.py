@@ -122,6 +122,11 @@ class SilverlineClient:
         self._state = DeviceState()
         self._closing = False
         self._connection_lost_handled = False
+        # Set by _reconnect_loop when a re-handshake is rejected (rotated
+        # local key). While set, requests raise InvalidAuth instead of a bare
+        # "not connected" so callers can trigger reauth; cleared by the next
+        # successful connect().
+        self._reconnect_auth_error: InvalidAuth | None = None
 
     @property
     def connected(self) -> bool:
@@ -146,7 +151,6 @@ class SilverlineClient:
         if self.connected:
             return
         self._closing = False
-        self._connection_lost_handled = False
 
         # Reset the session-key codecs to the real key before each new
         # connection so a stale session key from a previous TCP session is
@@ -169,13 +173,28 @@ class SilverlineClient:
 
         self._reader = reader
         self._writer = writer
+        # A successful handshake proves the key again — clear any auth failure
+        # recorded by the reconnect loop so requests stop surfacing a stale
+        # InvalidAuth.
+        self._reconnect_auth_error = None
         self._reader_task = asyncio.create_task(
             self._read_loop(), name=f"silverline-read-{self.host}"
         )
         self._heartbeat_task = asyncio.create_task(
             self._heartbeat_loop(), name=f"silverline-hb-{self.host}"
         )
-        self._notify_connection(True)
+        # Notify True only when this connect heals a *delivered* False —
+        # i.e. _on_connection_dropped fired for the previous session. The
+        # v3.4 firmware closes TCP after every response (request-scoped
+        # sockets); its quiet teardown in _read_loop deliberately skips the
+        # False notification, so the per-poll lazy reconnect in _request
+        # must not fire a spurious True either — consumers would log a
+        # "restored" recovery and schedule an extra refresh on every poll.
+        # The flag is cleared only here, on success, so a *failed* reconnect
+        # attempt cannot swallow a pending recovery notification.
+        if self._connection_lost_handled:
+            self._connection_lost_handled = False
+            self._notify_connection(True)
 
     async def disconnect(self) -> None:
         """Close the connection and stop background tasks.
@@ -223,6 +242,12 @@ class SilverlineClient:
                 pass
         self._reader = None
         self._writer = None
+        # An explicit disconnect ends the session cleanly; a stale handshake
+        # failure must not make later "not connected" errors claim bad auth,
+        # and an undelivered recovery must not make a later manual connect()
+        # fire a stale True notification.
+        self._reconnect_auth_error = None
+        self._connection_lost_handled = False
 
     def add_listener(self, callback: PushListener) -> Callable[[], None]:
         """Register a synchronous callback for push DP updates.
@@ -244,8 +269,11 @@ class SilverlineClient:
     ) -> Callable[[], None]:
         """Register a synchronous callback for connection state changes.
 
-        Invoked with ``True`` after a (re)connection succeeds and ``False``
-        when the socket drops unexpectedly. Returns an unsubscribe function.
+        Invoked with ``False`` when the socket drops unexpectedly and with
+        ``True`` when a later reconnect heals that drop. Connects that were
+        never preceded by a delivered ``False`` — the initial ``connect()``
+        and the v3.4 lazy reconnect after a quiet request-scoped peer-close
+        — fire no event. Returns an unsubscribe function.
         """
         self._connection_listeners.append(callback)
 
@@ -354,6 +382,15 @@ class SilverlineClient:
                 # each response (see _read_loop), so reconnect lazily here on the
                 # next request rather than running a heartbeat/backoff loop.
                 await self.connect()
+            elif self._reconnect_auth_error is not None:
+                # The reconnect loop is alive but its last handshake was
+                # rejected — a rotated local key. Surface InvalidAuth (not
+                # CannotConnect) so the HA coordinator raises
+                # ConfigEntryAuthFailed and the reauth flow fires, instead of
+                # an endless poll-failed loop that never prompts the user.
+                raise InvalidAuth(
+                    f"reconnect handshake rejected: {self._reconnect_auth_error}"
+                ) from self._reconnect_auth_error
             else:
                 raise CannotConnect("not connected")
         loop = asyncio.get_running_loop()
@@ -694,6 +731,21 @@ class SilverlineClient:
                     return
                 try:
                     await self.connect()
+                except InvalidAuth as err:
+                    # A rejected v3.4/v3.5 session handshake must not kill the
+                    # retry task — a transiently corrupted handshake self-heals
+                    # on a later attempt. Record the failure so requests raise
+                    # InvalidAuth (the reauth trigger) while it persists; a
+                    # genuinely rotated key then reaches the user as a reauth
+                    # prompt via the next poll instead of a dead retry task.
+                    self._reconnect_auth_error = err
+                    _LOGGER.warning(
+                        "reconnect handshake to %s rejected (rotated local "
+                        "key?): %s; retrying",
+                        self.host,
+                        err,
+                    )
+                    continue
                 except CannotConnect as err:
                     _LOGGER.debug("reconnect attempt failed: %s", err)
                     continue

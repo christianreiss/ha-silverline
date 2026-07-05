@@ -84,17 +84,21 @@ BINARY_SENSORS: tuple[SilverlineBinarySensorDescription, ...] = (
         translation_key="compressor_running",
         device_class=BinarySensorDeviceClass.RUNNING,
         value_fn=_compressor_active,
-        # Gate on DP 108 (actual_frequency) — the only authoritative compressor
-        # telemetry. On minimal firmware that never exposes it (e.g. PC-SLP090N,
-        # JetLine Selection FI 95 — issue #6) _compressor_active would fall back
-        # to the temp-delta-vs-setpoint heuristic, which reads "running" the
-        # instant there's heating demand — including the unit's startup delay,
-        # before the physical compressor has actually spun up. That made the
+        # Gated semantically in async_setup_entry, not via dp_keys: the only
+        # authoritative compressor telemetry is actual_frequency, whose wire DP
+        # is firmware-specific (108 on the standard layout; unmapped on
+        # LAYOUT_V34_WFZEIYN, where DP 108 is indoor_coil_temp). On firmware
+        # that never exposes it (e.g. PC-SLP090N, JetLine Selection FI 95 —
+        # issue #6) _compressor_active would fall back to the
+        # temp-delta-vs-setpoint heuristic, which reads "running" the instant
+        # there's heating demand — including the unit's startup delay, before
+        # the physical compressor has actually spun up. That made the
         # "Compressor" sensor a demand indicator masquerading as telemetry, so
-        # we don't register it at all unless DP 108 is present. The climate
+        # we don't register it at all unless the model's layout maps
+        # actual_frequency AND the firmware reports that DP. The climate
         # entity's hvac_action still uses the heuristic to colour the card —
         # that's demand, and acceptable there.
-        dp_keys=("108",),
+        dp_keys=(),
     ),
     SilverlineBinarySensorDescription(
         key="water_pump",
@@ -117,10 +121,21 @@ async def async_setup_entry(
 ) -> None:
     coordinator = entry.runtime_data
     supported = coordinator.supported_dps
+    # actual_frequency's wire DP is firmware-specific, so the compressor
+    # sensor's gate resolves through the model's layout — a raw "108" gate
+    # would match LAYOUT_V34_WFZEIYN's indoor_coil_temp and register a demand
+    # indicator as telemetry (see the description's comment).
+    freq_dp = coordinator.client.dp_layout.actual_frequency
+
+    def _is_supported(description: SilverlineBinarySensorDescription) -> bool:
+        if description.key == "compressor_running":
+            return freq_dp is not None and str(freq_dp) in supported
+        return set(description.dp_keys) <= supported
+
     async_add_entities(
         SilverlineBinarySensor(coordinator, description)
         for description in BINARY_SENSORS
-        if set(description.dp_keys) <= supported
+        if _is_supported(description)
     )
 
 

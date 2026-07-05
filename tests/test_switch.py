@@ -14,7 +14,7 @@ from homeassistant.const import ATTR_ENTITY_ID, STATE_OFF, STATE_ON, STATE_UNAVA
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
-from pysilverline import CannotConnect, DeviceState, InvalidAuth
+from pysilverline import CannotConnect, DeviceState, InvalidAuth, SilverlineError
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 ENTITY_ID = "switch.pool_heatpump_power"
@@ -112,6 +112,25 @@ async def test_turn_on_surfaces_cannot_connect_as_homeassistant_error(
     hass: HomeAssistant, mock_client_factory, init_integration: MockConfigEntry
 ) -> None:
     mock_client_factory.set_multiple.side_effect = CannotConnect("offline")
+    with pytest.raises(HomeAssistantError) as exc:
+        await hass.services.async_call(
+            SWITCH_DOMAIN,
+            SERVICE_TURN_ON,
+            {ATTR_ENTITY_ID: ENTITY_ID},
+            blocking=True,
+        )
+    assert exc.value.translation_key == "set_failed"
+
+
+async def test_turn_on_surfaces_device_rejection_as_homeassistant_error(
+    hass: HomeAssistant, mock_client_factory, init_integration: MockConfigEntry
+) -> None:
+    """A device-side write rejection (non-zero CONTROL ack, issue #7) raises a
+    bare SilverlineError — _write_dps must translate it to a HomeAssistantError
+    with the set_failed key, not leak a traceback through the service call."""
+    mock_client_factory.set_multiple.side_effect = SilverlineError(
+        "CONTROL failed retcode=0x42"
+    )
     with pytest.raises(HomeAssistantError) as exc:
         await hass.services.async_call(
             SWITCH_DOMAIN,

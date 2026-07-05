@@ -35,6 +35,7 @@ from . import __version__, const
 from .client import SilverlineClient
 from .discovery import DiscoveryInfo, discover_once
 from .exceptions import SilverlineError
+from .models import DeviceState
 
 _REDACTED = "**REDACTED**"
 _PLACEHOLDER = {
@@ -164,12 +165,14 @@ def _dp_sort_key(dp: str) -> tuple[int, str]:
     return (int(dp), "") if dp.isdigit() else (1 << 30, dp)
 
 
-def _decoded_state(state: Any) -> dict[str, Any]:
+def _decoded_state(state: DeviceState) -> dict[str, Any]:
     """The mapped, human-readable fields (power/mode/temps), nulls dropped."""
     return {k: v for k, v in asdict(state).items() if k != "raw" and v is not None}
 
 
-async def _run_write_probe(client: SilverlineClient, state: Any) -> dict[str, Any]:
+async def _run_write_probe(
+    client: SilverlineClient, state: DeviceState
+) -> dict[str, Any]:
     """Exercise the control path without changing device state.
 
     Writes the setpoint (DP 2) back to its *current* value. DP 2 is chosen over
@@ -183,7 +186,9 @@ async def _run_write_probe(client: SilverlineClient, state: Any) -> dict[str, An
     probe["value_before"] = value
     if value is None:
         probe["result"] = "skipped"
-        probe["detail"] = "device does not expose DP 2 (setpoint); nothing safe to write"
+        probe["detail"] = (
+            "device does not expose DP 2 (setpoint); nothing safe to write"
+        )
         return probe
     try:
         await client.set_multiple({const.DP_TEMP_SET: value})
@@ -295,9 +300,7 @@ def format_markdown(report: dict[str, Any]) -> str:
             )
     else:
         note = report.get("discovery_error")
-        lines.append(
-            f"_No devices found ({note})._" if note else "_No devices found._"
-        )
+        lines.append(f"_No devices found ({note})._" if note else "_No devices found._")
     lines.append("")
 
     read = report.get("read")
@@ -326,8 +329,14 @@ def format_markdown(report: dict[str, Any]) -> str:
         lines += ["## Write probe (control path)"]
         lines.append(f"- DP written: `{probe.get('dp')}` (same-value, no state change)")
         lines.append(f"- Result: `{probe.get('result')}`")
-        for key in ("value_before", "value_after", "detail", "error_type",
-                    "error_message", "readback_error"):
+        for key in (
+            "value_before",
+            "value_after",
+            "detail",
+            "error_type",
+            "error_message",
+            "readback_error",
+        ):
             if key in probe:
                 lines.append(f"- {key}: `{probe[key]}`")
         lines.append("")
@@ -476,9 +485,7 @@ def _collect_interactive(
     if not host:
         host = _prompt("Device IP or hostname", validate=_required, input_fn=input_fn)
     if not device_id:
-        device_id = _prompt(
-            "Device id (gwId)", validate=_required, input_fn=input_fn
-        )
+        device_id = _prompt("Device id (gwId)", validate=_required, input_fn=input_fn)
     local_key = args.local_key or _prompt(
         "Local key (16 characters)", validate=_valid_key, input_fn=input_fn
     )

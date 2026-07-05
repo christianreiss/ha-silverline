@@ -5,7 +5,7 @@ from __future__ import annotations
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from pysilverline import CannotConnect, InvalidAuth
+from pysilverline import InvalidAuth, SilverlineError
 
 from .const import CONF_MODEL, DEVICE_PROFILES, DOMAIN, MANUFACTURER, MODEL
 from .coordinator import SilverlineCoordinator
@@ -46,7 +46,11 @@ class SilverlineEntity(CoordinatorEntity[SilverlineCoordinator]):
                 translation_domain=DOMAIN,
                 translation_key="auth_failed",
             ) from err
-        except CannotConnect as err:
+        # Catch-all for the remaining wire errors — CannotConnect, a
+        # device-side write rejection (non-zero CONTROL ack, a bare
+        # SilverlineError), and ProtocolError all subclass SilverlineError.
+        # Must stay AFTER the InvalidAuth clause, which does too.
+        except SilverlineError as err:
             raise HomeAssistantError(
                 translation_domain=DOMAIN,
                 translation_key="set_failed",

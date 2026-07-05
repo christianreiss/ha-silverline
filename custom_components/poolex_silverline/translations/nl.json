@@ -1,0 +1,240 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Verbinden met de Poolex Silverline",
+        "description": "Voer de lokale netwerkgegevens en Tuya-inloggegevens van de warmtepomp in. Het apparaat moet zich in hetzelfde netwerk als Home Assistant bevinden; de Smart Life-app mag niet tegelijkertijd verbonden zijn.",
+        "data": {
+          "host": "Host of IP",
+          "port": "Poort",
+          "device_id": "Apparaat-ID",
+          "local_key": "Lokale sleutel"
+        },
+        "data_description": {
+          "host": "Hostnaam of IP-adres van de warmtepomp in het lokale netwerk.",
+          "port": "Lokale Tuya-poort (standaard 6668).",
+          "device_id": "Tuya-apparaat-ID (22 hexadecimale tekens), te vinden in de Smart Life-ontwikkelaarsconsole of via tinytuya scan.",
+          "local_key": "Apparaatspecifieke versleutelingssleutel van 16 tekens uit de Tuya-cloud."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Poolex Silverline opnieuw verifiëren",
+        "description": "Het apparaat heeft de opgeslagen lokale sleutel geweigerd. Voer de huidige sleutel in.",
+        "data": {
+          "local_key": "Lokale sleutel"
+        },
+        "data_description": {
+          "local_key": "Apparaatspecifieke sleutel van 16 tekens. Wordt opnieuw aangemaakt zodra het apparaat opnieuw wordt gekoppeld in Smart Life."
+        }
+      },
+      "reconfigure": {
+        "title": "Poolex Silverline opnieuw configureren",
+        "description": "Werk de verbindingsgegevens van deze warmtepomp bij.",
+        "data": {
+          "host": "Host of IP",
+          "port": "Poort",
+          "device_id": "Apparaat-ID",
+          "local_key": "Lokale sleutel"
+        },
+        "data_description": {
+          "host": "Hostnaam of IP-adres van de warmtepomp in het lokale netwerk.",
+          "port": "Lokale Tuya-poort (standaard 6668).",
+          "device_id": "Moet overeenkomen met het oorspronkelijk toegevoegde apparaat.",
+          "local_key": "Apparaatspecifieke versleutelingssleutel van 16 tekens."
+        }
+      },
+      "discovery_confirm": {
+        "title": "Ontdekte Poolex Silverline toevoegen",
+        "description": "Er is een warmtepomp ontdekt op {host}. Voer de lokale sleutel in om de installatie te voltooien.",
+        "data": {
+          "local_key": "Lokale sleutel"
+        },
+        "data_description": {
+          "local_key": "Apparaatspecifieke versleutelingssleutel van 16 tekens uit de Tuya-cloudconsole."
+        }
+      },
+      "model": {
+        "title": "Apparaatmodel selecteren",
+        "description": "Kies het model van je warmtepomp. Dit stelt de juiste naam in Home Assistant in en configureert vooraf welke sensoren beschikbaar zijn.",
+        "data": {
+          "model": "Apparaatmodel"
+        },
+        "data_description": {
+          "model": "Selecteer je exacte model voor een nauwkeurige sensorbeschikbaarheid. Kies bij twijfel Overig / Onbekend — de sensoren worden dan automatisch gedetecteerd."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Verbinding met de warmtepomp is mislukt.",
+      "invalid_auth": "De lokale sleutel is door het apparaat geweigerd.",
+      "unknown": "Onverwachte fout."
+    },
+    "abort": {
+      "already_configured": "Dit apparaat is al geconfigureerd.",
+      "reauth_successful": "Herverificatie is gelukt.",
+      "reconfigure_successful": "Herconfiguratie is gelukt.",
+      "device_id_mismatch": "Het ingevoerde apparaat-ID komt niet overeen met het oorspronkelijke apparaat.",
+      "unverified_host": "Een LAN-broadcast meldde dat dit apparaat een nieuw IP-adres heeft, maar de nieuwe host kon zich niet verifiëren met de opgeslagen lokale sleutel. De opgeslagen host is niet gewijzigd.",
+      "unsupported_product": "Dit Tuya-apparaat is niet herkend als een ondersteunde Poolex / Silverline-warmtepomp (de productKey komt met geen enkel bekend model overeen). Als je denkt dat dit een warmtepomp is die ondersteund zou moeten worden, open dan een issue met de productKey uit de logboeken."
+    }
+  },
+  "entity": {
+    "climate": {
+      "heatpump": {
+        "name": "Warmtepomp",
+        "state_attributes": {
+          "preset_mode": {
+            "state": {
+              "none": "Inverter",
+              "boost": "Boost",
+              "eco": "Stil"
+            }
+          }
+        }
+      }
+    },
+    "sensor": {
+      "temperature_delta": { "name": "Temperatuurverschil" },
+      "exhaust_temperature": { "name": "Zuiggastemperatuur compressor" },
+      "return_temperature": { "name": "Buitentemperatuur" },
+      "coil_temperature": { "name": "Zwembadwatertemperatuur" },
+      "ambient_temperature": { "name": "Persgastemperatuur compressor" },
+      "inlet_temperature": { "name": "Waterinlaattemperatuur" },
+      "outlet_temperature": { "name": "Wateruitlaattemperatuur" },
+      "target_frequency": { "name": "Doelfrequentie compressor" },
+      "actual_frequency": { "name": "Werkelijke frequentie compressor" },
+      "eev_steps": { "name": "Stappen elektronisch expansieventiel" },
+      "main_valve_opening": { "name": "Opening hoofdventiel" },
+      "aux_valve_opening": { "name": "Opening hulpventiel" },
+      "outdoor_coil_temperature": { "name": "Temperatuur buitenwarmtewisselaar" },
+      "indoor_coil_temperature": { "name": "Temperatuur binnenwarmtewisselaar" },
+      "water_pump_rpm": { "name": "Toerental circulatiepomp" },
+      "fan_speed": { "name": "Ventilatorsnelheid" },
+      "fault_code": { "name": "Foutcode" },
+      "runtime_today": { "name": "Draaitijd vandaag" },
+      "condensing_temperature": { "name": "Condensatietemperatuur koudemiddel" },
+      "evaporating_temperature": { "name": "Verdampingstemperatuur koudemiddel" },
+      "superheat": { "name": "Oververhitting compressor" },
+      "compressor_load": { "name": "Compressorbelasting" },
+      "total_operating_hours": { "name": "Totale bedrijfsuren" },
+      "target_superheat": { "name": "Doeloververhitting" },
+      "target_condensing_temperature": { "name": "Doelcondensatietemperatuur" }
+    },
+    "binary_sensor": {
+      "compressor_running": { "name": "Compressor" },
+      "water_pump": { "name": "Waterpomp" },
+      "fault_water_flow": { "name": "Waterdoorstromingsfout" },
+      "fault_antifreeze": { "name": "Antivriesfout" },
+      "fault_high_pressure": { "name": "Hogedrukfout" },
+      "fault_low_pressure": { "name": "Lagedrukfout" },
+      "fault_communication": { "name": "Communicatiefout" },
+      "fault_inverter_comms": { "name": "Communicatiefout inverter" },
+      "fault_inlet_sensor": { "name": "Fout inlaatsensor" },
+      "fault_outlet_sensor": { "name": "Fout uitlaatsensor" },
+      "fault_defrost_sensor": { "name": "Fout ontdooisensor" },
+      "fault_coil_sensor": { "name": "Fout warmtewisselaarsensor" }
+    },
+    "switch": {
+      "power": { "name": "Voeding" }
+    },
+    "number": {
+      "target_temperature": { "name": "Doeltemperatuur" }
+    },
+    "select": {
+      "preset_mode": {
+        "name": "Voorkeuzemodus",
+        "state": {
+          "none": "Inverter",
+          "boost": "Boost",
+          "eco": "Stil"
+        }
+      },
+      "operating_mode": {
+        "name": "Bedrijfsmodus",
+        "state": {
+          "off": "Uit",
+          "heat": "Verwarmen",
+          "cool": "Koelen",
+          "heat_cool": "Auto"
+        }
+      }
+    }
+  },
+  "issues": {
+    "fault_E03": {
+      "title": "Waterdoorstromingsfout (E03)",
+      "description": "De warmtepomp detecteert geen waterdoorstroming. Controleer of de filterpomp draait en het filter schoon is. Het verwarmen wordt onderbroken totdat de doorstroming is hersteld. Deze kaart verdwijnt automatisch zodra het apparaat de fout wist."
+    },
+    "fault_E04": {
+      "title": "Antivriesfout (E04)",
+      "description": "De antivriesbeveiliging is geactiveerd — het water in de warmtewisselaar is te koud. Verhoog de omgevingstemperatuur of stop het bedrijf totdat deze boven de antivriesdrempel ligt."
+    },
+    "fault_E05": {
+      "title": "Hogedrukfout (E05)",
+      "description": "De hogedrukbeveiliging van het koudemiddelcircuit is geactiveerd. Waarschijnlijke oorzaken: geblokkeerde luchtstroom over de warmtewisselaar, te veel koudemiddel of een defecte condensorventilator."
+    },
+    "fault_E06": {
+      "title": "Lagedrukfout (E06)",
+      "description": "De lagedrukbeveiliging van het koudemiddelcircuit is geactiveerd. Mogelijk koudemiddellek of probleem met het expansieventiel — service is nodig als dit zich herhaalt."
+    },
+    "fault_E09": {
+      "title": "Communicatiestoring (E09)",
+      "description": "De interne communicatie tussen de regelaar en de inverter is mislukt. Het apparaat herstelt zich meestal vanzelf."
+    },
+    "fault_E10": {
+      "title": "Communicatiestoring inverter (E10)",
+      "description": "De inverter reageert niet. Het apparaat herstelt zich meestal bij de volgende compressorcyclus."
+    },
+    "fault_P1": {
+      "title": "Fout ontdooisensor (P1)",
+      "description": "De ontdooitemperatuursensor geeft een ongeldige waarde. Ontdooicycli kunnen buiten schema lopen totdat de fout is verholpen."
+    },
+    "fault_P3": {
+      "title": "Fout inlaatsensor (P3)",
+      "description": "De waterinlaattemperatuursensor geeft een ongeldige waarde. De weergegeven zwembadtemperatuur kan onjuist zijn totdat de fout is verholpen."
+    },
+    "fault_P4": {
+      "title": "Fout uitlaatsensor (P4)",
+      "description": "De wateruitlaattemperatuursensor geeft een ongeldige waarde. Het apparaat kan werken zonder nauwkeurige bewaking van de uitlaattemperatuur."
+    },
+    "fault_P7": {
+      "title": "Fout warmtewisselaarsensor (P7)",
+      "description": "De temperatuursensor van de verdamperwarmtewisselaar geeft een ongeldige waarde. De ontdooitiming kan hierdoor worden beïnvloed totdat de fout is verholpen."
+    }
+  },
+  "selector": {
+    "model": {
+      "options": {
+        "pc_slp090n": "Poolex PC-SLP090N",
+        "jetline_fi": "Poolex JetLine Selection FI",
+        "brustec_br80": "Brustec BR-80",
+        "phalen_calidi": "Phalén Calidi XP",
+        "nulite": "Nulite",
+        "fi_150": "Poolex Silverline FI 150",
+        "pc_inv_120v2": "Poolex Silverline FI 120 V2 / PC-INV-120V2 (tienden van °C)",
+        "silverline_v34": "Poolex Silverline (Tuya v3.4 / wfzeiyn1ed3axxde)",
+        "other": "Overig / Onbekend"
+      }
+    }
+  },
+  "exceptions": {
+    "auth_failed": {
+      "message": "De warmtepomp heeft de inloggegevens geweigerd. Herverificatie is vereist."
+    },
+    "set_failed": {
+      "message": "Bijwerken van de warmtepomp is mislukt: {reason}"
+    },
+    "preset_not_available_in_auto": {
+      "message": "De voorkeuzemodi Boost en Stil zijn niet beschikbaar terwijl de warmtepomp in de automodus staat."
+    },
+    "unsupported_hvac_mode": {
+      "message": "HVAC-modus {mode} wordt niet ondersteund."
+    },
+    "unsupported_preset_mode": {
+      "message": "Voorkeuzemodus {preset} wordt niet ondersteund."
+    },
+    "missing_target_temperature": {
+      "message": "set_temperature vereist een doeltemperatuur."
+    }
+  }
+}
