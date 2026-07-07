@@ -5,7 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Final
 
-from pysilverline.devices import MODEL_PC_INV_120, MODEL_SILVERLINE_V34
+from pysilverline.devices import (
+    MODEL_NANO_FI_3KW,
+    MODEL_PC_INV_120,
+    MODEL_SILVERLINE_V34,
+)
 
 DOMAIN: Final = "poolex_silverline"
 MANUFACTURER: Final = "Poolex"
@@ -193,6 +197,23 @@ DEVICE_PROFILES: Final[dict[str, DeviceProfile]] = {
         cool_temp_max=_STD_COOL_MAX,
         auto_temp_min=_STD_AUTO_MIN,
         auto_temp_max=_STD_AUTO_MAX,
+    ),
+    MODEL_NANO_FI_3KW: DeviceProfile(
+        # Poolex Nano Fi 3kW (ref. PC-NANO-B3N), distributed by Poolstar SAS.
+        # Tuya pid am4nomaadnhwvekq, protocol v3.5. Cross-checked DP-by-DP
+        # against the official Tuya cloud product schema (pulled via the
+        # xtend_tuya integration's diagnostics) — see LAYOUT_NANO_FI_3KW for
+        # the full per-DP notes. DP-4 mode vocabulary matches the standard
+        # family (Heat/Cool/Auto/BoostHeat/SilentHeat/BoostCool/SilentCool),
+        # so no preset/auto DP overrides are needed. Live-detect the DP set:
+        # confirmed present {1,2,3,4,13,103,104,105,106,108,110,111,117,120,121}
+        # on one unit, but DP 109/112/114 are declared in the generic product
+        # schema and may exist on other units in this line. Per-mode setpoint
+        # clamp bounds are unverified on this specific firmware (only the raw
+        # DP 2 range 0-40°C is confirmed) — left as None to fall back to the
+        # global defaults rather than assume.
+        display_name="Poolex Nano Fi 3kW (PC-NANO-B3N)",
+        known_dps=None,
     ),
     "other": DeviceProfile(
         display_name="Other / Unknown",
