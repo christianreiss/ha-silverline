@@ -53,7 +53,9 @@ from .base import DpLayout
 LAYOUT_NANO_FI_3KW = DpLayout(
     outlet_temp=104,
     ambient_temp=106,
-    pool_temp=None,
+    pool_temp=3,  # No distinct probe on this firmware — DP 3 is the same
+    # value already used for temp_current, aliased here so this dedicated
+    # sensor entity stays populated instead of going unavailable.
     discharge_temp=None,
     inlet_temp=103,
     suction_temp=117,
@@ -72,4 +74,12 @@ LAYOUT_NANO_FI_3KW = DpLayout(
     total_hours=None,
     target_superheat=None,
     target_condensing=None,
+    ac_voltage=120,
+    # Tuya schema declares DP 121 with scale=1 (tenths of an amp), but
+    # DpLayout/DeviceState have no per-field divisor mechanism apart from
+    # temp_current_divisor, and pysilverline's _int() reader is a strict
+    # passthrough — so this surfaces the RAW wire integer, not real amps.
+    # Confirm the true scale against a clamp meter before trusting the
+    # displayed value; divide by 10 in a template sensor if confirmed.
+    ac_current=121,
 )
