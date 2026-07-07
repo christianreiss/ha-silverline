@@ -477,6 +477,144 @@ async def test_v34_model_selects_v34_sensor_catalog(hass: HomeAssistant) -> None
     assert hass.states.get(outdoor_coil).state == "12"
 
 
+async def test_nano_fi_model_selects_nano_fi_sensor_catalog(hass: HomeAssistant) -> None:
+    """A `nano_fi_3kw` entry builds the dedicated Nano Fi 3kW sensor catalog
+    (inlet/outlet/coil/return-gas temps and frequency keyed to this
+    firmware's actual DP numbering) and omits every sensor whose backing
+    DpLayout field is None on this model.
+
+    Regression guard for PR #12's review: falling back to the legacy
+    ``SENSORS`` catalog for this model registers entities gated on raw DP
+    numbers that coincidentally exist on this device but back an unrelated
+    (always-None) field — e.g. "total_operating_hours" (DP 120, really
+    ac_voltage here) and "coil_temperature" (DP 103, really inlet_temp here)
+    would be created and sit permanently unavailable instead of being
+    correctly absent.
+    """
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from homeassistant.const import CONF_HOST, CONF_PORT
+    from pysilverline.layouts import LAYOUT_NANO_FI_3KW
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    from custom_components.poolex_silverline.const import (
+        CONF_DEVICE_ID,
+        CONF_LOCAL_KEY,
+        CONF_MODEL,
+        DOMAIN,
+    )
+
+    device_id = "bfnanofi1234567890abcd"
+    # Confirmed-live DP set from issue #11: {1,2,3,4,13,103,104,105,106,
+    # 108,110,111,117,120,121}. 120/121 (ac_voltage/ac_current) have no
+    # DpLayout field at all, so they must never back a sensor.
+    nano_fi_dps = {
+        "1": True,
+        "2": 28,
+        "3": 27,
+        "4": "Heat",
+        "13": 0,
+        "103": 27,  # inlet_temp
+        "104": 30,  # outlet_temp
+        "105": 9,  # outdoor_coil_temp
+        "106": 18,  # outdoor ambient temp
+        "108": 28,  # indoor_coil_temp
+        "110": 45,  # actual_frequency
+        "111": 60,  # main valve opening (water_pump proxy)
+        "117": 15,  # compressor return/suction gas temp
+        "120": 232,  # ac_voltage — not total_hours
+        "121": 12,  # ac_current — unmapped
+    }
+    state = DeviceState.from_dps(nano_fi_dps, layout=LAYOUT_NANO_FI_3KW)
+
+    client = MagicMock()
+    client.host = "10.0.0.60"
+    client.port = 6668
+    client.device_id = device_id
+    client.connected = True
+    client.state = state
+    client.detected_version = "3.5"
+    client.connect = AsyncMock(return_value=None)
+    client.disconnect = AsyncMock(return_value=None)
+    client.get_status = AsyncMock(return_value=state)
+    client.set_dp = AsyncMock(return_value=None)
+    client.set_multiple = AsyncMock(return_value=None)
+    client.add_listener = MagicMock(return_value=lambda: None)
+    client.add_connection_listener = MagicMock(return_value=lambda: None)
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=device_id,
+        data={
+            CONF_HOST: "10.0.0.60",
+            CONF_PORT: 6668,
+            CONF_DEVICE_ID: device_id,
+            CONF_LOCAL_KEY: "0123456789abcdef",
+            CONF_MODEL: "nano_fi_3kw",
+        },
+        version=1,
+        minor_version=1,
+    )
+    entry.add_to_hass(hass)
+    with patch(
+        "custom_components.poolex_silverline.SilverlineClient", return_value=client
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    registry = er.async_get(hass)
+    entries = list(er.async_entries_for_config_entry(registry, entry.entry_id))
+    sensor_keys = {
+        e.unique_id.removeprefix(f"{device_id}_")
+        for e in entries
+        if e.domain == "sensor"
+    }
+
+    # Nano Fi 3kW-specific sensors are present, gated on this firmware's DPs.
+    assert {
+        "inlet_temperature",
+        "outlet_temperature",
+        "outdoor_coil_temperature",
+        "return_temperature",
+        "indoor_coil_temperature",
+        "exhaust_temperature",
+        "actual_frequency",
+        "water_pump_rpm",
+    } <= sensor_keys
+
+    # Sensors backed by a None field on this layout must be absent
+    # entirely rather than created-and-unavailable.
+    assert "coil_temperature" not in sensor_keys  # pool_temp is None
+    assert "ambient_temperature" not in sensor_keys  # discharge_temp is None
+    assert "fan_speed" not in sensor_keys
+    assert "total_operating_hours" not in sensor_keys  # the headline bug
+    assert "target_frequency" not in sensor_keys
+    assert "eev_steps" not in sensor_keys
+    assert "condensing_temperature" not in sensor_keys
+    assert "evaporating_temperature" not in sensor_keys
+    assert "superheat" not in sensor_keys
+    assert "compressor_load" not in sensor_keys
+    assert "target_superheat" not in sensor_keys
+    assert "target_condensing_temperature" not in sensor_keys
+    assert "main_valve_opening" not in sensor_keys
+    assert "aux_valve_opening" not in sensor_keys
+
+    def _state_of(key: str) -> str | None:
+        entity_id = next(
+            e.entity_id for e in entries if e.unique_id == f"{device_id}_{key}"
+        )
+        s = hass.states.get(entity_id)
+        return s.state if s is not None else None
+
+    assert _state_of("inlet_temperature") == "27"
+    assert _state_of("outlet_temperature") == "30"
+    assert _state_of("outdoor_coil_temperature") == "9"
+    assert _state_of("return_temperature") == "18"  # true outdoor ambient temp
+    assert _state_of("indoor_coil_temperature") == "28"
+    assert _state_of("exhaust_temperature") == "15"  # compressor return gas
+    assert _state_of("actual_frequency") == "45"
+
+
 async def test_v34_entity_inventory_snapshot(
     hass: HomeAssistant,
     snapshot: SnapshotAssertion,

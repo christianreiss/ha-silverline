@@ -3,14 +3,22 @@
 These descriptions wrap Home Assistant's ``SensorEntityDescription`` and so
 live integration-side — they must NOT move into the pysilverline library.
 
-The standard (legacy) and Tuya v3.4 (``silverline_v34``) firmwares expose the
-same semantic readings but renumber many of their wire DPs. Most descriptions
-are byte-identical between the two catalogs; only a handful differ in their
-``dp_keys`` gate, and each firmware adds a few of its own. To keep the two
-catalogs provably in lock-step the shared descriptions are defined once and
-referenced by both, the few that differ only in ``dp_keys`` are derived with
-``dataclasses.replace``, and ``descriptions_for_model`` returns the right
-catalog for a given model key.
+The standard (legacy), Tuya v3.4 (``silverline_v34``), and Nano Fi 3kW
+(``nano_fi_3kw``) firmwares expose overlapping semantic readings but
+renumber many of their wire DPs. Most descriptions are byte-identical across
+catalogs; only a handful differ in their ``dp_keys`` gate, and each firmware
+adds or drops a few of its own. To keep the catalogs provably in lock-step
+the shared descriptions are defined once and referenced by all of them, the
+few that differ only in ``dp_keys`` are derived with ``dataclasses.replace``,
+and ``descriptions_for_model`` returns the right catalog for a given model
+key.
+
+A model catalog must only include a description if the backing
+``DpLayout`` field is non-``None`` for that model — including one whose
+field resolves to ``None`` registers an entity gated on an unrelated raw DP
+that happens to coincide numerically, which then sits permanently
+"unavailable" (see issue #11 / PR #12 review: this is exactly how the
+"other" fallback's DP-number reuse produced phantom sensors on Nano Fi 3kW).
 """
 
 from __future__ import annotations
@@ -33,7 +41,7 @@ from homeassistant.const import (
     UnitOfTime,
 )
 from pysilverline import DeviceState
-from pysilverline.devices import MODEL_SILVERLINE_V34
+from pysilverline.devices import MODEL_NANO_FI_3KW, MODEL_SILVERLINE_V34
 
 from ._faults import _decode_fault
 
@@ -438,10 +446,38 @@ V34_SENSORS: tuple[SilverlineSensorDescription, ...] = (
 )
 
 
+#: Diagnostic catalog for the Poolex Nano Fi 3kW (``nano_fi_3kw``, Tuya pid
+#: am4nomaadnhwvekq). DP numbering is cross-checked against the official
+#: Tuya product schema in ``LAYOUT_NANO_FI_3KW`` (issue #11 / PR #12).
+#: Descriptions for fields this firmware doesn't expose (pool/discharge
+#: temp, target frequency, eev/aux valve, condensing/evaporating/superheat,
+#: compressor load, total_hours, fan_speed) are omitted rather than
+#: included with a DP that would never gate correctly — those fields are
+#: ``None`` on ``LAYOUT_NANO_FI_3KW`` and have no wire DP to key off.
+NANO_FI_SENSORS: tuple[SilverlineSensorDescription, ...] = (
+    _TEMPERATURE_DELTA,
+    replace(_INLET_TEMPERATURE, dp_keys=("103",)),
+    replace(_OUTLET_TEMPERATURE, dp_keys=("104",)),
+    _OUTDOOR_COIL_TEMPERATURE,
+    replace(_RETURN_TEMPERATURE, dp_keys=("106",)),  # true outdoor ambient temp
+    _INDOOR_COIL_TEMPERATURE,
+    replace(_EXHAUST_TEMPERATURE, dp_keys=("117",)),  # compressor return/suction gas
+    replace(_ACTUAL_FREQUENCY, dp_keys=("110",)),
+    _WATER_PUMP_RPM,  # DP 111 main-valve opening, reused as the closest proxy
+    _FAULT_CODE,
+    _RUNTIME_TODAY,
+)
+
+
 def descriptions_for_model(model_key: str) -> tuple[SilverlineSensorDescription, ...]:
     """Return the diagnostic sensor catalog for ``model_key``.
 
-    The v3.4 wfzeiyn firmware renumbers its DPs, so it gets a dedicated
-    catalog; every other model uses the legacy numbering.
+    The v3.4 wfzeiyn and Nano Fi 3kW firmwares renumber their DPs relative
+    to the legacy layout, so each gets a dedicated catalog; every other
+    model uses the legacy numbering.
     """
-    return V34_SENSORS if model_key == MODEL_SILVERLINE_V34 else SENSORS
+    if model_key == MODEL_SILVERLINE_V34:
+        return V34_SENSORS
+    if model_key == MODEL_NANO_FI_3KW:
+        return NANO_FI_SENSORS
+    return SENSORS
