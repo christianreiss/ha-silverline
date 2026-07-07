@@ -43,6 +43,8 @@ class DeviceState:
     total_hours: int | None = None
     target_superheat: int | None = None
     target_condensing: int | None = None
+    ac_voltage: int | None = None
+    ac_current: int | None = None
     raw: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
@@ -148,6 +150,8 @@ class DeviceState:
             total_hours=_int(layout.total_hours),
             target_superheat=_int(layout.target_superheat),
             target_condensing=_int(layout.target_condensing),
+            ac_voltage=_int(layout.ac_voltage),
+            ac_current=_int(layout.ac_current),
             raw=dict(dps),
         )
 
