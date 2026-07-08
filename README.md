@@ -66,6 +66,7 @@ WiFi control board (issue #7).
 | Phalén Calidi XP | v3.3 / v3.5 | ✅ | ✅ | ✅ full | ✅ | 🔵 inferred |
 | Nulite | v3.3 / v3.5 | ✅ | ✅ | ✅ full | ✅ | 🔵 inferred |
 | Poolex Silverline (Tuya v3.4 firmware) | v3.4 | ✅ | ✅ | ✅ full (own DP map) | ✅ | 🟢 live-verified |
+| Poolex Nano Fi 3kW (PC-NANO-B3N) | v3.5 | ✅ | ✅ | ✅ own DP map (own AC voltage/current sensors too) | ✅ | 🟢 live-verified |
 | Other Poolstar / Tuya WBR3 OEM | auto | ✅ | ✅ | live-detected | ✅ | ⚪ unknown |
 
 **Legend** — 🟢 live-verified · 🔵 high confidence (same OEM platform, not
@@ -432,6 +433,10 @@ integration honest — huge thanks to the contributors who ran the tests:
 - **Martin Čarek ([@olomouckyorel](https://github.com/olomouckyorel))** —
   contributed and live-verified v3.4 support on real Poolex Silverline hardware
   (PR #3).
+- **[@lepatou](https://github.com/lepatou)** — contributed the dedicated Nano
+  Fi 3kW (PC-NANO-B3N) DP layout and diagnostic sensor catalog, cross-checked
+  DP-by-DP against the official Tuya cloud product schema and live hardware
+  (issue #11, PRs #12 and #14).
 - **[@trothe](https://github.com/trothe)** — reported the minimal 5-DP JetLine
   Selection FI variant and the compressor-sensor false positive, with an `Er 03`
   no-flow cross-check (issue #6).

@@ -575,6 +575,7 @@ async def test_nano_fi_3kw_model_selects_sensor_catalog(hass: HomeAssistant) -> 
     } <= sensor_keys.keys()
     # Sensors with no real data source on this firmware are absent rather
     # than registered-but-permanently-unavailable.
+    assert "ambient_temperature" not in sensor_keys  # discharge_temp is None
     assert "fan_speed" not in sensor_keys
     assert "eev_steps" not in sensor_keys
     assert "main_valve_opening" not in sensor_keys
@@ -583,6 +584,10 @@ async def test_nano_fi_3kw_model_selects_sensor_catalog(hass: HomeAssistant) -> 
     assert "total_operating_hours" not in sensor_keys
     assert "condensing_temperature" not in sensor_keys
     assert "evaporating_temperature" not in sensor_keys
+    assert "superheat" not in sensor_keys
+    assert "compressor_load" not in sensor_keys
+    assert "target_superheat" not in sensor_keys
+    assert "target_condensing_temperature" not in sensor_keys
 
     def _state(key: str) -> str | None:
         s = hass.states.get(sensor_keys[key].entity_id)
@@ -605,7 +610,10 @@ async def test_nano_fi_3kw_model_selects_sensor_catalog(hass: HomeAssistant) -> 
     assert _state("inlet_temperature") == "30"
     assert _state("outlet_temperature") == "30"
     assert _state("outdoor_coil_temperature") == "13"
+    assert _state("return_temperature") == "29"  # reads d.ambient_temp
+    assert _state("coil_temperature") == "30"  # reads d.pool_temp (aliased to DP 3)
     assert _state("indoor_coil_temperature") == "29"
+    assert _state("exhaust_temperature") == "14"  # reads d.suction_temp
     assert _state("actual_frequency") == "35"
 
 

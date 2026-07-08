@@ -3,14 +3,22 @@
 These descriptions wrap Home Assistant's ``SensorEntityDescription`` and so
 live integration-side — they must NOT move into the pysilverline library.
 
-The standard (legacy) and Tuya v3.4 (``silverline_v34``) firmwares expose the
-same semantic readings but renumber many of their wire DPs. Most descriptions
-are byte-identical between the two catalogs; only a handful differ in their
-``dp_keys`` gate, and each firmware adds a few of its own. To keep the two
-catalogs provably in lock-step the shared descriptions are defined once and
-referenced by both, the few that differ only in ``dp_keys`` are derived with
-``dataclasses.replace``, and ``descriptions_for_model`` returns the right
-catalog for a given model key.
+The standard (legacy), Tuya v3.4 (``silverline_v34``), and Nano Fi 3kW
+(``nano_fi_3kw``) firmwares expose overlapping semantic readings but
+renumber many of their wire DPs. Most descriptions are byte-identical across
+catalogs; only a handful differ in their ``dp_keys`` gate, and each firmware
+adds or drops a few of its own. To keep the catalogs provably in lock-step
+the shared descriptions are defined once and referenced by all of them, the
+few that differ only in ``dp_keys`` are derived with ``dataclasses.replace``,
+and ``descriptions_for_model`` returns the right catalog for a given model
+key.
+
+A model catalog must only include a description if the backing
+``DpLayout`` field is non-``None`` for that model — including one whose
+field resolves to ``None`` registers an entity gated on an unrelated raw DP
+that happens to coincide numerically, which then sits permanently
+"unavailable" (see issue #11 / PR #12 review: this is exactly how the
+"other" fallback's DP-number reuse produced phantom sensors on Nano Fi 3kW).
 """
 
 from __future__ import annotations
