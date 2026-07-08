@@ -74,6 +74,9 @@ def test_nano_fi_3kw_dp_mapping() -> None:
     # DP 120 on this firmware is AC line voltage, not a runtime-hours
     # counter — must stay unmapped rather than reused for total_hours.
     assert layout.total_hours is None
-    # No dedicated pool-water probe distinct from the core DP 3 reading.
-    assert layout.pool_temp is None
+    # No distinct pool-water probe — aliased to the core DP 3 reading
+    # (same value already used for temp_current) instead of left unmapped.
+    assert layout.pool_temp == 3
     assert layout.temp_current_divisor == 1
+    assert layout.ac_voltage == 120
+    assert layout.ac_current == 121

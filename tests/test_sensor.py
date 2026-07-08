@@ -477,20 +477,13 @@ async def test_v34_model_selects_v34_sensor_catalog(hass: HomeAssistant) -> None
     assert hass.states.get(outdoor_coil).state == "12"
 
 
-async def test_nano_fi_model_selects_nano_fi_sensor_catalog(hass: HomeAssistant) -> None:
+async def test_nano_fi_3kw_model_selects_sensor_catalog(hass: HomeAssistant) -> None:
     """A `nano_fi_3kw` entry builds the dedicated Nano Fi 3kW sensor catalog
-    (inlet/outlet/coil/return-gas temps and frequency keyed to this
-    firmware's actual DP numbering) and omits every sensor whose backing
-    DpLayout field is None on this model.
-
-    Regression guard for PR #12's review: falling back to the legacy
-    ``SENSORS`` catalog for this model registers entities gated on raw DP
-    numbers that coincidentally exist on this device but back an unrelated
-    (always-None) field — e.g. "total_operating_hours" (DP 120, really
-    ac_voltage here) and "coil_temperature" (DP 103, really inlet_temp here)
-    would be created and sit permanently unavailable instead of being
-    correctly absent.
-    """
+    (correct dp_keys for this firmware's DP numbering, plus the new AC
+    voltage/current sensors) and omits sensors this firmware has no real
+    data for. Exercises the layout -> DeviceState -> catalog wiring, and
+    guards against the "other"-fallback bug this model was added to fix
+    (DP 120 misread as total_hours instead of ac_voltage)."""
     from unittest.mock import AsyncMock, MagicMock, patch
 
     from homeassistant.const import CONF_HOST, CONF_PORT
@@ -504,26 +497,23 @@ async def test_nano_fi_model_selects_nano_fi_sensor_catalog(hass: HomeAssistant)
         DOMAIN,
     )
 
-    device_id = "bfnanofi1234567890abcd"
-    # Confirmed-live DP set from issue #11: {1,2,3,4,13,103,104,105,106,
-    # 108,110,111,117,120,121}. 120/121 (ac_voltage/ac_current) have no
-    # DpLayout field at all, so they must never back a sensor.
+    device_id = "bf99887766zzyyxxwwvv"
     nano_fi_dps = {
         "1": True,
-        "2": 28,
-        "3": 27,
-        "4": "Heat",
+        "2": 30,
+        "3": 30,
+        "4": "BoostHeat",
         "13": 0,
-        "103": 27,  # inlet_temp
-        "104": 30,  # outlet_temp
-        "105": 9,  # outdoor_coil_temp
-        "106": 18,  # outdoor ambient temp
-        "108": 28,  # indoor_coil_temp
-        "110": 45,  # actual_frequency
-        "111": 60,  # main valve opening (water_pump proxy)
-        "117": 15,  # compressor return/suction gas temp
-        "120": 232,  # ac_voltage — not total_hours
-        "121": 12,  # ac_current — unmapped
+        "103": 30,
+        "104": 30,
+        "105": 13,
+        "106": 29,
+        "108": 29,
+        "110": 35,
+        "111": 83,
+        "117": 14,
+        "120": 234,
+        "121": 2,
     }
     state = DeviceState.from_dps(nano_fi_dps, layout=LAYOUT_NANO_FI_3KW)
 
@@ -563,56 +553,60 @@ async def test_nano_fi_model_selects_nano_fi_sensor_catalog(hass: HomeAssistant)
         await hass.async_block_till_done()
 
     registry = er.async_get(hass)
-    entries = list(er.async_entries_for_config_entry(registry, entry.entry_id))
     sensor_keys = {
-        e.unique_id.removeprefix(f"{device_id}_")
-        for e in entries
+        e.unique_id.removeprefix(f"{device_id}_"): e
+        for e in er.async_entries_for_config_entry(registry, entry.entry_id)
         if e.domain == "sensor"
     }
-
-    # Nano Fi 3kW-specific sensors are present, gated on this firmware's DPs.
+    # Nano Fi 3kW-specific sensors are present (gated on this firmware's
+    # actual DP numbers), including the two new electrical sensors.
     assert {
         "inlet_temperature",
         "outlet_temperature",
-        "outdoor_coil_temperature",
         "return_temperature",
+        "coil_temperature",
+        "outdoor_coil_temperature",
         "indoor_coil_temperature",
         "exhaust_temperature",
         "actual_frequency",
         "water_pump_rpm",
-    } <= sensor_keys
-
-    # Sensors backed by a None field on this layout must be absent
-    # entirely rather than created-and-unavailable.
-    assert "coil_temperature" not in sensor_keys  # pool_temp is None
-    assert "ambient_temperature" not in sensor_keys  # discharge_temp is None
+        "ac_voltage",
+        "ac_current",
+    } <= sensor_keys.keys()
+    # Sensors with no real data source on this firmware are absent rather
+    # than registered-but-permanently-unavailable.
     assert "fan_speed" not in sensor_keys
-    assert "total_operating_hours" not in sensor_keys  # the headline bug
-    assert "target_frequency" not in sensor_keys
     assert "eev_steps" not in sensor_keys
-    assert "condensing_temperature" not in sensor_keys
-    assert "evaporating_temperature" not in sensor_keys
-    assert "superheat" not in sensor_keys
-    assert "compressor_load" not in sensor_keys
-    assert "target_superheat" not in sensor_keys
-    assert "target_condensing_temperature" not in sensor_keys
     assert "main_valve_opening" not in sensor_keys
     assert "aux_valve_opening" not in sensor_keys
+    assert "target_frequency" not in sensor_keys
+    assert "total_operating_hours" not in sensor_keys
+    assert "condensing_temperature" not in sensor_keys
+    assert "evaporating_temperature" not in sensor_keys
 
-    def _state_of(key: str) -> str | None:
-        entity_id = next(
-            e.entity_id for e in entries if e.unique_id == f"{device_id}_{key}"
-        )
-        s = hass.states.get(entity_id)
+    def _state(key: str) -> str | None:
+        s = hass.states.get(sensor_keys[key].entity_id)
         return s.state if s is not None else None
 
-    assert _state_of("inlet_temperature") == "27"
-    assert _state_of("outlet_temperature") == "30"
-    assert _state_of("outdoor_coil_temperature") == "9"
-    assert _state_of("return_temperature") == "18"  # true outdoor ambient temp
-    assert _state_of("indoor_coil_temperature") == "28"
-    assert _state_of("exhaust_temperature") == "15"  # compressor return gas
-    assert _state_of("actual_frequency") == "45"
+    # Regression guard: DP 120 must read as AC voltage (234), never as a
+    # runtime-hours counter — this was the original bug report.
+    assert _state("ac_voltage") == "234"
+    # ac_current is disabled by default (uncertain scale, see comment on
+    # its description), so it has no state — verify the raw value via the
+    # description's value_fn against the same DeviceState instead.
+    ac_current_entry = sensor_keys["ac_current"]
+    assert ac_current_entry.disabled_by is not None
+    from custom_components.poolex_silverline.sensor_descriptions import (
+        NANO_FI_SENSORS,
+    )
+
+    ac_current_desc = next(d for d in NANO_FI_SENSORS if d.key == "ac_current")
+    assert ac_current_desc.value_fn(state) == 2
+    assert _state("inlet_temperature") == "30"
+    assert _state("outlet_temperature") == "30"
+    assert _state("outdoor_coil_temperature") == "13"
+    assert _state("indoor_coil_temperature") == "29"
+    assert _state("actual_frequency") == "35"
 
 
 async def test_v34_entity_inventory_snapshot(

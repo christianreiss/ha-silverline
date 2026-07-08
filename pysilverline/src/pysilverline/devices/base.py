@@ -41,3 +41,5 @@ class DpLayout:
     total_hours: int | None = 120
     target_superheat: int | None = 137
     target_condensing: int | None = 142
+    ac_voltage: int | None = None
+    ac_current: int | None = None
