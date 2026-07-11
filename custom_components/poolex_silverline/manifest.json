@@ -9,6 +9,6 @@
   "issue_tracker": "https://github.com/christianreiss/ha-silverline/issues",
   "loggers": ["pysilverline", "custom_components.poolex_silverline"],
   "quality_scale": "platinum",
-  "requirements": ["pysilverline==0.4.14"],
-  "version": "0.10.2"
+  "requirements": ["pysilverline==0.4.15"],
+  "version": "0.10.3"
 }

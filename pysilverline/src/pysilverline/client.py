@@ -312,6 +312,7 @@ class SilverlineClient:
             raise SilverlineError(f"DP_QUERY failed retcode=0x{retcode:08x}")
         decoded = self._codec.decrypt_body(ciphertext)
         dps = _unwrap_dps(decoded)
+        _LOGGER.debug("DP_QUERY returned dps=%s", dps)
         # Merge rather than replace: some Tuya firmware variants only
         # ship certain DPs in spontaneous STATUS pushes, not in
         # DP_QUERY responses. If we replaced wholesale, those push-only
@@ -593,6 +594,7 @@ class SilverlineClient:
                 )
                 return
             dps = _unwrap_dps(decoded)
+            _LOGGER.debug("STATUS push dps=%s", dps)
             # v3.4 firmware often acks a CONTROL_NEW write by echoing state via
             # a STATUS push (sometimes several partial frames, one DP at a time)
             # rather than a dedicated ACK frame. Resolve any outstanding write
