@@ -191,6 +191,22 @@ pre-selected with the current choice.
   Unsupported diagnostic DPs are not registered as entities at all — they
   do not appear in your device page, so they cannot show up as `unavailable`
   and clutter dashboards.
+- **On the standard WBR3-module devices, measurement DPs (temps, frequency,
+  pressures — DP 101+) go stale if the device loses its Tuya cloud session —
+  a module limitation, not an integration bug, and not confirmed universal
+  across every supported model.** Confirmed on a Poolex Silverline FI 120
+  (protocol 3.5, issue #15): the WiFi module only serves a live MCU sensor
+  reading over the local socket while it holds an active session with
+  Tuya's cloud MQTT broker on **TCP 8886**. Block that (even with DNS/NTP
+  still reachable) and the local socket keeps answering, but with a frozen
+  snapshot — no local command forces a fresh read, including `updatedps`,
+  alternate query opcodes, a control write, or even a full power-cycle.
+  Control DPs (power/mode/setpoint) are unaffected and always read/write
+  live regardless of cloud state. Not tested on the v3.4 board (request-scoped
+  sockets, different module design) or the newer v3.5 JetLine FI WiFi control
+  board (issue #7) — those may behave differently. If you want a WBR3-module
+  device fully air-gapped, only control is guaranteed to stay current —
+  sensor readings will freeze at their last cloud-synced values.
 - **°F mode is not supported.** Lock the wired remote to °C — on °F some
   firmwares move the fault bitmap from DP 13 to DP 21 and reuse DP 13 for
   the unit-conversion enum, which the integration does not yet handle.
@@ -217,7 +233,9 @@ the mode change is applied first so your target lands under the new mode.
 - Ensure the device is not already connected to the Smart Life app on the
   same network — the WBR3 only accepts one local TCP client at a time. The
   cleanest fix is to firewall the device from outbound 443/8886 so it stays
-  LAN-only.
+  LAN-only. Trade-off on WBR3-module devices: blocking 8886 also freezes
+  measurement DPs (temps, frequency, etc.) at their last cloud-synced value
+  — see [Known limitations](#known-limitations). Control still works fine.
 
 **"invalid_auth" during setup**
 - The local key is regenerated whenever the device is re-paired in Smart
