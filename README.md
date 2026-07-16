@@ -458,6 +458,25 @@ integration honest — huge thanks to the contributors who ran the tests:
 - **[@trothe](https://github.com/trothe)** — reported the minimal 5-DP JetLine
   Selection FI variant and the compressor-sensor false positive, with an `Er 03`
   no-flow cross-check (issue #6).
+- **[@nickfr](https://github.com/nickfr)** — reported and patiently helped
+  diagnose the Silverline FI 150's diagnostic DP mapping and a broken
+  water-pump sensor, cross-checking readings against live outdoor temperature
+  across several rounds (issue #1).
+- **[@froggy974](https://github.com/froggy974)** — reported and iteratively
+  verified PC-INV-120V2 support end-to-end: the tenths-of-a-degree temperature
+  scaling, the full DP-4 mode vocabulary, and a transient write regression,
+  across five release rounds (issue #5).
+- **[@darkm00nch](https://github.com/darkm00nch)** — reported the reconnect
+  logic giving up after a fixed backoff window and confirmed the fix that
+  made it retry indefinitely (issue #9), and confirmed the v3.5 write fix on
+  a JetLine FI (issue #8).
+- **[@martin0675](https://github.com/martin0675)** — diagnosed the Steinbach
+  Silent Mini's full-word DP-4 mode vocabulary (`"Heating"`/`"Cooling"`) that
+  left the climate entity stuck on "unknown" (issue #10).
+- **[@chmielot](https://github.com/chmielot)** — hardware-confirmed that the
+  WBR3 WiFi module only serves live measurement telemetry while it holds a
+  Tuya cloud MQTT session, pinning the cloud-gated staleness down to
+  port-level isolation (issue #15).
 
 ## Development
 
