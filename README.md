@@ -67,6 +67,7 @@ WiFi control board (issue #7).
 | Nulite | v3.3 / v3.5 | ✅ | ✅ | ✅ full | ✅ | 🔵 inferred |
 | Poolex Silverline (Tuya v3.4 firmware) | v3.4 | ✅ | ✅ | ✅ full (own DP map) | ✅ | 🟢 live-verified |
 | Poolex Nano Fi 3kW (PC-NANO-B3N) | v3.5 | ✅ | ✅ | ✅ own DP map (own AC voltage/current sensors too) | ✅ | 🟢 live-verified |
+| Poolex Nano 5kW WiFi | v3.5 | ✅ | ❓ unconfirmed (falls back to plain heat/cool) | ❌ none (5-DP firmware) | ❌ (DP 21, not yet wired up) | 🟡 user-reported |
 | Other Poolstar / Tuya WBR3 OEM | auto | ✅ | ✅ | live-detected | ✅ | ⚪ unknown |
 
 **Legend** — 🟢 live-verified · 🔵 high confidence (same OEM platform, not
@@ -122,6 +123,20 @@ in-house) · ⚪ unknown · ✅ present · ❌ absent · ❓ firmware-dependent
   being collected.
 - **°C only.** °F shifts the fault bitmap and is not supported (see
   [Known limitations](#known-limitations)).
+- **Poolex Nano 5kW WiFi is a genuinely minimal-DP device, not cloud-gated.**
+  Reported with only `{1, 2, 3, 4, 21}` available (issue #16, productKey
+  `yk3bytlujz2xshuy`). Cross-referenced against the public tuya-local
+  project, which catalogues this exact productKey under a different OEM
+  brand name ("Varpoolfaye Pool Mini") with the same 5-DP schema —
+  confirming there is no inlet/outlet/suction/discharge temp, frequency,
+  fan, pump, or voltage/current telemetry to expose on this hardware tier
+  at all, unlike the richer Nano Fi 3kW. DP 21 is a status/fault bitfield
+  rather than a runtime counter on this firmware, but the exact bit layout
+  isn't confirmed enough yet to wire up a fault sensor. Boost/eco preset
+  support is unconfirmed (the cross-referenced schema only models
+  Heat/Cool/Auto, and doesn't cover presets either way), so selecting them
+  degrades to the plain heat/cool string rather than risking an
+  unsupported write.
 - Presets `boost` / `eco` do not apply in `heat_cool` (Auto) — a device
   limitation.
 

@@ -193,6 +193,16 @@ def test_resolve_heat_cool_map_steinbach_override() -> None:
     assert resolve_cool_map(profile) == {"none": "Cooling"}
 
 
+def test_resolve_heat_cool_map_nano_5kw_override() -> None:
+    """nano_5kw's boost/eco DP-4 support is unconfirmed (issue #16, per the
+    cross-referenced tuya-local product schema, which models Heat/Cool/Auto
+    but doesn't cover presets either way) — must degrade to the plain string
+    rather than write an unconfirmed BoostHeat/SilentHeat value."""
+    profile = DEVICE_PROFILES["nano_5kw"]
+    assert resolve_heat_map(profile) == {"none": "Heat"}
+    assert resolve_cool_map(profile) == {"none": "Cool"}
+
+
 def test_resolve_auto_dp_defaults_to_global_when_no_override() -> None:
     """profile=None resolves HEAT_COOL to the standard 'Auto' DP-4 string."""
     assert resolve_auto_dp(None) == "Auto"

@@ -71,6 +71,7 @@ _KNOWN_POOLEX_PRODUCT_KEYS: frozenset[str] = frozenset(
         "wfzeiyn1ed3axxde",  # Poolex Silverline (Tuya v3.4 firmware, 2026) — @olomouckyorel
         "xiusqryqukyqkq3w",  # Steinbach Silent Mini (issue #10)
         "am4nomaadnhwvekq",  # Poolex Nano Fi 3kW / PC-NANO-B3N (issue #11)
+        "yk3bytlujz2xshuy",  # Poolex Nano 5kW WiFi (issue #16)
     }
 )
 

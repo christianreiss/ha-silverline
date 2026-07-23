@@ -215,6 +215,34 @@ DEVICE_PROFILES: Final[dict[str, DeviceProfile]] = {
         display_name="Poolex Nano Fi 3kW (PC-NANO-B3N)",
         known_dps=None,
     ),
+    "nano_5kw": DeviceProfile(
+        # Poolex Nano 5kW WiFi, Tuya pid yk3bytlujz2xshuy, protocol v3.5
+        # (issue #16). Cross-checked against the public tuya-local product
+        # schema for this exact pid (same OEM hardware, catalogued there as
+        # "Varpoolfaye Pool Mini") — confirms the firmware genuinely exposes
+        # only {1,2,3,4,21}: no inlet/outlet/suction/discharge temp,
+        # frequency, fan, pump, or voltage/current DPs exist on this
+        # hardware tier at all. Unlike issue #15 (FI 120), this isn't
+        # cloud-gating — those DPs are simply absent from the product's
+        # schema. DP 21 is a status/fault bitfield, not a runtime counter;
+        # that schema decodes bit 8 (value 256) as a water-flow problem with
+        # the remaining bits an undifferentiated "fault present" catch-all,
+        # which isn't enough to safely wire up a binary_sensor yet pending
+        # hardware confirmation from the reporter. The tuya-local config
+        # only models Heat/Cool/Auto for DP 4 — but it maps HA's climate
+        # hvac_mode, not this integration's boost/eco presets, so it does
+        # NOT prove the firmware rejects BoostHeat/SilentHeat/etc. Unconfirmed
+        # either way, so boost/eco presets fall back to the plain string (same
+        # defensive pattern as steinbach_silent_mini) rather than risk writing
+        # an enum value the device doesn't understand. Per-mode setpoint
+        # clamp bounds are
+        # unverified (only the raw DP 2 range 5-40°C is confirmed) — left as
+        # None to fall back to the global defaults rather than assume.
+        display_name="Poolex Nano 5kW WiFi",
+        known_dps=None,
+        preset_to_heat_dp={"none": "Heat"},
+        preset_to_cool_dp={"none": "Cool"},
+    ),
     "other": DeviceProfile(
         display_name="Other / Unknown",
         known_dps=None,
