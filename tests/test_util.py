@@ -117,12 +117,10 @@ def test_derive_preset_steinbach_heating_cooling_strings() -> None:
     """'Heating'/'Cooling' both resolve to the 'none' preset — this
     firmware's boost/eco variants are unconfirmed."""
     assert (
-        derive_preset(DeviceState.from_dps({"1": True, "4": "Heating"}))
-        == PRESET_NONE
+        derive_preset(DeviceState.from_dps({"1": True, "4": "Heating"})) == PRESET_NONE
     )
     assert (
-        derive_preset(DeviceState.from_dps({"1": True, "4": "Cooling"}))
-        == PRESET_NONE
+        derive_preset(DeviceState.from_dps({"1": True, "4": "Cooling"})) == PRESET_NONE
     )
 
 
