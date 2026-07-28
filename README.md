@@ -228,6 +228,14 @@ pre-selected with the current choice.
 - **Auto mode has no Boost or Silent variant** — this is a device
   limitation. Selecting `boost` or `eco` while in `heat_cool` raises a
   service-validation error with a translated message.
+- **Reported water temperature drifts toward ambient after the filter pump
+  has been off for a while, then snaps back within seconds once circulation
+  resumes** (observed on a Poolex Nano 5kW WiFi, issue #16, and expected to
+  apply to any model — it's a sensor-placement characteristic, not
+  firmware-specific). The temp sensor reads the water sitting in the heat
+  exchanger, not the bulk pool, so without flow it settles toward the
+  surrounding air temperature instead of the pool's. If `current_temperature`
+  looks implausible, check whether circulation had been stopped.
 
 ## Per-mode setpoints
 
