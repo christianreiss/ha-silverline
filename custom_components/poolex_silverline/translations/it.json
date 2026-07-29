@@ -109,6 +109,8 @@
       "outdoor_coil_temperature": { "name": "Temperatura della batteria esterna" },
       "indoor_coil_temperature": { "name": "Temperatura della batteria interna" },
       "water_pump_rpm": { "name": "Velocità della pompa di circolazione" },
+      "ac_voltage": { "name": "Tensione di rete" },
+      "ac_current": { "name": "Corrente di rete" },
       "fan_speed": { "name": "Velocità della ventola" },
       "fault_code": { "name": "Codice di guasto" },
       "runtime_today": { "name": "Tempo di funzionamento oggi" },
@@ -118,6 +120,8 @@
       "compressor_load": { "name": "Carico del compressore" },
       "total_operating_hours": { "name": "Ore di funzionamento totali" },
       "target_superheat": { "name": "Surriscaldamento obiettivo" },
+      "electrical_power": { "name": "Potenza elettrica" },
+      "energy_consumption": { "name": "Consumo di energia" },
       "target_condensing_temperature": { "name": "Temperatura di condensazione obiettivo" }
     },
     "binary_sensor": {
@@ -238,6 +242,20 @@
     },
     "missing_target_temperature": {
       "message": "set_temperature richiede una temperatura obiettivo."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Interrogazione",
+        "description": "La pompa di calore invia i cambi di stato da sola; l'interrogazione copre solo i messaggi persi.",
+        "data": {
+          "scan_interval": "Intervallo di interrogazione di riserva"
+        },
+        "data_description": {
+          "scan_interval": "Secondi tra le interrogazioni di riserva. Il valore predefinito è 30. I valori inferiori a 8 vengono rifiutati: i moduli WiFi della famiglia WBR3 si riavviano se interrogati più rapidamente."
+        }
+      }
     }
   }
 }

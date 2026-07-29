@@ -109,6 +109,8 @@
       "outdoor_coil_temperature": { "name": "Temperatura wymiennika zewnętrznego" },
       "indoor_coil_temperature": { "name": "Temperatura wymiennika wewnętrznego" },
       "water_pump_rpm": { "name": "Prędkość pompy obiegowej" },
+      "ac_voltage": { "name": "Napięcie sieciowe" },
+      "ac_current": { "name": "Prąd sieciowy" },
       "fan_speed": { "name": "Prędkość wentylatora" },
       "fault_code": { "name": "Kod błędu" },
       "runtime_today": { "name": "Czas pracy dzisiaj" },
@@ -118,6 +120,8 @@
       "compressor_load": { "name": "Obciążenie sprężarki" },
       "total_operating_hours": { "name": "Łączny czas pracy" },
       "target_superheat": { "name": "Przegrzanie zadane" },
+      "electrical_power": { "name": "Moc elektryczna" },
+      "energy_consumption": { "name": "Zużycie energii" },
       "target_condensing_temperature": { "name": "Zadana temperatura skraplania" }
     },
     "binary_sensor": {
@@ -238,6 +242,20 @@
     },
     "missing_target_temperature": {
       "message": "set_temperature wymaga temperatury zadanej."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Odpytywanie",
+        "description": "Pompa ciepła sama wysyła zmiany stanu; odpytywanie obsługuje tylko zgubione komunikaty.",
+        "data": {
+          "scan_interval": "Zapasowy interwał odpytywania"
+        },
+        "data_description": {
+          "scan_interval": "Sekundy między zapasowymi odpytaniami stanu. Domyślnie 30. Wartości poniżej 8 są odrzucane: moduły WiFi z rodziny WBR3 restartują się przy szybszym odpytywaniu."
+        }
+      }
     }
   }
 }

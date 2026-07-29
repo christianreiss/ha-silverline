@@ -109,6 +109,8 @@
       "outdoor_coil_temperature": { "name": "Temperatura del serpentín exterior" },
       "indoor_coil_temperature": { "name": "Temperatura del serpentín interior" },
       "water_pump_rpm": { "name": "Velocidad de la bomba de circulación" },
+      "ac_voltage": { "name": "Tensión de red" },
+      "ac_current": { "name": "Corriente de red" },
       "fan_speed": { "name": "Velocidad del ventilador" },
       "fault_code": { "name": "Código de fallo" },
       "runtime_today": { "name": "Tiempo de funcionamiento hoy" },
@@ -118,6 +120,8 @@
       "compressor_load": { "name": "Carga del compresor" },
       "total_operating_hours": { "name": "Horas de funcionamiento totales" },
       "target_superheat": { "name": "Sobrecalentamiento objetivo" },
+      "electrical_power": { "name": "Potencia eléctrica" },
+      "energy_consumption": { "name": "Consumo de energía" },
       "target_condensing_temperature": { "name": "Temperatura de condensación objetivo" }
     },
     "binary_sensor": {
@@ -238,6 +242,20 @@
     },
     "missing_target_temperature": {
       "message": "set_temperature requiere una temperatura objetivo."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Sondeo",
+        "description": "La bomba de calor envía los cambios de estado por sí misma; el sondeo solo cubre los mensajes perdidos.",
+        "data": {
+          "scan_interval": "Intervalo de sondeo de reserva"
+        },
+        "data_description": {
+          "scan_interval": "Segundos entre sondeos de reserva. El valor predeterminado es 30. Se rechazan los valores inferiores a 8: los módulos WiFi de la familia WBR3 se reinician si se sondean más rápido."
+        }
+      }
     }
   }
 }

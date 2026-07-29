@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import time
 from collections.abc import Callable
 from datetime import date, datetime, timedelta
@@ -20,11 +21,12 @@ from pysilverline import (
     SilverlineError,
 )
 
+from ._config_validation import scan_interval_from_options
+from ._energy import accumulate_energy, is_usable_power, max_energy_gap
 from ._faults import FaultReconciler
 from ._runtime import accumulate_runtime
 from .const import (
     CONF_MODEL,
-    DEFAULT_SCAN_INTERVAL,
     DEVICE_PROFILES,
     DOMAIN,
     DeviceProfile,
@@ -46,12 +48,13 @@ class SilverlineCoordinator(DataUpdateCoordinator[DeviceState]):
         config_entry: SilverlineConfigEntry,
         client: SilverlineClient,
     ) -> None:
+        scan_interval = scan_interval_from_options(config_entry.options)
         super().__init__(
             hass,
             _LOGGER,
             config_entry=config_entry,
             name=DOMAIN,
-            update_interval=timedelta(seconds=DEFAULT_SCAN_INTERVAL),
+            update_interval=timedelta(seconds=scan_interval),
             always_update=False,
         )
         self.client = client
@@ -77,6 +80,13 @@ class SilverlineCoordinator(DataUpdateCoordinator[DeviceState]):
         self._runtime_today_seconds: float = 0.0
         self._runtime_last_tick: datetime | None = None
         self._runtime_local_date: date | None = None
+        # Energy accumulator — see _tick_energy. Lifetime total rather than
+        # per-day, so it is restored from the entity's last state on reload
+        # instead of resetting like the runtime counter.
+        self._energy_total_kwh: float = 0.0
+        self._energy_last_tick: datetime | None = None
+        self._energy_last_power_w: float | None = None
+        self._energy_max_gap = max_energy_gap(scan_interval)
 
     @property
     def profile(self) -> DeviceProfile | None:
@@ -93,6 +103,32 @@ class SilverlineCoordinator(DataUpdateCoordinator[DeviceState]):
         internal — only ``_tick_runtime`` may mutate it.
         """
         return self._runtime_today_seconds
+
+    @property
+    def energy_consumption_kwh(self) -> float:
+        """Read-only accessor for the lifetime energy accumulator.
+
+        Rounded to Wh: the raw float carries integration noise well below
+        the sensor's display precision, and an ever-growing TOTAL_INCREASING
+        value should not jitter in its last digits between updates.
+        """
+        return round(self._energy_total_kwh, 6)
+
+    @callback
+    def restore_energy_consumption_kwh(self, value: float | None) -> bool:
+        """Seed the accumulator from the entity's restored state.
+
+        Only ever moves the counter forward. The sensor is
+        TOTAL_INCREASING, so accepting a lower value would read as a meter
+        reset downstream and corrupt long-run statistics. Returns whether
+        the value was taken.
+        """
+        if value is None or not math.isfinite(value):
+            return False
+        if value <= self._energy_total_kwh:
+            return False
+        self._energy_total_kwh = value
+        return True
 
     @property
     def active_fault_codes(self) -> frozenset[str]:
@@ -165,6 +201,7 @@ class SilverlineCoordinator(DataUpdateCoordinator[DeviceState]):
         # coordinator.time.monotonic in tests.
         self._faults.reconcile(self.hass, state, now=time.monotonic())
         self._tick_runtime(state)
+        self._tick_energy(state)
 
     @callback
     def _tick_runtime(self, state: DeviceState) -> None:
@@ -198,6 +235,38 @@ class SilverlineCoordinator(DataUpdateCoordinator[DeviceState]):
             local_date=self._runtime_local_date,
             today_seconds=self._runtime_today_seconds,
             action=action,
+        )
+
+    @callback
+    def _tick_energy(self, state: DeviceState) -> None:
+        """Integrate sampled electrical power into the lifetime kWh total.
+
+        Firmware exposing no line voltage/current simply never produces a
+        power reading, so the accumulator stays at 0 and the sensor is not
+        registered for that model in the first place.
+        """
+        # Imported lazily for the same reason as _tick_runtime's import:
+        # keeps the accumulator self-contained and avoids a
+        # coordinator → sensor_descriptions import at module scope.
+        from .sensor_descriptions import electrical_power_w
+
+        power_w = electrical_power_w(state)
+        if not is_usable_power(power_w):
+            power_w = None
+
+        # utcnow() is read HERE (not inside accumulate_energy) so the energy
+        # clock stays patchable as coordinator.dt_util.utcnow in tests.
+        (
+            self._energy_total_kwh,
+            self._energy_last_tick,
+            self._energy_last_power_w,
+        ) = accumulate_energy(
+            now=dt_util.utcnow(),
+            last_tick=self._energy_last_tick,
+            last_power_w=self._energy_last_power_w,
+            total_kwh=self._energy_total_kwh,
+            power_w=power_w,
+            max_gap=self._energy_max_gap,
         )
 
     @callback

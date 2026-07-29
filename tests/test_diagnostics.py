@@ -53,6 +53,9 @@ async def test_diagnostics_includes_debug_context(
     # Coordinator context.
     assert isinstance(diag["coordinator"]["supported_dps"], list)
     assert isinstance(diag["coordinator"]["runtime_today_seconds"], (int, float))
+    # Both accumulators live only in memory on the coordinator, so a bug
+    # report is the only place their state is ever visible.
+    assert isinstance(diag["coordinator"]["energy_consumption_kwh"], (int, float))
     assert isinstance(diag["coordinator"]["last_update_success"], bool)
     assert isinstance(diag["coordinator"]["active_fault_codes"], list)
 

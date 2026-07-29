@@ -36,7 +36,9 @@
       "compressor_load": { "default": "mdi:gauge" },
       "total_operating_hours": { "default": "mdi:counter" },
       "target_superheat": { "default": "mdi:thermometer-plus" },
-      "target_condensing_temperature": { "default": "mdi:thermometer-high" }
+      "target_condensing_temperature": { "default": "mdi:thermometer-high" },
+      "electrical_power": { "default": "mdi:flash" },
+      "energy_consumption": { "default": "mdi:meter-electric-outline" }
     },
     "binary_sensor": {
       "compressor_running": {

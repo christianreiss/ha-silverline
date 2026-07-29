@@ -127,6 +127,9 @@ def test_from_dps_v34_layout_remaps_dp_numbers() -> None:
     assert state.total_hours is None  # DP 120 is voltage on this firmware
     assert state.ac_voltage == 232
     assert state.ac_current == 4
+    # Divisor 1 must leave the value an int, not float 4.0 — diagnostic
+    # dumps for unaffected devices stay byte-for-byte unchanged.
+    assert isinstance(state.ac_current, int)
     # DPs this firmware does not expose stay None even though legacy DP
     # numbers (104/105/107/108) carry data on other firmwares.
     assert state.discharge_temp is None

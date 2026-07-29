@@ -74,6 +74,7 @@ async def async_get_config_entry_diagnostics(
             # which entities the unit supports without guessing.
             "supported_dps": sorted(coordinator.supported_dps),
             "runtime_today_seconds": coordinator.runtime_today_seconds,
+            "energy_consumption_kwh": coordinator.energy_consumption_kwh,
             "last_update_success": coordinator.last_update_success,
             # Failure *type* only — the exception message embeds the device
             # host (see pysilverline CannotConnect), and async_redact_data

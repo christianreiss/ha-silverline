@@ -120,6 +120,8 @@
       "compressor_load": { "name": "Charge du compresseur" },
       "total_operating_hours": { "name": "Heures de fonctionnement totales" },
       "target_superheat": { "name": "Surchauffe cible" },
+      "electrical_power": { "name": "Puissance électrique" },
+      "energy_consumption": { "name": "Consommation d'énergie" },
       "target_condensing_temperature": { "name": "Température de condensation cible" }
     },
     "binary_sensor": {
@@ -240,6 +242,20 @@
     },
     "missing_target_temperature": {
       "message": "set_temperature nécessite une température cible."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Interrogation",
+        "description": "La pompe à chaleur envoie ses changements d'état d'elle-même ; l'interrogation ne couvre que les messages perdus.",
+        "data": {
+          "scan_interval": "Intervalle d'interrogation de secours"
+        },
+        "data_description": {
+          "scan_interval": "Secondes entre deux interrogations de secours. La valeur par défaut est 30. Les valeurs inférieures à 8 sont refusées : les modules WiFi de la famille WBR3 redémarrent s'ils sont interrogés plus vite."
+        }
+      }
     }
   }
 }

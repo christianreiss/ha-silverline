@@ -15,8 +15,14 @@ class DpLayout:
 
     ``temp_current_divisor`` scales the core current-water-temperature DP (DP 3):
     most firmware reports whole °C (divisor 1), but some OEM siblings report
-    tenths of a degree (divisor 10, e.g. raw 277 = 27.7 °C). It is the only
-    scaled field — DP 2 (setpoint) stays whole °C on every variant seen so far.
+    tenths of a degree (divisor 10, e.g. raw 277 = 27.7 °C). DP 2 (setpoint)
+    stays whole °C on every variant seen so far.
+
+    ``ac_current_divisor`` does the same for the AC line-current DP: the Tuya
+    schema declares tenths of an amp for some variants, whole amps for others,
+    and the raw integer alone cannot tell them apart. Both divisors leave the
+    value an int when set to 1, so unaffected devices and their diagnostic
+    dumps stay byte-for-byte unchanged.
     """
 
     temp_current_divisor: int = 1
@@ -43,3 +49,4 @@ class DpLayout:
     target_condensing: int | None = 142
     ac_voltage: int | None = None
     ac_current: int | None = None
+    ac_current_divisor: int = 1

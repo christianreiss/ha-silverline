@@ -62,6 +62,28 @@ def test_v34_wfzeiyn_dp_mapping() -> None:
     assert layout.ac_current == 121
 
 
+def test_ac_current_divisor_defaults_to_whole_amps() -> None:
+    """Every AC-capable layout currently reads DP 121 as whole amps. The
+    scale is unconfirmed (see DpLayout) — this pins the current choice so
+    flipping one variant to tenths is a deliberate, visible change rather
+    than a silent 10x shift in everyone's derived power and energy."""
+    assert LAYOUT_STANDARD.ac_current_divisor == 1
+    for layout in (LAYOUT_V34_WFZEIYN, LAYOUT_NANO_FI_3KW):
+        assert layout.ac_current == 121
+        assert layout.ac_current_divisor == 1
+
+
+def test_ac_current_divisor_scales_tenths_of_an_amp() -> None:
+    """A layout that does report tenths yields real amps as a float."""
+    from dataclasses import replace
+
+    from pysilverline import DeviceState
+
+    tenths = replace(LAYOUT_V34_WFZEIYN, ac_current_divisor=10)
+    state = DeviceState.from_dps({"120": 232, "121": 43}, layout=tenths)
+    assert state.ac_current == 4.3
+
+
 def test_layout_by_name_nano_fi_3kw_alias() -> None:
     assert LAYOUT_BY_NAME["nano_fi_3kw"] is LAYOUT_NANO_FI_3KW
 

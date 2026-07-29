@@ -1,9 +1,13 @@
-"""Pure, flow-independent validation helpers for the config flow.
+"""Pure, flow-independent schemas and validation helpers.
 
-These helpers are split out of ``config_flow.py`` so the HA
-``ConfigFlow`` subclass stays small.  Nothing here depends on flow
-instance state; they only validate supplied credentials by opening a
-short-lived encrypted session against the device.
+These are split out of ``config_flow.py`` so the HA ``ConfigFlow`` subclass
+stays small.  Nothing here depends on flow instance state: the credential
+helpers validate by opening a short-lived encrypted session against the
+device, and the options helpers only read and clamp stored entry options.
+
+``scan_interval_from_options`` also has a non-flow caller — the coordinator
+resolves its poll interval through it, so the clamp that keeps WBR3 modules
+out of a reboot loop is applied on every path, not just the options form.
 """
 
 from __future__ import annotations
@@ -13,9 +17,12 @@ from collections.abc import Mapping
 from typing import Any
 
 import voluptuous as vol
-from homeassistant.const import CONF_HOST, CONF_PORT
+from homeassistant.const import CONF_HOST, CONF_PORT, CONF_SCAN_INTERVAL
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.selector import (
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
     SelectOptionDict,
     SelectSelector,
     SelectSelectorConfig,
@@ -33,7 +40,10 @@ from .const import (
     CONF_MODEL,
     CONF_PROTOCOL_VERSION,
     DEFAULT_PORT,
+    DEFAULT_SCAN_INTERVAL,
     DEVICE_PROFILES,
+    MAX_SCAN_INTERVAL,
+    MIN_SCAN_INTERVAL,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -90,6 +100,48 @@ _USER_SCHEMA = vol.Schema(
 )
 
 _REAUTH_SCHEMA = vol.Schema({vol.Required(CONF_LOCAL_KEY): _LOCAL_KEY_SELECTOR})
+
+
+def options_schema(current_interval: int) -> vol.Schema:
+    """Build the options form, pre-filled with the entry's current interval.
+
+    The NumberSelector bounds are advisory — the frontend honours them but a
+    hand-crafted options payload does not — so the range is re-asserted with
+    vol.Range, which actually rejects out-of-range values. MIN_SCAN_INTERVAL
+    is a hardware floor (see const.py), not a nicety.
+    """
+    return vol.Schema(
+        {
+            vol.Required(CONF_SCAN_INTERVAL, default=current_interval): vol.All(
+                NumberSelector(
+                    NumberSelectorConfig(
+                        min=MIN_SCAN_INTERVAL,
+                        max=MAX_SCAN_INTERVAL,
+                        step=1,
+                        mode=NumberSelectorMode.BOX,
+                        unit_of_measurement="s",
+                    )
+                ),
+                vol.Coerce(int),
+                vol.Range(min=MIN_SCAN_INTERVAL, max=MAX_SCAN_INTERVAL),
+            )
+        }
+    )
+
+
+def scan_interval_from_options(options: Mapping[str, Any]) -> int:
+    """Return the effective poll interval for an entry's options.
+
+    Clamped rather than trusted: an entry whose options predate the bounds
+    (or were written by hand) must not be able to put the coordinator into a
+    sub-8s poll loop that reboots WBR3 modules.
+    """
+    try:
+        interval = int(options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
+    except (TypeError, ValueError):
+        return DEFAULT_SCAN_INTERVAL
+    return max(MIN_SCAN_INTERVAL, min(MAX_SCAN_INTERVAL, interval))
+
 
 _DISCOVERY_CONFIRM_SCHEMA = vol.Schema(
     {vol.Required(CONF_LOCAL_KEY): _LOCAL_KEY_SELECTOR}

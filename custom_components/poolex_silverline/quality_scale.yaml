@@ -6,9 +6,11 @@ rules:
   appropriate-polling:
     status: done
     comment: |
-      The DataUpdateCoordinator polls every 30 s
-      (DEFAULT_SCAN_INTERVAL) via get_status(), which is within HA's
-      recommended range. iot_class is local_push, so this poll is a
+      The DataUpdateCoordinator polls via get_status() at a configurable
+      fallback interval, defaulting to 30 s (DEFAULT_SCAN_INTERVAL) and
+      bounded by the options flow to 8..300 s — all within HA's recommended
+      range. The 8 s floor is a hardware limit: WBR3 WiFi modules reboot when
+      polled faster. iot_class is local_push, so this poll is a
       heartbeat/fallback alongside the spontaneous CMD_STATUS pushes the
       persistent TCP socket delivers via async_set_updated_data; the poll
       is not the primary state path but it does run, so the rule applies.
@@ -42,9 +44,9 @@ rules:
     status: exempt
     comment: No custom service actions registered.
   config-entry-unloading: done
-  docs-configuration-parameters:
-    status: exempt
-    comment: No options flow in v0.1.
+  # No longer exempt: an options flow exposes the fallback polling interval.
+  # README "Configuration parameters" documents it with default and bounds.
+  docs-configuration-parameters: done
   docs-installation-parameters: done
   entity-unavailable: done
   integration-owner: done

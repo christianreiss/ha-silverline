@@ -2,22 +2,29 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
 from unittest.mock import AsyncMock
 
 import pytest
 from homeassistant.config_entries import SOURCE_USER
-from homeassistant.const import CONF_HOST, CONF_PORT
+from homeassistant.const import CONF_HOST, CONF_PORT, CONF_SCAN_INTERVAL
 from homeassistant.core import HomeAssistant
-from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.data_entry_flow import FlowResultType, InvalidData
 from pysilverline import CannotConnect, InvalidAuth
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.poolex_silverline._config_validation import (
+    scan_interval_from_options,
+)
 from custom_components.poolex_silverline.const import (
     CONF_DEVICE_ID,
     CONF_LOCAL_KEY,
     CONF_MODEL,
     CONF_PROTOCOL_VERSION,
+    DEFAULT_SCAN_INTERVAL,
     DOMAIN,
+    MAX_SCAN_INTERVAL,
+    MIN_SCAN_INTERVAL,
 )
 
 from .conftest import DEVICE_ID, ENTRY_DATA, HOST, LOCAL_KEY
@@ -570,3 +577,101 @@ async def test_reauth_skips_model_step(
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reauth_successful"
     await hass.async_block_till_done()
+
+
+async def test_options_flow_sets_scan_interval(
+    hass: HomeAssistant, mock_client_factory, config_entry: MockConfigEntry
+) -> None:
+    """The options form writes the chosen interval and the reload listener
+    hands it to the coordinator."""
+    config_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    result = await hass.config_entries.options.async_init(config_entry.entry_id)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "init"
+
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {CONF_SCAN_INTERVAL: 60}
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    await hass.async_block_till_done()
+
+    assert config_entry.options[CONF_SCAN_INTERVAL] == 60
+    coordinator = config_entry.runtime_data
+    assert coordinator.update_interval == timedelta(seconds=60)
+
+
+async def test_options_flow_defaults_to_thirty_seconds(
+    hass: HomeAssistant, mock_client_factory, config_entry: MockConfigEntry
+) -> None:
+    """An entry with no options polls at DEFAULT_SCAN_INTERVAL."""
+    config_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    coordinator = config_entry.runtime_data
+    assert coordinator.update_interval == timedelta(seconds=DEFAULT_SCAN_INTERVAL)
+
+
+async def test_options_flow_rejects_sub_wbr3_interval(
+    hass: HomeAssistant, mock_client_factory, config_entry: MockConfigEntry
+) -> None:
+    """MIN_SCAN_INTERVAL is a hardware floor, not a UI hint: WBR3 WiFi
+    modules reboot when polled faster than ~8s. The NumberSelector bounds
+    only constrain the frontend, so the schema must reject the value
+    itself — a hand-crafted options payload must not be able to put the
+    coordinator into a reboot loop."""
+    config_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    result = await hass.config_entries.options.async_init(config_entry.entry_id)
+    with pytest.raises(InvalidData):
+        await hass.config_entries.options.async_configure(
+            result["flow_id"], {CONF_SCAN_INTERVAL: 1}
+        )
+
+
+@pytest.mark.parametrize(
+    ("stored", "expected"),
+    [
+        ({}, DEFAULT_SCAN_INTERVAL),
+        ({CONF_SCAN_INTERVAL: 45}, 45),
+        # Written before the bounds existed, or edited by hand.
+        ({CONF_SCAN_INTERVAL: 1}, MIN_SCAN_INTERVAL),
+        ({CONF_SCAN_INTERVAL: 9999}, MAX_SCAN_INTERVAL),
+        ({CONF_SCAN_INTERVAL: "not a number"}, DEFAULT_SCAN_INTERVAL),
+        ({CONF_SCAN_INTERVAL: None}, DEFAULT_SCAN_INTERVAL),
+    ],
+)
+def test_scan_interval_from_options_clamps(stored: dict, expected: int) -> None:
+    """Stored options are clamped, never trusted — an entry that predates
+    the bounds must not reach the coordinator unclamped."""
+    assert scan_interval_from_options(stored) == expected
+
+
+def test_options_schema_serializes_for_the_frontend() -> None:
+    """The bounds are enforced with vol.All(NumberSelector, ..., vol.Range),
+    and a vol.All-wrapped selector is not handled the same way as a bare one
+    by voluptuous_serialize. If the wrapper broke serialization the form
+    would render as a plain text box (or not at all) while every server-side
+    test still passed, so pin the rendered payload here."""
+    import voluptuous_serialize
+    from homeassistant.helpers import config_validation as cv
+
+    from custom_components.poolex_silverline._config_validation import options_schema
+
+    fields = voluptuous_serialize.convert(
+        options_schema(DEFAULT_SCAN_INTERVAL), custom_serializer=cv.custom_serializer
+    )
+    assert len(fields) == 1
+    field = fields[0]
+    assert field["name"] == CONF_SCAN_INTERVAL
+    assert field["default"] == DEFAULT_SCAN_INTERVAL
+    # The number selector survives the wrapper, bounds intact.
+    number = field["selector"]["number"]
+    assert number["min"] == MIN_SCAN_INTERVAL
+    assert number["max"] == MAX_SCAN_INTERVAL
+    assert number["unit_of_measurement"] == "s"

@@ -254,6 +254,13 @@ DEVICE_PROFILES: Final[dict[str, DeviceProfile]] = {
 
 DEFAULT_PORT: Final = 6668
 DEFAULT_SCAN_INTERVAL: Final = 30  # seconds; WBR3 reboots if polled <8s
+# Bounds for the user-configurable poll interval. The floor is a hardware
+# limit, not a preference: WBR3-based WiFi modules reboot when polled faster
+# than ~8s, so a lower value would knock those units offline in a loop. The
+# integration is local_push — polling is only the fallback for missed pushes,
+# so there is nothing to gain below the floor anyway.
+MIN_SCAN_INTERVAL: Final = 8
+MAX_SCAN_INTERVAL: Final = 300
 
 PRESET_NONE: Final = "none"
 PRESET_BOOST: Final = "boost"

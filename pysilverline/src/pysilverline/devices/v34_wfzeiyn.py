@@ -37,9 +37,13 @@ LAYOUT_V34_WFZEIYN = DpLayout(
     target_superheat=137,
     target_condensing=142,
     ac_voltage=120,
-    # Same open question as LAYOUT_NANO_FI_3KW: the Tuya schema declares DP 121
-    # with scale=1 (tenths of an amp), but DpLayout/DeviceState have no
-    # per-field divisor apart from temp_current_divisor, so this surfaces the
-    # RAW wire integer. Confirm against a clamp meter before trusting it.
     ac_current=121,
+    # UNCONFIRMED. The Tuya schema declares DP 121 with scale=1 (a base-10
+    # exponent → tenths of an amp), but the fork that runs this firmware on
+    # real Top 9 hardware reports LocalTuya scaling=1.0 (a multiplier → whole
+    # amps) and its derived wattage matches a working LocalTuya setup. Those
+    # two readings cannot both be right; we follow the hardware observation
+    # until someone confirms against a clamp meter. If the displayed power is
+    # ~10x too low, this is the one line to change.
+    ac_current_divisor=1,
 )

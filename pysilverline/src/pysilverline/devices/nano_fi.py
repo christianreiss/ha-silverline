@@ -75,11 +75,10 @@ LAYOUT_NANO_FI_3KW = DpLayout(
     target_superheat=None,
     target_condensing=None,
     ac_voltage=120,
-    # Tuya schema declares DP 121 with scale=1 (tenths of an amp), but
-    # DpLayout/DeviceState have no per-field divisor mechanism apart from
-    # temp_current_divisor, and pysilverline's _int() reader is a strict
-    # passthrough — so this surfaces the RAW wire integer, not real amps.
-    # Confirm the true scale against a clamp meter before trusting the
-    # displayed value; divide by 10 in a template sensor if confirmed.
     ac_current=121,
+    # UNCONFIRMED, same open question as LAYOUT_V34_WFZEIYN: the Tuya schema
+    # declares DP 121 with scale=1 (tenths of an amp), but no one has checked
+    # this firmware against a clamp meter. Kept at 1 so both AC layouts behave
+    # alike; set to 10 here if a reporter confirms tenths on this unit.
+    ac_current_divisor=1,
 )

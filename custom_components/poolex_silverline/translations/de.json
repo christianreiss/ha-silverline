@@ -109,6 +109,8 @@
       "outdoor_coil_temperature": { "name": "Außenregister-Temperatur" },
       "indoor_coil_temperature": { "name": "Innenregister-Temperatur" },
       "water_pump_rpm": { "name": "Umwälzpumpen-Drehzahl" },
+      "ac_voltage": { "name": "Netzspannung" },
+      "ac_current": { "name": "Netzstrom" },
       "fan_speed": { "name": "Lüfterdrehzahl" },
       "fault_code": { "name": "Fehlercode" },
       "runtime_today": { "name": "Laufzeit heute" },
@@ -118,6 +120,8 @@
       "compressor_load": { "name": "Kompressor-Auslastung" },
       "total_operating_hours": { "name": "Gesamtbetriebsstunden" },
       "target_superheat": { "name": "Soll-Überhitzung" },
+      "electrical_power": { "name": "Elektrische Leistung" },
+      "energy_consumption": { "name": "Energieverbrauch" },
       "target_condensing_temperature": { "name": "Soll-Verflüssigungstemperatur" }
     },
     "binary_sensor": {
@@ -238,6 +242,20 @@
     },
     "missing_target_temperature": {
       "message": "set_temperature benötigt eine Zieltemperatur."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Abfrageintervall",
+        "description": "Die Wärmepumpe meldet Zustandsänderungen von sich aus; die Abfrage fängt nur verlorene Meldungen ab.",
+        "data": {
+          "scan_interval": "Abfrageintervall (Fallback)"
+        },
+        "data_description": {
+          "scan_interval": "Sekunden zwischen den Fallback-Abfragen. Standard ist 30. Werte unter 8 werden abgelehnt: WLAN-Module der WBR3-Familie starten neu, wenn sie schneller abgefragt werden."
+        }
+      }
     }
   }
 }

@@ -109,6 +109,8 @@
       "outdoor_coil_temperature": { "name": "Temperatuur buitenwarmtewisselaar" },
       "indoor_coil_temperature": { "name": "Temperatuur binnenwarmtewisselaar" },
       "water_pump_rpm": { "name": "Toerental circulatiepomp" },
+      "ac_voltage": { "name": "Netspanning" },
+      "ac_current": { "name": "Netstroom" },
       "fan_speed": { "name": "Ventilatorsnelheid" },
       "fault_code": { "name": "Foutcode" },
       "runtime_today": { "name": "Draaitijd vandaag" },
@@ -118,6 +120,8 @@
       "compressor_load": { "name": "Compressorbelasting" },
       "total_operating_hours": { "name": "Totale bedrijfsuren" },
       "target_superheat": { "name": "Doeloververhitting" },
+      "electrical_power": { "name": "Elektrisch vermogen" },
+      "energy_consumption": { "name": "Energieverbruik" },
       "target_condensing_temperature": { "name": "Doelcondensatietemperatuur" }
     },
     "binary_sensor": {
@@ -238,6 +242,20 @@
     },
     "missing_target_temperature": {
       "message": "set_temperature vereist een doeltemperatuur."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Polling",
+        "description": "De warmtepomp stuurt statuswijzigingen zelf door; polling vangt alleen gemiste meldingen op.",
+        "data": {
+          "scan_interval": "Fallback-pollinginterval"
+        },
+        "data_description": {
+          "scan_interval": "Seconden tussen fallback-statusopvragingen. Standaard is 30. Waarden onder 8 worden geweigerd: wifi-modules uit de WBR3-familie starten opnieuw op als ze sneller worden opgevraagd."
+        }
+      }
     }
   }
 }

@@ -44,7 +44,9 @@ class DeviceState:
     target_superheat: int | None = None
     target_condensing: int | None = None
     ac_voltage: int | None = None
-    ac_current: int | None = None
+    # float when the layout's ac_current_divisor scales tenths-of-an-amp
+    # firmware down; whole-amp firmware keeps an int here. See DpLayout.
+    ac_current: float | int | None = None
     raw: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
@@ -122,6 +124,15 @@ class DeviceState:
                 return raw
             return raw / layout.temp_current_divisor
 
+        def _ac_current() -> float | None:
+            # Same shape as _temp_current: some firmware reports tenths of an
+            # amp, some whole amps, and the raw integer cannot distinguish
+            # them. Divisor 1 keeps the value an int.
+            raw = _int(layout.ac_current)
+            if raw is None or layout.ac_current_divisor == 1:
+                return raw
+            return raw / layout.ac_current_divisor
+
         return cls(
             power=_bool(const.DP_POWER),
             temp_set=_int(const.DP_TEMP_SET),
@@ -151,7 +162,7 @@ class DeviceState:
             target_superheat=_int(layout.target_superheat),
             target_condensing=_int(layout.target_condensing),
             ac_voltage=_int(layout.ac_voltage),
-            ac_current=_int(layout.ac_current),
+            ac_current=_ac_current(),
             raw=dict(dps),
         )
 

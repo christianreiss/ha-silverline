@@ -41,8 +41,12 @@ pumps (Tuya v3.3 / v3.4 / v3.5) and OEM siblings. Connects directly over LAN —
 - A power `switch`, a target-temperature `number`, and two `select`
   entities (preset, operating mode) expose the climate controls
   individually for automations.
-- Reauth flow when the local key rotates and reconfigure flow for IP
-  changes.
+- On firmware that reports line voltage and current (DP 120/121), a derived
+  electrical-power sensor and a lifetime energy counter in kWh — the latter
+  restores across restarts and can feed the HA Energy Dashboard directly,
+  with no Riemann-sum helper to wire up.
+- Reauth flow when the local key rotates, reconfigure flow for IP changes,
+  and an options flow for the fallback polling interval.
 - Full diagnostics download with secrets redacted.
 - Translations for English, German, French, Spanish, Italian, Dutch, and Polish.
 
@@ -182,18 +186,33 @@ status report.
 
 ## Configuration parameters
 
-There is no options flow; all configuration happens during setup or via the
-**Reconfigure** action on the device entry. To change the host, port, device
-ID, local key, or device model after setup, click the three-dot menu on the
-device in **Settings → Devices** and choose **Reconfigure**. Reconfigure
+Connection settings — host, port, device ID, local key, device model — are set
+during setup and changed with the **Reconfigure** action: click the three-dot
+menu on the device in **Settings → Devices** and choose **Reconfigure**. It
 re-validates the connection details and then shows the same model dropdown,
 pre-selected with the current choice.
 
+One runtime setting lives in **Configure** (the button on the integration
+entry, not the device):
+
+| Option | Default | Range | Meaning |
+|---|---|---|---|
+| Fallback polling interval | 30 s | 8–300 s | How often to issue a full `DP_QUERY` when no push has arrived |
+
+The lower bound is a hardware limit rather than a preference: WiFi modules of
+the WBR3 family reboot when polled faster than ~8 s, so shorter intervals are
+rejected. Because the integration is `local_push`, polling only backstops
+pushes that go missing — raising the interval costs very little, and lowering
+it gains very little.
+
+Changing the option reloads the entry, which briefly reconnects the socket.
+
 ## Data update model
 
-- **Polling**: every 30 seconds the integration issues a Tuya `DP_QUERY` to
-  refresh the full state. Polling faster than ~8 s causes the WBR3 WiFi
-  module to reboot — don't lower this.
+- **Polling**: every 30 seconds by default (configurable, see above) the
+  integration issues a Tuya `DP_QUERY` to refresh the full state. Polling
+  faster than ~8 s causes the WBR3 WiFi module to reboot — the option will
+  not let you go below that.
 - **Push**: the device pushes spontaneous state changes within ~200 ms of
   any DP changing. The integration listens for those on the persistent
   socket and applies them immediately, so most updates feel instant.
@@ -500,6 +519,11 @@ integration honest — huge thanks to the contributors who ran the tests:
   WBR3 WiFi module only serves live measurement telemetry while it holds a
   Tuya cloud MQTT session, pinning the cloud-gated staleness down to
   port-level isolation (issue #15).
+- **Andre Gross** — found on real Silverline Top 9 hardware that the v3.4
+  firmware's DP 120/121 are line voltage and current, not the lifetime
+  runtime counter the layout assumed, and built the derived power and energy
+  sensors on top. Ported back here from the
+  [ha-poolex-heatpump](https://github.com/cococheaf/ha-poolex-heatpump) fork.
 
 ## Development
 

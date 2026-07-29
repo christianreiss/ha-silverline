@@ -10,6 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 from pysilverline import DeviceState
+from pysilverline.layouts import LAYOUT_V34_WFZEIYN
 from pytest_homeassistant_custom_component.common import async_fire_time_changed
 from syrupy.assertion import SnapshotAssertion
 
@@ -200,6 +201,90 @@ def _reset_runtime(coordinator, anchor: datetime) -> None:
     coordinator._runtime_today_seconds = 0.0
     coordinator._runtime_last_tick = anchor
     coordinator._runtime_local_date = dt_util.as_local(anchor).date()
+
+
+async def test_energy_accumulates_from_pushed_power(
+    hass: HomeAssistant, init_integration
+) -> None:
+    """Two pushes an hour apart at a steady 1000 W add 1 kWh. Pins the
+    coordinator wiring end to end: DeviceState -> electrical_power_w ->
+    accumulate_energy -> the sensor's coord_fn."""
+    coordinator = init_integration.runtime_data
+    coordinator._energy_total_kwh = 0.0
+    coordinator._energy_last_tick = None
+    coordinator._energy_last_power_w = None
+    coordinator._energy_max_gap = timedelta(hours=2)
+
+    t0 = datetime(2026, 5, 22, 12, 0, 0, tzinfo=timezone.utc)
+    # Built with an AC-capable layout: on the standard layout DP 120 is the
+    # runtime-hours counter, so ac_voltage would be None and nothing would
+    # accumulate — which is exactly what the next test pins.
+    powered = DeviceState.from_dps(
+        {"1": True, "2": 30, "3": 28, "4": "Heat", "13": 0, "120": 250, "121": 4},
+        layout=LAYOUT_V34_WFZEIYN,
+    )
+
+    with patch(
+        "custom_components.poolex_silverline.coordinator.dt_util.utcnow",
+        return_value=t0,
+    ):
+        coordinator.async_set_updated_data(powered)
+    await hass.async_block_till_done()
+    # First sample anchors only — one reading is an instant, not an interval.
+    assert coordinator.energy_consumption_kwh == 0.0
+
+    with patch(
+        "custom_components.poolex_silverline.coordinator.dt_util.utcnow",
+        return_value=t0 + timedelta(hours=1),
+    ):
+        coordinator.async_set_updated_data(powered)
+    await hass.async_block_till_done()
+    assert coordinator.energy_consumption_kwh == 1.0
+
+
+async def test_energy_ignores_states_without_electrical_dps(
+    hass: HomeAssistant, init_integration
+) -> None:
+    """Firmware that never reports DP 120/121 leaves the counter at zero
+    instead of accumulating a phantom load."""
+    coordinator = init_integration.runtime_data
+    coordinator._energy_total_kwh = 0.0
+    coordinator._energy_last_tick = None
+    coordinator._energy_last_power_w = None
+
+    t0 = datetime(2026, 5, 22, 12, 0, 0, tzinfo=timezone.utc)
+    for offset in (0, 3600):
+        with patch(
+            "custom_components.poolex_silverline.coordinator.dt_util.utcnow",
+            return_value=t0 + timedelta(seconds=offset),
+        ):
+            coordinator.async_set_updated_data(
+                DeviceState.from_dps({"1": True, "3": 28, "4": "Heat", "13": 0})
+            )
+        await hass.async_block_till_done()
+
+    assert coordinator.energy_consumption_kwh == 0.0
+    assert coordinator._energy_last_tick is None
+
+
+async def test_restore_energy_only_moves_forward(
+    hass: HomeAssistant, init_integration
+) -> None:
+    """The counter is TOTAL_INCREASING: a restored value below the current
+    total would read downstream as a meter reset and corrupt long-term
+    statistics, so it is refused."""
+    coordinator = init_integration.runtime_data
+    coordinator._energy_total_kwh = 5.0
+
+    assert coordinator.restore_energy_consumption_kwh(12.5) is True
+    assert coordinator.energy_consumption_kwh == 12.5
+
+    assert coordinator.restore_energy_consumption_kwh(3.0) is False
+    assert coordinator.energy_consumption_kwh == 12.5
+
+    assert coordinator.restore_energy_consumption_kwh(None) is False
+    assert coordinator.restore_energy_consumption_kwh(float("nan")) is False
+    assert coordinator.energy_consumption_kwh == 12.5
 
 
 async def test_runtime_today_accumulates_while_heating(
@@ -492,6 +577,50 @@ async def test_v34_model_selects_v34_sensor_catalog(hass: HomeAssistant) -> None
     # ac_current is registered but disabled by default until its scale is
     # confirmed, matching the existing Nano Fi behavior.
     assert sensor_entries["ac_current"].disabled_by is not None
+    # Derived power is enabled even though its ac_current input is not —
+    # the wattage is what owners actually want on a dashboard.
+    assert sensor_entries["electrical_power"].disabled_by is None
+    assert hass.states.get(sensor_entries["electrical_power"].entity_id).state == "928"
+
+
+def test_electrical_power_is_voltage_times_current() -> None:
+    """P = U x I from the two line diagnostics."""
+    from custom_components.poolex_silverline.sensor_descriptions import (
+        electrical_power_w,
+    )
+
+    state = DeviceState.from_dps({"120": 232, "121": 4}, layout=LAYOUT_V34_WFZEIYN)
+    assert electrical_power_w(state) == 928
+
+
+def test_electrical_power_needs_both_inputs() -> None:
+    """Either DP missing yields no reading — half the product is not a
+    power, and the sensor must go unavailable rather than show a number."""
+    from custom_components.poolex_silverline.sensor_descriptions import (
+        electrical_power_w,
+    )
+
+    assert (
+        electrical_power_w(
+            DeviceState.from_dps({"120": 232}, layout=LAYOUT_V34_WFZEIYN)
+        )
+        is None
+    )
+    assert (
+        electrical_power_w(DeviceState.from_dps({"121": 4}, layout=LAYOUT_V34_WFZEIYN))
+        is None
+    )
+
+
+def test_electrical_power_rejects_negative_product() -> None:
+    """A negative product means a DP is not carrying what the layout
+    claims; report nothing rather than a bogus load."""
+    from custom_components.poolex_silverline.sensor_descriptions import (
+        electrical_power_w,
+    )
+
+    state = DeviceState.from_dps({"120": 232, "121": -4}, layout=LAYOUT_V34_WFZEIYN)
+    assert electrical_power_w(state) is None
 
 
 async def test_nano_fi_3kw_model_selects_sensor_catalog(hass: HomeAssistant) -> None:
@@ -733,3 +862,91 @@ async def test_v34_entity_inventory_snapshot(
         key=lambda s: s.entity_id,
     )
     assert states == snapshot(name="v34_entity_states")
+
+
+async def test_energy_sensor_restores_across_restart(hass: HomeAssistant) -> None:
+    """The kWh total lives in memory on the coordinator, so without a
+    restore it returns to zero on every HA restart. For a TOTAL_INCREASING
+    sensor that reads downstream as a meter reset and puts a false spike
+    into the Energy Dashboard's long-term statistics. Exercises the whole
+    round trip: stored extra data -> RestoreSensor -> coordinator."""
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from homeassistant.const import CONF_HOST, CONF_PORT, UnitOfEnergy
+    from homeassistant.core import State
+    from pytest_homeassistant_custom_component.common import (
+        MockConfigEntry,
+        mock_restore_cache_with_extra_data,
+    )
+
+    from custom_components.poolex_silverline.const import (
+        CONF_DEVICE_ID,
+        CONF_LOCAL_KEY,
+        CONF_MODEL,
+        DOMAIN,
+    )
+
+    device_id = "bf12345678abcdefghijkl"
+    entity_id = "sensor.pool_heatpump_energy_consumption"
+    v34_dps = {
+        "1": True,
+        "2": 28,
+        "3": 26,
+        "4": "Heat",
+        "13": 0,
+        "101": 28,
+        "103": 26,
+        "120": 232,
+        "121": 4,
+    }
+    state = DeviceState.from_dps(v34_dps, layout=LAYOUT_V34_WFZEIYN)
+
+    mock_restore_cache_with_extra_data(
+        hass,
+        (
+            (
+                State(entity_id, "42.5"),
+                {
+                    "native_value": 42.5,
+                    "native_unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR,
+                },
+            ),
+        ),
+    )
+
+    client = MagicMock()
+    client.host = "10.0.0.50"
+    client.port = 6668
+    client.device_id = device_id
+    client.connected = True
+    client.state = state
+    client.detected_version = "3.4"
+    client.connect = AsyncMock(return_value=None)
+    client.disconnect = AsyncMock(return_value=None)
+    client.get_status = AsyncMock(return_value=state)
+    client.add_listener = MagicMock(return_value=lambda: None)
+    client.add_connection_listener = MagicMock(return_value=lambda: None)
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=device_id,
+        data={
+            CONF_HOST: "10.0.0.50",
+            CONF_PORT: 6668,
+            CONF_DEVICE_ID: device_id,
+            CONF_LOCAL_KEY: "0123456789abcdef",
+            CONF_MODEL: "silverline_v34",
+        },
+        version=1,
+        minor_version=1,
+    )
+    entry.add_to_hass(hass)
+    with patch(
+        "custom_components.poolex_silverline.SilverlineClient", return_value=client
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    # The counter resumed from the stored total instead of restarting at 0.
+    assert entry.runtime_data.energy_consumption_kwh == 42.5
+    assert hass.states.get(entity_id).state == "42.5"

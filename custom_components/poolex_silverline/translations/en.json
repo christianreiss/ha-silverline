@@ -120,6 +120,8 @@
       "compressor_load": { "name": "Compressor load" },
       "total_operating_hours": { "name": "Total operating hours" },
       "target_superheat": { "name": "Target superheat" },
+      "electrical_power": { "name": "Electrical power" },
+      "energy_consumption": { "name": "Energy consumption" },
       "target_condensing_temperature": { "name": "Target condensing temperature" }
     },
     "binary_sensor": {
@@ -240,6 +242,20 @@
     },
     "missing_target_temperature": {
       "message": "set_temperature requires a target temperature."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Polling",
+        "description": "The heat pump pushes state changes on its own; polling only covers pushes that go missing.",
+        "data": {
+          "scan_interval": "Fallback polling interval"
+        },
+        "data_description": {
+          "scan_interval": "Seconds between fallback status polls. Default is 30. Values below 8 are rejected: WiFi modules of the WBR3 family reboot when polled faster than that."
+        }
+      }
     }
   }
 }

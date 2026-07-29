@@ -25,7 +25,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -38,7 +38,9 @@ from homeassistant.const import (
     EntityCategory,
     UnitOfElectricCurrent,
     UnitOfElectricPotential,
+    UnitOfEnergy,
     UnitOfFrequency,
+    UnitOfPower,
     UnitOfTemperature,
     UnitOfTime,
 )
@@ -408,10 +410,9 @@ _AC_VOLTAGE = SilverlineSensorDescription(
 )
 
 _AC_CURRENT = SilverlineSensorDescription(
-    # NOTE: surfaces the raw wire integer. The Tuya schema for this DP
-    # declares scale=1 (tenths of an amp) but pysilverline has no per-field
-    # divisor for this reading yet — confirm against a clamp meter before
-    # trusting the displayed value.
+    # Scaled by the layout's ac_current_divisor, which is 1 (whole amps) on
+    # every variant so far — see DpLayout for why that is still unconfirmed.
+    # Stays disabled by default until someone verifies it against a meter.
     key="ac_current",
     translation_key="ac_current",
     device_class=SensorDeviceClass.CURRENT,
@@ -421,6 +422,56 @@ _AC_CURRENT = SilverlineSensorDescription(
     entity_registry_enabled_default=False,
     value_fn=lambda d: d.ac_current,
     dp_keys=("121",),
+)
+
+
+def electrical_power_w(d: DeviceState) -> float | None:
+    """Apparent input power from the line voltage/current diagnostics.
+
+    Neither DP carries a power factor, so this is V*A — for the compressor
+    and pump loads on these units that tracks real power closely enough to
+    be useful, but it is not a revenue-grade measurement.
+
+    Public because the coordinator's energy accumulator integrates the same
+    figure the sensor displays; deriving it twice would let the two drift.
+    """
+    if d.ac_voltage is None or d.ac_current is None:
+        return None
+    power = d.ac_voltage * d.ac_current
+    # A negative product means one of the DPs is carrying something other
+    # than what the layout claims; report nothing rather than a bogus load.
+    if power < 0:
+        return None
+    return round(power, 2)
+
+
+_ELECTRICAL_POWER = SilverlineSensorDescription(
+    key="electrical_power",
+    translation_key="electrical_power",
+    device_class=SensorDeviceClass.POWER,
+    state_class=SensorStateClass.MEASUREMENT,
+    native_unit_of_measurement=UnitOfPower.WATT,
+    value_fn=electrical_power_w,
+    dp_keys=("120", "121"),
+)
+
+#: Key of the one sensor backed by a lifetime accumulator, so sensor.py can
+#: give it the restoring entity class without hardcoding the string twice.
+ENERGY_CONSUMPTION_KEY: Final = "energy_consumption"
+
+_ENERGY_CONSUMPTION = SilverlineSensorDescription(
+    key=ENERGY_CONSUMPTION_KEY,
+    translation_key="energy_consumption",
+    device_class=SensorDeviceClass.ENERGY,
+    state_class=SensorStateClass.TOTAL_INCREASING,
+    native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+    suggested_display_precision=3,
+    # Accumulated on the coordinator (see _tick_energy_consumption), not
+    # derivable from a single DeviceState — value_fn only satisfies the
+    # dataclass contract and is never called while coord_fn is set.
+    value_fn=lambda d: None,
+    coord_fn=lambda c: c.energy_consumption_kwh,
+    dp_keys=("120", "121"),
 )
 
 
@@ -478,6 +529,8 @@ V34_SENSORS: tuple[SilverlineSensorDescription, ...] = (
     _RUNTIME_TODAY,
     _AC_VOLTAGE,
     _AC_CURRENT,
+    _ELECTRICAL_POWER,
+    _ENERGY_CONSUMPTION,
 )
 
 
@@ -505,6 +558,8 @@ NANO_FI_SENSORS: tuple[SilverlineSensorDescription, ...] = (
     _RUNTIME_TODAY,
     _AC_VOLTAGE,
     _AC_CURRENT,
+    _ELECTRICAL_POWER,
+    _ENERGY_CONSUMPTION,
 )
 
 

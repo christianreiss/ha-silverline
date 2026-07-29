@@ -6,8 +6,14 @@ import logging
 from collections.abc import Mapping
 from typing import Any
 
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    ConfigFlowResult,
+    OptionsFlow,
+)
 from homeassistant.const import CONF_HOST, CONF_PORT
+from homeassistant.core import callback
 
 from .const import (
     CONF_DEVICE_ID,
@@ -25,6 +31,8 @@ from ._config_validation import (
     _USER_SCHEMA,
     _try_validate,
     _verify_host,
+    options_schema,
+    scan_interval_from_options,
 )
 from .util import mask_device_id
 
@@ -36,6 +44,11 @@ class SilverlineConfigFlow(ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
     MINOR_VERSION = 3
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
+        return SilverlineOptionsFlow()
 
     def __init__(self) -> None:
         super().__init__()
@@ -269,4 +282,26 @@ class SilverlineConfigFlow(ConfigFlow, domain=DOMAIN):
             data_schema=_DISCOVERY_CONFIRM_SCHEMA,
             description_placeholders={"host": self._discovery_host},
             errors=errors,
+        )
+
+
+class SilverlineOptionsFlow(OptionsFlow):
+    """Lets the user tune the fallback poll interval.
+
+    The integration is local_push: the device sends state changes on its own
+    and polling only covers missed pushes. The knob exists because push
+    reliability varies across firmware variants, not because faster polling
+    is generally better — see MIN_SCAN_INTERVAL in const.py for the floor.
+    """
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        if user_input is not None:
+            return self.async_create_entry(data=user_input)
+        return self.async_show_form(
+            step_id="init",
+            data_schema=options_schema(
+                scan_interval_from_options(self.config_entry.options)
+            ),
         )
