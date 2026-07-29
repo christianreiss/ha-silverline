@@ -160,8 +160,10 @@ DEVICE_PROFILES: Final[dict[str, DeviceProfile]] = {
     ),
     MODEL_SILVERLINE_V34: DeviceProfile(
         # Tuya v3.4 firmware (productKey wfzeiyn1ed3axxde). Distinct DP numbering
-        # — fan on 114, suction/outlet swapped — handled by LAYOUT_V34_WFZEIYN.
-        # Contributed by Martin Čarek (@olomouckyorel) from real hardware.
+        # — fan on 114, suction/outlet swapped, AC voltage/current on 120/121 —
+        # handled by LAYOUT_V34_WFZEIYN.
+        # Contributed by Martin Čarek (@olomouckyorel) from real hardware;
+        # DP 120/121 corrected by Andre Gross, also from real hardware.
         # Per-mode clamp bounds assumed same as standard family; unverified on
         # this specific firmware variant.
         display_name="Poolex Silverline (Tuya v3.4 / wfzeiyn1ed3axxde)",
@@ -183,6 +185,7 @@ DEVICE_PROFILES: Final[dict[str, DeviceProfile]] = {
                 111,
                 114,
                 120,
+                121,
                 124,
                 132,
                 133,

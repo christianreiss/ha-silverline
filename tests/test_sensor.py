@@ -370,7 +370,9 @@ async def test_entity_inventory_snapshot(
 async def test_v34_model_selects_v34_sensor_catalog(hass: HomeAssistant) -> None:
     """A `silverline_v34` entry builds the v3.4 sensor catalog (fan on DP 114,
     pump rpm, coil/valve sensors keyed to the v3.4 numbering) and omits the
-    legacy-only sensors. Exercises the layout → DeviceState → catalog wiring."""
+    legacy-only sensors. Exercises the layout → DeviceState → catalog wiring
+    and guards against DP 120 being misread as total_hours instead of
+    ac_voltage."""
     from unittest.mock import AsyncMock, MagicMock, patch
 
     from homeassistant.const import CONF_HOST, CONF_PORT
@@ -405,7 +407,8 @@ async def test_v34_model_selects_v34_sensor_catalog(hass: HomeAssistant) -> None
         "133": -8,
         "132": 3,
         "140": 80,
-        "120": 1234,
+        "120": 232,
+        "121": 4,
         "137": 5,
         "142": 50,
     }
@@ -461,11 +464,15 @@ async def test_v34_model_selects_v34_sensor_catalog(hass: HomeAssistant) -> None
         "aux_valve_opening",
         "main_valve_opening",
         "outlet_temperature",
+        "ac_voltage",
+        "ac_current",
     } <= sensor_keys
     # Legacy-only sensors are absent from the v3.4 catalog.
     assert "inlet_temperature" not in sensor_keys
     assert "ambient_temperature" not in sensor_keys
     assert "actual_frequency" not in sensor_keys
+    # DP 120 is line voltage here, so there is no lifetime runtime counter.
+    assert "total_operating_hours" not in sensor_keys
 
     # An enabled v3.4 sensor reads the right value via the layout (DP 105 →
     # outdoor coil temperature == 12).
@@ -475,6 +482,16 @@ async def test_v34_model_selects_v34_sensor_catalog(hass: HomeAssistant) -> None
         if e.unique_id == f"{device_id}_outdoor_coil_temperature"
     )
     assert hass.states.get(outdoor_coil).state == "12"
+
+    sensor_entries = {
+        e.unique_id.removeprefix(f"{device_id}_"): e
+        for e in er.async_entries_for_config_entry(registry, entry.entry_id)
+        if e.domain == "sensor"
+    }
+    assert hass.states.get(sensor_entries["ac_voltage"].entity_id).state == "232"
+    # ac_current is registered but disabled by default until its scale is
+    # confirmed, matching the existing Nano Fi behavior.
+    assert sensor_entries["ac_current"].disabled_by is not None
 
 
 async def test_nano_fi_3kw_model_selects_sensor_catalog(hass: HomeAssistant) -> None:
@@ -661,7 +678,8 @@ async def test_v34_entity_inventory_snapshot(
         "133": -8,
         "132": 3,
         "140": 80,
-        "120": 1234,
+        "120": 232,
+        "121": 4,
         "137": 5,
         "142": 50,
     }

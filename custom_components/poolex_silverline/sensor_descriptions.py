@@ -394,7 +394,7 @@ _WATER_PUMP_RPM = SilverlineSensorDescription(
 )
 
 
-# ---- electrical diagnostics (Nano Fi 3kW / any future model exposing them) --
+# ---- electrical diagnostics (Nano Fi 3kW, Silverline v3.4, future models) ----
 
 _AC_VOLTAGE = SilverlineSensorDescription(
     key="ac_voltage",
@@ -454,6 +454,8 @@ SENSORS: tuple[SilverlineSensorDescription, ...] = (
 #: ``LAYOUT_V34_WFZEIYN``, so the ``value_fn`` here reads the same semantic
 #: fields while ``dp_keys`` gate on this firmware's actual DP numbers. The
 #: numbering was contributed by Martin Čarek (@olomouckyorel) from real hardware.
+#: DP 120/121 are line voltage/current on this firmware variant, not a runtime
+#: hours counter — corrected by Andre Gross from real hardware.
 V34_SENSORS: tuple[SilverlineSensorDescription, ...] = (
     _TEMPERATURE_DELTA,
     replace(_OUTLET_TEMPERATURE, dp_keys=("101",)),
@@ -471,10 +473,11 @@ V34_SENSORS: tuple[SilverlineSensorDescription, ...] = (
     _EVAPORATING_TEMPERATURE,
     _SUPERHEAT,
     _COMPRESSOR_LOAD,
-    _TOTAL_OPERATING_HOURS,
     _TARGET_SUPERHEAT,
     _TARGET_CONDENSING_TEMPERATURE,
     _RUNTIME_TODAY,
+    _AC_VOLTAGE,
+    _AC_CURRENT,
 )
 
 

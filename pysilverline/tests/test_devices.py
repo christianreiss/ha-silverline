@@ -53,6 +53,15 @@ def test_layout_for_model_nano_fi_3kw_key() -> None:
     assert layout_for_model("nano_fi_3kw") is LAYOUT_NANO_FI_3KW
 
 
+def test_v34_wfzeiyn_dp_mapping() -> None:
+    """Pin the v3.4 wfzeiyn DP mapping from live hardware: DP 120/121 are
+    electrical diagnostics, not a runtime-hours counter."""
+    layout = LAYOUT_V34_WFZEIYN
+    assert layout.total_hours is None
+    assert layout.ac_voltage == 120
+    assert layout.ac_current == 121
+
+
 def test_layout_by_name_nano_fi_3kw_alias() -> None:
     assert LAYOUT_BY_NAME["nano_fi_3kw"] is LAYOUT_NANO_FI_3KW
 

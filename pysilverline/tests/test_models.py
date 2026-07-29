@@ -111,6 +111,8 @@ def test_from_dps_v34_layout_remaps_dp_numbers() -> None:
         "110": 130,  # aux valve
         "111": 850,  # circulation pump rpm
         "114": 600,  # fan speed
+        "120": 232,  # AC voltage
+        "121": 4,  # AC current
     }
     state = DeviceState.from_dps(dps, layout=LAYOUT_V34_WFZEIYN)
 
@@ -122,6 +124,9 @@ def test_from_dps_v34_layout_remaps_dp_numbers() -> None:
     assert state.aux_valve_opening == 130  # DP 110 (None on legacy layout)
     assert state.water_pump_rpm == 850  # DP 111 as an int
     assert state.fan_speed == 600  # DP 114, not DP 110
+    assert state.total_hours is None  # DP 120 is voltage on this firmware
+    assert state.ac_voltage == 232
+    assert state.ac_current == 4
     # DPs this firmware does not expose stay None even though legacy DP
     # numbers (104/105/107/108) carry data on other firmwares.
     assert state.discharge_temp is None
