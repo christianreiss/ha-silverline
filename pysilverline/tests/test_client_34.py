@@ -45,6 +45,20 @@ REMOTE_NONCE = bytes(range(16, 32))
 _SHA = hashlib.sha256
 
 
+async def _start_test_server(handler: Any) -> asyncio.Server:
+    """Start a TCP fake that always detaches accepted transports on exit."""
+
+    async def close_writer(
+        reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> None:
+        try:
+            await handler(reader, writer)
+        finally:
+            writer.close()
+
+    return await asyncio.start_server(close_writer, "127.0.0.1", 0)
+
+
 def _encode_34(
     seq: int, cmd: int, plaintext: bytes, key: bytes, *, retcode: int | None = None
 ) -> bytes:
@@ -87,7 +101,7 @@ class FakeTuya34Server:
         self._writer: asyncio.StreamWriter | None = None
 
     async def __aenter__(self) -> "FakeTuya34Server":
-        self._server = await asyncio.start_server(self._handle, "127.0.0.1", 0)
+        self._server = await _start_test_server(self._handle)
         self.port = self._server.sockets[0].getsockname()[1]
         return self
 

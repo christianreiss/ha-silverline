@@ -9,10 +9,11 @@ from homeassistant.const import STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
-from pysilverline import DeviceState
 from pysilverline.layouts import LAYOUT_V34_WFZEIYN
 from pytest_homeassistant_custom_component.common import async_fire_time_changed
 from syrupy.assertion import SnapshotAssertion
+
+from pysilverline import DeviceState
 
 
 async def test_diagnostic_sensors_populate(

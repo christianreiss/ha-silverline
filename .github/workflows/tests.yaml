@@ -11,11 +11,14 @@ env:
 jobs:
   pysilverline:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12", "3.14"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.14"
+          python-version: ${{ matrix.python-version }}
       - name: Install pysilverline
         working-directory: pysilverline
         run: |
@@ -44,7 +47,7 @@ jobs:
           # 2026.5.3 vs list[AliasEntry] in 2026.5.4). Bumping this pin
           # requires regenerating tests/snapshots/test_sensor.ambr against
           # the new HA via `pytest --snapshot-update`.
-          pip install pytest pytest-asyncio pytest-cov \
+          pip install pytest pytest-asyncio pytest-cov pytest-timeout \
             pytest-homeassistant-custom-component==0.13.333 syrupy
       - name: Run integration tests with coverage
         run: |
@@ -70,3 +73,17 @@ jobs:
         run: python -m mypy --strict src/pysilverline
       - name: mypy --strict (integration)
         run: python -m mypy --strict custom_components/poolex_silverline
+
+  ruff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Install pinned Ruff
+        run: python -m pip install ruff==0.16.1
+      - name: Ruff lint
+        run: ruff check custom_components pysilverline/src tests pysilverline/tests
+      - name: Ruff format
+        run: ruff format --check custom_components pysilverline/src tests pysilverline/tests

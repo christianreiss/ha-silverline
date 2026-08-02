@@ -8,15 +8,18 @@ import pytest
 from homeassistant.components.climate import (
     ATTR_HVAC_MODE,
     ATTR_PRESET_MODE,
-    DOMAIN as CLIMATE_DOMAIN,
     SERVICE_SET_HVAC_MODE,
     SERVICE_SET_PRESET_MODE,
     SERVICE_SET_TEMPERATURE,
     HVACMode,
 )
+from homeassistant.components.climate import (
+    DOMAIN as CLIMATE_DOMAIN,
+)
 from homeassistant.const import ATTR_ENTITY_ID, ATTR_TEMPERATURE
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
+
 from pysilverline import DeviceState
 
 ENTITY_ID = "climate.pool_heatpump"
@@ -574,6 +577,7 @@ async def test_write_surfaces_cannot_connect_as_homeassistant_error(
     """A failed write must surface as HomeAssistantError so HA's
     service-call layer reports it cleanly rather than 500ing."""
     from homeassistant.exceptions import HomeAssistantError
+
     from pysilverline import CannotConnect
 
     mock_client_factory.set_multiple.side_effect = CannotConnect("network down")
@@ -593,6 +597,7 @@ async def test_write_surfaces_invalid_auth_as_homeassistant_error(
     """A write rejected by the device for invalid auth surfaces as
     HomeAssistantError with the auth_failed translation."""
     from homeassistant.exceptions import HomeAssistantError
+
     from pysilverline import InvalidAuth
 
     mock_client_factory.set_multiple.side_effect = InvalidAuth("key rotated")
@@ -618,8 +623,9 @@ async def test_restore_state_recovers_last_direction_and_preset(
     test_async_turn_on_off_dispatch.)
     """
     from unittest.mock import AsyncMock
-    from pytest_homeassistant_custom_component.common import mock_restore_cache
+
     from homeassistant.core import State
+    from pytest_homeassistant_custom_component.common import mock_restore_cache
 
     mock_restore_cache(
         hass,
@@ -740,8 +746,9 @@ async def test_mode_switch_clamps_setpoint_above_cool_max(
 ) -> None:
     """Switching from Heat (35 °C) to Cool must write 28 °C (Cool max) because
     the carried-over setpoint exceeds the Cool upper bound."""
-    import custom_components.poolex_silverline.climate as climate_mod
     from unittest.mock import AsyncMock
+
+    import custom_components.poolex_silverline.climate as climate_mod
 
     coordinator = init_integration.runtime_data
     coordinator.async_set_updated_data(
@@ -769,8 +776,9 @@ async def test_mode_switch_clamps_setpoint_below_heat_min(
     hass: HomeAssistant, mock_client_factory, init_integration, monkeypatch
 ) -> None:
     """Switching from Cool (8 °C) to Heat must write 15 °C (Heat min)."""
-    import custom_components.poolex_silverline.climate as climate_mod
     from unittest.mock import AsyncMock
+
+    import custom_components.poolex_silverline.climate as climate_mod
 
     coordinator = init_integration.runtime_data
     coordinator.async_set_updated_data(
@@ -799,8 +807,9 @@ async def test_mode_switch_no_clamp_when_temp_in_new_range(
 ) -> None:
     """Switching from Heat (25 °C) to Cool must NOT write a second setpoint
     because 25 is within Cool range (8-28)."""
-    import custom_components.poolex_silverline.climate as climate_mod
     from unittest.mock import AsyncMock
+
+    import custom_components.poolex_silverline.climate as climate_mod
 
     coordinator = init_integration.runtime_data
     coordinator.async_set_updated_data(
@@ -845,6 +854,7 @@ async def test_pc_inv_120_model_threads_profile_to_dp4_writes(
     from unittest.mock import AsyncMock
 
     from homeassistant.const import CONF_HOST, CONF_PORT
+    from pysilverline.devices import MODEL_PC_INV_120
     from pytest_homeassistant_custom_component.common import MockConfigEntry
 
     import custom_components.poolex_silverline.climate as climate_mod
@@ -855,7 +865,6 @@ async def test_pc_inv_120_model_threads_profile_to_dp4_writes(
         DEFAULT_PORT,
         DOMAIN,
     )
-    from pysilverline.devices import MODEL_PC_INV_120
 
     entry = MockConfigEntry(
         domain=DOMAIN,

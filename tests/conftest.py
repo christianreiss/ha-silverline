@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.core import HomeAssistant
-from pysilverline import DeviceState
+from pysilverline.layouts import LAYOUT_STANDARD
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.syrupy import (
     HomeAssistantSnapshotExtension,
@@ -23,7 +23,7 @@ from custom_components.poolex_silverline.const import (
     DEFAULT_PORT,
     DOMAIN,
 )
-from pysilverline.layouts import LAYOUT_STANDARD
+from pysilverline import DeviceState
 
 DEVICE_ID = "bf12345678abcdefghijkl"
 LOCAL_KEY = "0123456789abcdef"

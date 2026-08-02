@@ -2,7 +2,7 @@ rules:
   # Bronze
   action-setup:
     status: exempt
-    comment: Integration registers no custom service actions in v0.1.
+    comment: Integration registers no custom service actions.
   appropriate-polling:
     status: done
     comment: |
@@ -27,7 +27,7 @@ rules:
   dependency-transparency: done
   docs-actions:
     status: exempt
-    comment: Integration registers no custom service actions in v0.1.
+    comment: Integration registers no custom service actions.
   docs-high-level-description: done
   docs-installation-instructions: done
   docs-removal-instructions: done

@@ -95,7 +95,7 @@ def _decode_broadcast(data: bytes, *, encrypted: bool) -> DiscoveryInfo | None:
             return None
         try:
             plaintext = aes_decrypt(body, UDP_DISCOVERY_KEY)
-        except Exception:  # noqa: BLE001 — codec raises ProtocolError/ValueError/InvalidAuth
+        except Exception:
             return None
     else:
         plaintext = body
@@ -146,6 +146,12 @@ class _DiscoveryProtocol(asyncio.DatagramProtocol):
             _LOGGER.debug("discovery queue full; dropping %s", info.device_id)
 
 
+# A hostile LAN peer can generate valid discovery frames because the Tuya
+# discovery key is public. Bound decoded announcements so such a peer cannot
+# consume memory faster than the async consumer can drain the queue.
+_DISCOVERY_QUEUE_MAX = 256
+
+
 async def _bind_listeners(
     queue: asyncio.Queue[DiscoveryInfo],
 ) -> tuple[asyncio.DatagramTransport, asyncio.DatagramTransport]:
@@ -183,7 +189,7 @@ async def discover_once(timeout: float = 15.0) -> list[DiscoveryInfo]:
     Returns an empty list if no devices announce in the window. Never
     raises on garbage input.
     """
-    queue: asyncio.Queue[DiscoveryInfo] = asyncio.Queue()
+    queue: asyncio.Queue[DiscoveryInfo] = asyncio.Queue(maxsize=_DISCOVERY_QUEUE_MAX)
     t_plain, t_enc = await _bind_listeners(queue)
     seen: dict[str, DiscoveryInfo] = {}
     loop = asyncio.get_running_loop()
@@ -210,7 +216,7 @@ async def discover() -> AsyncIterator[DiscoveryInfo]:
     Yields every parsed announcement (no deduplication — callers that
     care can track ``device_id``s themselves). Cancel the task to stop.
     """
-    queue: asyncio.Queue[DiscoveryInfo] = asyncio.Queue()
+    queue: asyncio.Queue[DiscoveryInfo] = asyncio.Queue(maxsize=_DISCOVERY_QUEUE_MAX)
     t_plain, t_enc = await _bind_listeners(queue)
     try:
         while True:

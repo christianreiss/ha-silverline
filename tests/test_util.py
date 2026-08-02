@@ -4,11 +4,17 @@ the COOL and HEAT_COOL paths gated on DP-108 actual_frequency."""
 
 from __future__ import annotations
 
-from homeassistant.components.climate.const import HVACAction
-from pysilverline import DeviceState
+from homeassistant.components.climate.const import HVACAction, HVACMode
+from pysilverline.devices import MODEL_PC_INV_120
 
-from homeassistant.components.climate.const import HVACMode
-
+from custom_components.poolex_silverline.const import (
+    DEVICE_PROFILES,
+    PRESET_BOOST,
+    PRESET_ECO,
+    PRESET_NONE,
+    PRESET_TO_COOL_DP,
+    PRESET_TO_HEAT_DP,
+)
 from custom_components.poolex_silverline.util import (
     compute_hvac_action,
     derive_hvac_mode,
@@ -18,15 +24,7 @@ from custom_components.poolex_silverline.util import (
     resolve_cool_map,
     resolve_heat_map,
 )
-from custom_components.poolex_silverline.const import (
-    DEVICE_PROFILES,
-    PRESET_BOOST,
-    PRESET_ECO,
-    PRESET_NONE,
-    PRESET_TO_COOL_DP,
-    PRESET_TO_HEAT_DP,
-)
-from pysilverline.devices import MODEL_PC_INV_120
+from pysilverline import DeviceState
 
 
 def test_compute_hvac_action_cool_idle_when_actual_frequency_zero() -> None:

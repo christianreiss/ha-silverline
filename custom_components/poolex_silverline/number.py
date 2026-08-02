@@ -22,7 +22,9 @@ from homeassistant.components.number import (
 from homeassistant.const import UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from pysilverline import DeviceState, const as tuya_const
+
+from pysilverline import DeviceState
+from pysilverline import const as tuya_const
 
 from .coordinator import SilverlineConfigEntry, SilverlineCoordinator
 from .entity import SilverlineEntity

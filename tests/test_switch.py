@@ -7,6 +7,8 @@ from unittest.mock import AsyncMock
 import pytest
 from homeassistant.components.switch import (
     DOMAIN as SWITCH_DOMAIN,
+)
+from homeassistant.components.switch import (
     SERVICE_TURN_OFF,
     SERVICE_TURN_ON,
 )
@@ -14,8 +16,9 @@ from homeassistant.const import ATTR_ENTITY_ID, STATE_OFF, STATE_ON, STATE_UNAVA
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
-from pysilverline import CannotConnect, DeviceState, InvalidAuth, SilverlineError
 from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+from pysilverline import CannotConnect, DeviceState, InvalidAuth, SilverlineError
 
 ENTITY_ID = "switch.pool_heatpump_power"
 

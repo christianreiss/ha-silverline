@@ -28,6 +28,20 @@ KEY = "0123456789abcdef"
 DEVICE_ID = "bf12345678abcdefghijkl"
 
 
+async def _start_test_server(handler: Any) -> asyncio.Server:
+    """Start a TCP fake that always detaches accepted transports on exit."""
+
+    async def close_writer(
+        reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> None:
+        try:
+            await handler(reader, writer)
+        finally:
+            writer.close()
+
+    return await asyncio.start_server(close_writer, "127.0.0.1", 0)
+
+
 def _build_frame(
     seq: int, cmd: int, body: dict[str, Any], *, retcode: int | None = 0
 ) -> bytes:
@@ -69,7 +83,7 @@ class _Server:
         self.connections: int = 0
 
     async def __aenter__(self) -> "_Server":
-        self._server = await asyncio.start_server(self._dispatch, "127.0.0.1", 0)
+        self._server = await _start_test_server(self._dispatch)
         self.port = self._server.sockets[0].getsockname()[1]
         return self
 
@@ -1038,7 +1052,7 @@ async def test_reconnect_keeps_retrying_past_backoff_schedule(
             except (OSError, ConnectionError):
                 pass
 
-    server = await asyncio.start_server(serve, "127.0.0.1", 0)
+    server = await _start_test_server(serve)
     port = server.sockets[0].getsockname()[1]
 
     events: list[bool] = []

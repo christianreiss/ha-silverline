@@ -7,13 +7,16 @@ import asyncio
 import pytest
 from homeassistant.components.select import (
     ATTR_OPTION,
-    DOMAIN as SELECT_DOMAIN,
     SERVICE_SELECT_OPTION,
+)
+from homeassistant.components.select import (
+    DOMAIN as SELECT_DOMAIN,
 )
 from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_registry as er
+
 from pysilverline import DeviceState
 
 PRESET_ENTITY = "select.pool_heatpump_preset"
@@ -283,6 +286,7 @@ async def test_operating_mode_write_invalid_auth_surfaces(
     """A rejected write on the operating_mode select surfaces as a
     translated HomeAssistantError with the auth_failed key."""
     from homeassistant.exceptions import HomeAssistantError
+
     from pysilverline import InvalidAuth
 
     mock_client_factory.set_multiple.side_effect = InvalidAuth("rotated")
@@ -302,6 +306,7 @@ async def test_operating_mode_write_cannot_connect_surfaces(
     """A network drop during an operating_mode write surfaces as
     HomeAssistantError with the set_failed translation."""
     from homeassistant.exceptions import HomeAssistantError
+
     from pysilverline import CannotConnect
 
     mock_client_factory.set_multiple.side_effect = CannotConnect("offline")
@@ -393,10 +398,13 @@ async def test_pc_inv_120_model_threads_profile_to_dp4_writes(
 
     from homeassistant.components.select import (
         ATTR_OPTION,
-        DOMAIN as SELECT_DOMAIN,
         SERVICE_SELECT_OPTION,
     )
+    from homeassistant.components.select import (
+        DOMAIN as SELECT_DOMAIN,
+    )
     from homeassistant.const import ATTR_ENTITY_ID, CONF_HOST, CONF_PORT
+    from pysilverline.devices import MODEL_PC_INV_120
     from pytest_homeassistant_custom_component.common import MockConfigEntry
 
     import custom_components.poolex_silverline.select as select_mod
@@ -407,7 +415,6 @@ async def test_pc_inv_120_model_threads_profile_to_dp4_writes(
         DEFAULT_PORT,
         DOMAIN,
     )
-    from pysilverline.devices import MODEL_PC_INV_120
 
     entry = MockConfigEntry(
         domain=DOMAIN,

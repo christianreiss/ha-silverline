@@ -37,19 +37,20 @@ Bumping a version number in a commit does nothing on its own.
 
 2. Commit the version bump (one commit, both bumps together).
 
-3. Push to **both** remotes — but **never push tags manually to `github`**:
+3. Push the version-bump commit to **both** remotes:
 
    ```bash
    git push github main
    git push origin main
-   # optionally keep Gitea tags in sync:
-   git push origin --tags
    ```
 
-4. The `auto-release.yaml` workflow on GitHub Actions detects the version bump
-   and creates the tags (`vA.B.C` and `pysilverline-vX.Y.Z`) itself.
+4. Run `./scripts/release.sh`. It verifies the tree is clean, HEAD is pushed,
+   and the manifest pins the library version being tagged. It then creates and
+   pushes `vA.B.C` and `pysilverline-vX.Y.Z` to GitHub and mirrors them to
+   Gitea.
 
-5. Those tags trigger `release.yaml` (GitHub Release) and `pysilverline-pypi.yaml` (PyPI).
+5. Those user-pushed tags trigger `release.yaml` (GitHub Release) and
+   `pysilverline-pypi.yaml` (PyPI).
 
 ### Ordering constraint
 
@@ -59,28 +60,16 @@ The tag-based pipelines both fire from the same commit push, so they
 race — in practice PyPI finishes first (~49 s) before anyone installs,
 but be aware of this if something goes wrong.
 
-### RELEASE_PAT — why it matters
+### Manual recovery
 
-`auto-release.yaml` pushes tags with `secrets.RELEASE_PAT` (falls back to
-`github.token`). GitHub's anti-recursion rule: **a tag pushed with
-`GITHUB_TOKEN` does NOT trigger other workflows**. Without `RELEASE_PAT`:
-
-- tags are created on GitHub ✓
-- `release.yaml` and `pysilverline-pypi.yaml` do NOT fire ✗
-
-**Setup (one-time):**
-1. Create a fine-grained PAT scoped to this repo,
-   `Repository permissions → Contents: Read and write`.
-2. Add it as a repository secret named `RELEASE_PAT`
-   (Settings → Secrets and variables → Actions).
-
-### Manual recovery (when RELEASE_PAT is absent)
-
-If tags exist on GitHub but releases didn't fire, trigger them by hand:
+If tags exist on GitHub but a downstream workflow did not fire, trigger it by
+hand. Both workflows require the exact tag and check out that tag before
+building, so a recovery cannot accidentally package current `main` under an
+older version:
 
 - **GitHub Release:** Actions → Release → "Run workflow" → enter tag (e.g. `v0.8.2`) → Run
-- **PyPI:** Actions → Publish pysilverline to PyPI → "Run workflow" → Run
-  (no input needed; builds from the current HEAD's `pyproject.toml` version)
+- **PyPI:** Actions → Publish pysilverline to PyPI → "Run workflow" → enter
+  the library tag (e.g. `pysilverline-v0.5.1`) → Run
 
 Both workflows have `workflow_dispatch` enabled for exactly this scenario.
 
@@ -89,7 +78,7 @@ Both workflows have `workflow_dispatch` enabled for exactly this scenario.
 ## Pre-commit hook
 
 The repo uses a custom hooks path (`git config core.hooksPath`).
-The pre-commit hook runs the full pysilverline test suite (v3.3 + v3.5 API tests).
+The pre-commit hook runs the full pysilverline test suite (v3.3 + v3.4 + v3.5 API tests).
 **Never use `--no-verify`** — the hook catches protocol-level regressions.
 
 ---
@@ -100,7 +89,7 @@ The pre-commit hook runs the full pysilverline test suite (v3.3 + v3.5 API tests
 |------|---------|
 | `custom_components/poolex_silverline/` | HA integration (HACS) |
 | `pysilverline/` | standalone library published to PyPI |
-| `.github/workflows/auto-release.yaml` | creates tags on version bump |
+| `scripts/release.sh` | validates, creates, and pushes both release tags |
 | `.github/workflows/release.yaml` | builds GitHub Release from `v*` tag |
 | `.github/workflows/pysilverline-pypi.yaml` | publishes library to PyPI |
 | `GUIDELINES.md` | HA integration idioms and quality-scale rules |

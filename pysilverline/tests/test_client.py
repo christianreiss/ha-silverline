@@ -18,6 +18,20 @@ KEY = "0123456789abcdef"
 DEVICE_ID = "bf12345678abcdefghijkl"
 
 
+async def _start_test_server(handler: Any) -> asyncio.Server:
+    """Start a TCP fake that always detaches accepted transports on exit."""
+
+    async def close_writer(
+        reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> None:
+        try:
+            await handler(reader, writer)
+        finally:
+            writer.close()
+
+    return await asyncio.start_server(close_writer, "127.0.0.1", 0)
+
+
 def _build_frame(
     seq: int, cmd: int, body: dict[str, Any], *, retcode: int | None = 0
 ) -> bytes:
@@ -47,7 +61,7 @@ class FakeTuyaServer:
         self.port: int = 0
 
     async def __aenter__(self) -> "FakeTuyaServer":
-        self._server = await asyncio.start_server(self._handle, "127.0.0.1", 0)
+        self._server = await _start_test_server(self._handle)
         self.port = self._server.sockets[0].getsockname()[1]
         return self
 
@@ -174,7 +188,7 @@ async def test_poll_merges_with_prior_push_state() -> None:
             except OSError:
                 pass
 
-    server = await asyncio.start_server(handler, "127.0.0.1", 0)
+    server = await _start_test_server(handler)
     port = server.sockets[0].getsockname()[1]
     try:
         client = SilverlineClient(
@@ -264,8 +278,14 @@ async def test_push_listener_receives_spontaneous_status() -> None:
                     return
         except (OSError, ConnectionError):
             return
+        finally:
+            writer.close()
+            try:
+                await writer.wait_closed()
+            except OSError:
+                pass
 
-    server_obj = await asyncio.start_server(push_on_connect, "127.0.0.1", 0)
+    server_obj = await _start_test_server(push_on_connect)
     port = server_obj.sockets[0].getsockname()[1]
     try:
         client = SilverlineClient(
@@ -452,7 +472,7 @@ async def test_get_status_survives_tcp_fragmented_response() -> None:
             except OSError:
                 pass
 
-    server = await asyncio.start_server(handler, "127.0.0.1", 0)
+    server = await _start_test_server(handler)
     port = server.sockets[0].getsockname()[1]
     try:
         client = SilverlineClient(
@@ -533,7 +553,7 @@ async def test_reconnect_on_peer_close(monkeypatch: pytest.MonkeyPatch) -> None:
             except OSError:
                 pass
 
-    server = await asyncio.start_server(handler, "127.0.0.1", 0)
+    server = await _start_test_server(handler)
     port = server.sockets[0].getsockname()[1]
     try:
         events: list[bool] = []
@@ -614,7 +634,7 @@ async def test_oversize_frame_header_closes_connection(
             peer_closed.set()
             return
 
-    server = await asyncio.start_server(handler, "127.0.0.1", 0)
+    server = await _start_test_server(handler)
     port = server.sockets[0].getsockname()[1]
     try:
         events: list[bool] = []
@@ -674,7 +694,7 @@ async def test_back_to_back_drops_keep_triggering_reconnects(
         except OSError:
             pass
 
-    server = await asyncio.start_server(drop_immediately, "127.0.0.1", 0)
+    server = await _start_test_server(drop_immediately)
     port = server.sockets[0].getsockname()[1]
     try:
         client = SilverlineClient(
@@ -776,7 +796,7 @@ async def test_reconnect_survives_protocol_error_in_post_reconnect_status(
             except OSError:
                 pass
 
-    server = await asyncio.start_server(handler, "127.0.0.1", 0)
+    server = await _start_test_server(handler)
     port = server.sockets[0].getsockname()[1]
     try:
         client = SilverlineClient(
@@ -844,7 +864,7 @@ async def test_disconnect_propagates_outer_cancel(
         except OSError:
             pass
 
-    server = await asyncio.start_server(drop_immediately, "127.0.0.1", 0)
+    server = await _start_test_server(drop_immediately)
     port = server.sockets[0].getsockname()[1]
     try:
         client = SilverlineClient(
@@ -902,7 +922,7 @@ async def test_disconnect_cancels_reconnect_task(
         except OSError:
             pass
 
-    server = await asyncio.start_server(handler, "127.0.0.1", 0)
+    server = await _start_test_server(handler)
     port = server.sockets[0].getsockname()[1]
     try:
         client = SilverlineClient(

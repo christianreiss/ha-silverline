@@ -10,6 +10,7 @@ duplicate).
 from __future__ import annotations
 
 from homeassistant.components.climate.const import HVACAction, HVACMode
+
 from pysilverline import DeviceState
 
 from .const import (
@@ -19,13 +20,13 @@ from .const import (
     COOL_PREFIX_TO_PRESET,
     COOL_TEMP_MAX,
     COOL_TEMP_MIN,
-    DeviceProfile,
     HEAT_PREFIX_TO_PRESET,
     HEAT_TEMP_MAX,
     HEAT_TEMP_MIN,
     PRESET_NONE,
     PRESET_TO_COOL_DP,
     PRESET_TO_HEAT_DP,
+    DeviceProfile,
 )
 
 

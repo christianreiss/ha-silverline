@@ -9,13 +9,13 @@ from unittest.mock import AsyncMock, patch
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.util import dt as dt_util
-from pysilverline import DeviceState
 from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
 from custom_components.poolex_silverline.const import (
     DOMAIN,
     E03_DEBOUNCE_SECONDS,
 )
+from pysilverline import DeviceState
 
 
 def _issue(hass: HomeAssistant, key: str) -> ir.IssueEntry | None:

@@ -6,10 +6,10 @@ per-connection session-key derivations (v3.4 ECB, v3.5 GCM).
 
 from __future__ import annotations
 
+import hmac
+
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-
-import hmac
 
 from ..exceptions import InvalidAuth, ProtocolError
 

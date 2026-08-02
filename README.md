@@ -474,7 +474,7 @@ suffix becomes heat/cool. All seven modes are accessible.
 ## Related projects
 
 - [`pysilverline`](./pysilverline) — the underlying async Tuya v3.3 / v3.4 /
-  v3.5 client, reusable outside Home Assistant.
+  v3.5 client, reusable outside Home Assistant on Python 3.12+.
 - [`tinytuya`](https://github.com/jasonacox/tinytuya) — generic Tuya local
   protocol library that informed parts of the protocol implementation.
 - [`tuya-local`](https://github.com/make-all/tuya-local) — community Tuya
@@ -538,7 +538,9 @@ This points `core.hooksPath` at the tracked `.githooks/` directory. The
 (Tuya **v3.3**, **v3.4** and **v3.5**) before every commit, so a change that
 breaks any wire protocol can't land. It's the library suite only (fast, ~1–2 s);
 linting, type-checking, and the Home Assistant integration tests are left to
-CI and `scripts/platinum-gate.sh`.
+CI and `scripts/platinum-gate.sh`. CI and the gate both use Ruff 0.16.1 with
+the explicit rule set in the two `pyproject.toml` files, so lint behavior does
+not drift when Ruff changes its defaults.
 
 Bypass the hook for a single commit with `git commit --no-verify`, or set
 `SKIP_HOOK_TESTS=1` in the environment.
@@ -553,10 +555,11 @@ release:
    `pysilverline`, repository `christianreiss/ha-silverline`, workflow
    `pysilverline-pypi.yaml` (in `.github/workflows/`), environment `pypi`.
 2. Ensure `pysilverline/pyproject.toml` has the intended version.
-3. Push `pysilverline-vX.Y.Z`; the PyPI workflow builds and publishes that
-   exact version.
-4. Verify `python -m pip index versions pysilverline` lists the version, then
-   tag the Home Assistant integration release.
+3. Commit and push the version bump to both remotes.
+4. Run `./scripts/release.sh`; it validates the version relationship and
+   pushes both exact tags. The tag workflows publish the library and the
+   integration release from the tagged commit.
+5. Verify PyPI and the GitHub release before announcing the release.
 
 ## License
 

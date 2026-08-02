@@ -5,6 +5,7 @@ from __future__ import annotations
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+
 from pysilverline import InvalidAuth, SilverlineError
 
 from .const import CONF_MODEL, DEVICE_PROFILES, DOMAIN, MANUFACTURER, MODEL

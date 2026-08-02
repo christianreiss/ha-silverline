@@ -8,8 +8,10 @@ from homeassistant.components.number import (
     ATTR_MAX,
     ATTR_MIN,
     ATTR_VALUE,
-    DOMAIN as NUMBER_DOMAIN,
     SERVICE_SET_VALUE,
+)
+from homeassistant.components.number import (
+    DOMAIN as NUMBER_DOMAIN,
 )
 from homeassistant.const import (
     ATTR_ENTITY_ID,
@@ -17,8 +19,9 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
-from pysilverline import DeviceState
 from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+from pysilverline import DeviceState
 
 ENTITY_ID = "number.pool_heatpump_target_temperature"
 
@@ -217,9 +220,10 @@ async def test_set_value_surfaces_invalid_auth_as_homeassistant_error(
     """When the device rejects the write because the key rotated, the
     number entity must surface HomeAssistantError with the auth_failed
     translation key — matches what climate/switch do."""
-    from homeassistant.exceptions import HomeAssistantError
-    from pysilverline import InvalidAuth
     import pytest
+    from homeassistant.exceptions import HomeAssistantError
+
+    from pysilverline import InvalidAuth
 
     mock_client_factory.set_multiple.side_effect = InvalidAuth("rotated")
     with pytest.raises(HomeAssistantError) as exc:
@@ -237,9 +241,10 @@ async def test_set_value_surfaces_cannot_connect_as_homeassistant_error(
 ) -> None:
     """A network drop during a slider write becomes a translated
     HomeAssistantError, not a 500 from the service layer."""
-    from homeassistant.exceptions import HomeAssistantError
-    from pysilverline import CannotConnect
     import pytest
+    from homeassistant.exceptions import HomeAssistantError
+
+    from pysilverline import CannotConnect
 
     mock_client_factory.set_multiple.side_effect = CannotConnect("network down")
     with pytest.raises(HomeAssistantError) as exc:

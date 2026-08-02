@@ -123,7 +123,7 @@ async def gather(
             try:
                 found = await discover_once(timeout=discovery_timeout)
                 result["discovery"] = [asdict(d) for d in found]
-            except Exception as err:  # noqa: BLE001 — discovery is best-effort
+            except Exception as err:
                 result["discovery_error"] = type(err).__name__
 
         client = SilverlineClient(
@@ -150,7 +150,7 @@ async def gather(
             await client.disconnect()
     except SilverlineError as err:
         result["error"] = {"type": type(err).__name__, "message": str(err)}
-    except Exception as err:  # noqa: BLE001 — report unexpected failures, don't crash
+    except Exception as err:
         result["error"] = {"type": type(err).__name__, "message": str(err)}
     finally:
         pkg_logger.removeHandler(handler)
@@ -524,7 +524,7 @@ def run_diagnose(args: argparse.Namespace) -> int:
         print(f"Scanning for devices ({args.discovery_timeout:.0f}s)…")
         try:
             discovered = asyncio.run(discover_once(timeout=args.discovery_timeout))
-        except Exception:  # noqa: BLE001 — discovery is a convenience, never fatal
+        except Exception:
             discovered = []
         params = _collect_interactive(args, discovered)
         print("\nConnecting and reading the device…\n")

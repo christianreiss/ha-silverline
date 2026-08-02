@@ -177,6 +177,7 @@ async def test_discover_once_returns_unique_devices() -> None:
     captured: list[DiscoveryInfo] = [info_a, info_a, info_a, info_b]
 
     async def fake_bind(queue: asyncio.Queue[DiscoveryInfo]):
+        assert queue.maxsize == 256
         for item in captured:
             queue.put_nowait(item)
 

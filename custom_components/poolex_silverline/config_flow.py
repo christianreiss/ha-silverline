@@ -15,14 +15,6 @@ from homeassistant.config_entries import (
 from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.core import callback
 
-from .const import (
-    CONF_DEVICE_ID,
-    CONF_LOCAL_KEY,
-    CONF_MODEL,
-    CONF_PROTOCOL_VERSION,
-    DEFAULT_PORT,
-    DOMAIN,
-)
 from ._config_validation import (
     _DISCOVERY_CONFIRM_SCHEMA,
     _KNOWN_POOLEX_PRODUCT_KEYS,
@@ -33,6 +25,14 @@ from ._config_validation import (
     _verify_host,
     options_schema,
     scan_interval_from_options,
+)
+from .const import (
+    CONF_DEVICE_ID,
+    CONF_LOCAL_KEY,
+    CONF_MODEL,
+    CONF_PROTOCOL_VERSION,
+    DEFAULT_PORT,
+    DOMAIN,
 )
 from .util import mask_device_id
 

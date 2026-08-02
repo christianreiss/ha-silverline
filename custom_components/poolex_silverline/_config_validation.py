@@ -209,7 +209,7 @@ async def _verify_host(host: str, entry_data: Mapping[str, Any]) -> bool:
         await client.get_status()
     except (CannotConnect, InvalidAuth, ValueError):
         return False
-    except Exception:  # noqa: BLE001
+    except Exception:
         _LOGGER.exception("Unexpected error verifying discovered host")
         return False
     finally:
@@ -234,7 +234,7 @@ async def _try_validate(
         return "invalid_auth", None
     except ValueError:
         return "invalid_auth", None
-    except Exception:  # noqa: BLE001
+    except Exception:
         _LOGGER.exception("Unexpected error during validation")
         return "unknown", None
     return None, version

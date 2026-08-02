@@ -11,9 +11,9 @@ from homeassistant.const import CONF_HOST, CONF_PORT, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
+from pysilverline.layouts import layout_for_model
 
 from pysilverline import SilverlineClient, discover
-from pysilverline.layouts import layout_for_model
 
 from .const import (
     CONF_DEVICE_ID,
@@ -54,6 +54,10 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     Already-configured devices' discovery handler aborts with
     ``already_configured`` after pushing any new IP into the existing
     entry — covers the Gold ``discovery-update-info`` rule for free.
+
+    This listener intentionally lives for the full HA process instead of the
+    lifetime of a config entry: discovery must remain available with zero
+    configured devices so a newly added heat pump can be offered in the UI.
     """
     if DOMAIN in hass.data and _DISCOVERY_TASK_KEY in hass.data[DOMAIN]:
         return True
@@ -100,7 +104,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                 )
         except asyncio.CancelledError:
             raise
-        except Exception:  # noqa: BLE001
+        except Exception:
             _LOGGER.exception("discovery listener crashed")
 
     task = hass.async_create_background_task(

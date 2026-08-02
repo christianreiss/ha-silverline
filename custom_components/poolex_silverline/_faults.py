@@ -11,6 +11,7 @@ from typing import Final
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import issue_registry as ir
+
 from pysilverline import DeviceState
 from pysilverline import const as tuya_const
 

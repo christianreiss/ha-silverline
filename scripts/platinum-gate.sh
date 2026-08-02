@@ -51,11 +51,20 @@ skip() { local label="$1"; local why="$2"
 have() { command -v "$1" >/dev/null 2>&1; }
 
 # ---- 1. lint & format -------------------------------------------------------
-if have ruff; then
-  run "ruff lint"        ruff check "${INTEGRATION}" "${LIB_DIR}/src" "${INT_TESTS}" "${LIB_DIR}/tests"
-  run "ruff format check" ruff format --check "${INTEGRATION}" "${LIB_DIR}/src" "${INT_TESTS}" "${LIB_DIR}/tests"
+RUFF_VERSION="0.16.1"
+if have uvx; then
+  RUFF=(uvx --from "ruff==${RUFF_VERSION}" ruff)
+elif have ruff && [[ "$(ruff --version)" == "ruff ${RUFF_VERSION}" ]]; then
+  RUFF=(ruff)
 else
-  skip "ruff" "ruff not installed (pip install ruff)"
+  RUFF=()
+fi
+
+if ((${#RUFF[@]})); then
+  run "ruff ${RUFF_VERSION} lint" "${RUFF[@]}" check "${INTEGRATION}" "${LIB_DIR}/src" "${INT_TESTS}" "${LIB_DIR}/tests"
+  run "ruff ${RUFF_VERSION} format check" "${RUFF[@]}" format --check "${INTEGRATION}" "${LIB_DIR}/src" "${INT_TESTS}" "${LIB_DIR}/tests"
+else
+  skip "ruff" "install uvx or ruff==${RUFF_VERSION}"
 fi
 
 # ---- 2. strict typing (Platinum: strict-typing) -----------------------------
@@ -175,6 +184,18 @@ run "manifest version present (custom-component requirement)" \
 import json, sys, pathlib
 m = json.loads(pathlib.Path(sys.argv[1]).read_text())
 sys.exit(0 if m.get("version") and m.get("documentation") else 1)
+PY
+
+run "root package version matches manifest" \
+  python - pyproject.toml "${INTEGRATION}/manifest.json" <<'PY'
+import json, pathlib, sys, tomllib
+project = tomllib.loads(pathlib.Path(sys.argv[1]).read_text())
+manifest = json.loads(pathlib.Path(sys.argv[2]).read_text())
+actual = project["project"]["version"]
+expected = manifest["version"]
+if actual != expected:
+    print(f"version mismatch: pyproject={actual}, manifest={expected}")
+    sys.exit(1)
 PY
 
 # ---- 8. library builds & wheel carries py.typed -----------------------------

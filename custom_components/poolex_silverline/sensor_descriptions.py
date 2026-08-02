@@ -44,8 +44,9 @@ from homeassistant.const import (
     UnitOfTemperature,
     UnitOfTime,
 )
-from pysilverline import DeviceState
 from pysilverline.devices import MODEL_NANO_FI_3KW, MODEL_SILVERLINE_V34
+
+from pysilverline import DeviceState
 
 from ._faults import _decode_fault
 

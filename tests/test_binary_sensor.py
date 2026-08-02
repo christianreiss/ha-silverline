@@ -5,6 +5,7 @@ from __future__ import annotations
 from homeassistant.const import STATE_OFF, STATE_ON
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
+
 from pysilverline import DeviceState
 
 COMPRESSOR = "binary_sensor.pool_heatpump_compressor"

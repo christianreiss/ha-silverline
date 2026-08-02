@@ -10,7 +10,6 @@ from homeassistant.config_entries import SOURCE_USER
 from homeassistant.const import CONF_HOST, CONF_PORT, CONF_SCAN_INTERVAL
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType, InvalidData
-from pysilverline import CannotConnect, InvalidAuth
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.poolex_silverline._config_validation import (
@@ -26,6 +25,7 @@ from custom_components.poolex_silverline.const import (
     MAX_SCAN_INTERVAL,
     MIN_SCAN_INTERVAL,
 )
+from pysilverline import CannotConnect, InvalidAuth
 
 from .conftest import DEVICE_ID, ENTRY_DATA, HOST, LOCAL_KEY
 
@@ -406,6 +406,7 @@ async def test_discovery_logs_known_product_key(
     permissive filter does not abort — that's the user-chosen behavior
     until more productKeys are captured."""
     import logging
+
     from homeassistant.config_entries import SOURCE_INTEGRATION_DISCOVERY
 
     caplog.set_level(
@@ -443,6 +444,7 @@ async def test_discovery_aborts_on_unknown_product_key(
     appears for it. The check fires before async_set_unique_id, so the
     bogus device_id never lands in the flow context either."""
     import logging
+
     from homeassistant.config_entries import SOURCE_INTEGRATION_DISCOVERY
 
     caplog.set_level(
@@ -476,6 +478,7 @@ async def test_discovery_logs_missing_product_key_as_known_false(
     that doesn't include it in the broadcast JSON) logs known=False and
     continues with the flow."""
     import logging
+
     from homeassistant.config_entries import SOURCE_INTEGRATION_DISCOVERY
 
     caplog.set_level(

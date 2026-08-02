@@ -9,8 +9,9 @@ from unittest.mock import AsyncMock
 import pytest
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
-from pysilverline import CannotConnect, DeviceState, InvalidAuth, SilverlineError
 from pytest_homeassistant_custom_component.common import async_fire_time_changed
+
+from pysilverline import CannotConnect, DeviceState, InvalidAuth, SilverlineError
 
 
 async def test_push_callback_updates_state(
@@ -158,11 +159,13 @@ async def test_known_model_pre_populates_supported_dps(
     supported_dps with the 5 known DPs so entities register before first poll.
     """
     from pytest_homeassistant_custom_component.common import MockConfigEntry
+
     from custom_components.poolex_silverline.const import (
         CONF_MODEL,
         DEVICE_PROFILES,
         DOMAIN,
     )
+
     from .conftest import DEVICE_ID, ENTRY_DATA, HOST
 
     entry = MockConfigEntry(
@@ -192,7 +195,9 @@ async def test_unknown_model_leaves_supported_dps_empty(
     """CONF_MODEL='other' (known_dps=None) leaves supported_dps empty until
     the first poll populates it."""
     from pytest_homeassistant_custom_component.common import MockConfigEntry
+
     from custom_components.poolex_silverline.const import CONF_MODEL, DOMAIN
+
     from .conftest import DEVICE_ID, ENTRY_DATA, HOST
 
     entry = MockConfigEntry(

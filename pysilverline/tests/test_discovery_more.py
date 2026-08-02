@@ -28,8 +28,8 @@ from pysilverline import const
 from pysilverline.discovery import (
     UDP_DISCOVERY_KEY,
     DiscoveryInfo,
-    _DiscoveryProtocol,
     _decode_broadcast,
+    _DiscoveryProtocol,
     discover,
 )
 from pysilverline.protocol import aes_encrypt
@@ -224,6 +224,7 @@ async def test_discover_yields_then_cancels() -> None:
     closed: list[str] = []
 
     async def fake_bind(queue: asyncio.Queue[DiscoveryInfo]) -> tuple[Any, Any]:
+        assert queue.maxsize == 256
         for item in captured:
             queue.put_nowait(item)
 
@@ -264,10 +265,10 @@ async def test_bind_listeners_binds_two_endpoints(
     coexist with a real device on the LAN. The successful return of
     two transports is the test — coverage flows out of that.
     """
-    import pysilverline.discovery as discovery_mod
-
     # Pick two free ephemeral ports by binding+immediately releasing.
     import socket
+
+    import pysilverline.discovery as discovery_mod
 
     def _pick() -> int:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
@@ -296,8 +297,9 @@ async def test_bind_listeners_actually_receives_real_packet(
     """End-to-end: a UDP packet sent to the bound encrypted port lands in
     the queue, having flowed through datagram_received → _decode_broadcast.
     This is what makes discover()/discover_once() actually work."""
-    import pysilverline.discovery as discovery_mod
     import socket
+
+    import pysilverline.discovery as discovery_mod
 
     def _pick() -> int:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:

@@ -10,17 +10,32 @@ import os
 import struct
 from typing import Any
 
-from pysilverline import const
 from pysilverline.protocol import (
     Frame35Codec,
     aes_gcm_encrypt,
     derive_session_key_35,
 )
 
+from pysilverline import const
+
 KEY = "0123456789abcdef"
 KEY_B = KEY.encode()
 DEVICE_ID = "bf12345678abcdefghijkl"
 REMOTE_NONCE = bytes(range(16, 32))
+
+
+async def _start_test_server(handler: Any) -> asyncio.Server:
+    """Start a TCP fake that always detaches accepted transports on exit."""
+
+    async def close_writer(
+        reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> None:
+        try:
+            await handler(reader, writer)
+        finally:
+            writer.close()
+
+    return await asyncio.start_server(close_writer, "127.0.0.1", 0)
 
 
 def _encode_35(seq: int, cmd: int, plaintext: bytes, key: bytes) -> bytes:
@@ -51,7 +66,7 @@ class FakeTuya35Server:
         return self._resp_seq
 
     async def __aenter__(self) -> "FakeTuya35Server":
-        self._server = await asyncio.start_server(self._handle, "127.0.0.1", 0)
+        self._server = await _start_test_server(self._handle)
         self.port = self._server.sockets[0].getsockname()[1]
         return self
 

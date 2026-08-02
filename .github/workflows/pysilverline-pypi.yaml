@@ -5,6 +5,10 @@ on:
     tags:
       - "pysilverline-v*.*.*"
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to publish (e.g. pysilverline-v0.5.1)'
+        required: true
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
@@ -14,13 +18,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
 
       - name: Verify tag matches package version
-        if: startsWith(github.ref, 'refs/tags/')
         working-directory: pysilverline
         run: |
           python - <<'PY'
@@ -30,7 +35,8 @@ jobs:
 
           version = tomllib.loads(pathlib.Path("pyproject.toml").read_text())["project"]["version"]
           expected = f"refs/tags/pysilverline-v{version}"
-          actual = "${{ github.ref }}"
+          ref = "${{ github.event.inputs.tag || github.ref }}"
+          actual = ref if ref.startswith("refs/tags/") else f"refs/tags/{ref}"
           if actual != expected:
               print(f"tag/package version mismatch: {actual} != {expected}", file=sys.stderr)
               sys.exit(1)

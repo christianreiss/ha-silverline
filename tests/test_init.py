@@ -9,9 +9,10 @@ import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
-from pysilverline import CannotConnect, DeviceState, InvalidAuth
 from pysilverline.discovery import DiscoveryInfo
 from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+from pysilverline import CannotConnect, DeviceState, InvalidAuth
 
 
 async def test_setup_and_unload(
@@ -38,7 +39,7 @@ async def test_async_setup_is_reentrant(hass: HomeAssistant) -> None:
     first_task.cancel()
     try:
         await first_task
-    except (asyncio.CancelledError, Exception):  # noqa: BLE001
+    except (asyncio.CancelledError, Exception):
         pass
 
 
@@ -70,6 +71,7 @@ async def test_discovery_loop_logs_unexpected_exception(
     diagnose a stuck-discovery condition rather than wondering why
     devices stop being auto-detected."""
     import logging
+
     from custom_components.poolex_silverline import async_setup
     from custom_components.poolex_silverline.const import DOMAIN
 
@@ -297,7 +299,7 @@ async def test_discovery_loop_forwards_product_key(
         task.cancel()
         try:
             await task
-        except (asyncio.CancelledError, Exception):  # noqa: BLE001
+        except (asyncio.CancelledError, Exception):
             pass
 
 
@@ -364,7 +366,7 @@ async def test_discovery_loop_suppresses_duplicate_ip_but_refires_on_change(
         task.cancel()
         try:
             await task
-        except (asyncio.CancelledError, Exception):  # noqa: BLE001
+        except (asyncio.CancelledError, Exception):
             pass
 
 
@@ -430,5 +432,5 @@ async def test_discovery_loop_caps_seen_ips_against_flood(
         task.cancel()
         try:
             await task
-        except (asyncio.CancelledError, Exception):  # noqa: BLE001
+        except (asyncio.CancelledError, Exception):
             pass

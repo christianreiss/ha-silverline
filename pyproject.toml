@@ -3,7 +3,7 @@ name = "ha-silverline"
 # The authoritative version for users is manifest.json. This block exists
 # only so pytest / mypy / coverage can pick the repo up as a package
 # during local dev; keep it in sync with the manifest when bumping.
-version = "0.9.8"
+version = "0.11.1"
 description = "Home Assistant custom component for Poolex Silverline pool heat pumps."
 requires-python = ">=3.13"
 
@@ -14,6 +14,7 @@ test = [
   "pytest-asyncio",
   "pytest-cov",
   "pytest-homeassistant-custom-component",
+  "pytest-timeout",
   "syrupy",
 ]
 
@@ -21,6 +22,13 @@ test = [
 asyncio_mode = "auto"
 testpaths = ["tests"]
 addopts = "-q"
+timeout = 30
+
+[tool.ruff]
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "RUF100"]
 
 [tool.coverage.run]
 source = ["custom_components.poolex_silverline"]

@@ -289,7 +289,7 @@ class SilverlineClient:
         for listener in list(self._connection_listeners):
             try:
                 listener(connected)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 _LOGGER.exception("connection listener raised")
 
     async def get_status(self) -> DeviceState:
@@ -484,7 +484,7 @@ class SilverlineClient:
                     break
         except asyncio.CancelledError:
             raise
-        except Exception:  # noqa: BLE001
+        except Exception:
             _LOGGER.exception("read loop crashed")
         finally:
             for _cmd, fut in self._pending.values():
@@ -619,7 +619,7 @@ class SilverlineClient:
             for listener in list(self._listeners):
                 try:
                     listener(self._state)
-                except Exception:  # noqa: BLE001
+                except Exception:
                     _LOGGER.exception("push listener raised")
 
     async def _heartbeat_loop(self) -> None:
@@ -711,7 +711,7 @@ class SilverlineClient:
                     task.cancel()
                     try:
                         await task
-                    except (asyncio.CancelledError, Exception):  # noqa: BLE001
+                    except (asyncio.CancelledError, Exception):
                         pass
                 setattr(self, task_attr, None)
 
