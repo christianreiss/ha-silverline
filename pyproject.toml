@@ -5,6 +5,10 @@ name = "ha-silverline"
 # during local dev; keep it in sync with the manifest when bumping.
 version = "0.11.1"
 description = "Home Assistant custom component for Poolex Silverline pool heat pumps."
+# 3.13 is a deliberate floor, NOT current HA's (2026.5 requires >=3.14.2). It
+# is the oldest interpreter the integration source must stay parseable on,
+# matching the HA floor in hacs.json. The library in pysilverline/ is looser
+# still (>=3.12) so it stays usable outside HA. Do not "harmonize" the two.
 requires-python = ">=3.13"
 
 [project.optional-dependencies]
@@ -21,10 +25,13 @@ test = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-addopts = "-q"
+# --strict-config turns "unknown config option" into an error, so a checkout
+# without pytest-timeout fails loudly instead of silently running untimed.
+addopts = "-q --strict-config"
 timeout = 30
 
 [tool.ruff]
+# Mirrors requires-python above.
 target-version = "py313"
 
 [tool.ruff.lint]

@@ -40,8 +40,16 @@ if [[ -n "$(git status --porcelain)" ]]; then
   exit 1
 fi
 
-if ! git merge-base --is-ancestor HEAD "$(git rev-parse --abbrev-ref --symbolic-full-name @{u})" 2>/dev/null; then
-  echo "ABORT: HEAD is not pushed yet — run 'git push github main' first" >&2
+# The release pipelines run on GitHub, so "is HEAD pushed?" has to be asked of
+# the github remote. @{u} tracks the Gitea mirror, which would answer the wrong
+# question. FETCH_HEAD is used so this works without a github/* tracking ref.
+if ! git fetch --quiet github main; then
+  echo "ABORT: could not fetch 'main' from the github remote" >&2
+  exit 1
+fi
+
+if ! git merge-base --is-ancestor HEAD FETCH_HEAD; then
+  echo "ABORT: HEAD is not on github/main yet — run 'git push github main' first" >&2
   exit 1
 fi
 

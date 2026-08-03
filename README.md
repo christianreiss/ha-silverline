@@ -153,6 +153,12 @@ in-house) · ⚪ unknown · ✅ present · ❌ absent · ❓ firmware-dependent
    "Integration".
 3. Install **Poolex Silverline** from the new entry, restart Home Assistant.
 
+> **Why the custom-repository step?** This integration has been submitted to
+> the HACS *default* store, but that queue is measured in months. Until it is
+> merged, adding the repository by hand is the supported install path — the
+> steps above are not a workaround and nothing changes for you when the
+> listing lands, beyond being able to skip step 1 and 2.
+
 ### Manual
 
 Copy the `custom_components/poolex_silverline/` directory into your Home

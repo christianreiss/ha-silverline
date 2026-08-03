@@ -44,10 +44,11 @@ Bumping a version number in a commit does nothing on its own.
    git push origin main
    ```
 
-4. Run `./scripts/release.sh`. It verifies the tree is clean, HEAD is pushed,
-   and the manifest pins the library version being tagged. It then creates and
-   pushes `vA.B.C` and `pysilverline-vX.Y.Z` to GitHub and mirrors them to
-   Gitea.
+4. Run `./scripts/release.sh`. It verifies the tree is clean, HEAD is on
+   `github/main` (it fetches from the `github` remote to check — so it needs
+   network, including with `--dry-run`), and the manifest pins the library
+   version being tagged. It then creates and pushes `vA.B.C` and
+   `pysilverline-vX.Y.Z` to GitHub and mirrors them to Gitea.
 
 5. Those user-pushed tags trigger `release.yaml` (GitHub Release) and
    `pysilverline-pypi.yaml` (PyPI).

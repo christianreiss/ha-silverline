@@ -8,6 +8,8 @@ version = "0.5.1"
 description = "Async client for Poolex Silverline / Tuya v3.3, v3.4 and v3.5 pool heat pumps."
 readme = "README.md"
 license = "MIT"
+# Deliberately one minor below the integration's floor (>=3.13): the library is
+# published standalone and must run outside Home Assistant. CI tests 3.12+3.14.
 requires-python = ">=3.12"
 authors = [{ name = "Christian Reiss", email = "email@christian-reiss.de" }]
 keywords = ["tuya", "poolex", "silverline", "heatpump", "home-assistant"]
@@ -39,10 +41,13 @@ packages = ["src/pysilverline"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-addopts = "-p no:homeassistant -p no:pytest_homeassistant_custom_component -p no:pytest-homeassistant-custom-component -p no:syrupy"
+# --strict-config turns "unknown config option" into an error, so a checkout
+# without pytest-timeout fails loudly instead of silently running untimed.
+addopts = "-p no:homeassistant -p no:pytest_homeassistant_custom_component -p no:pytest-homeassistant-custom-component -p no:syrupy --strict-config"
 timeout = 30
 
 [tool.ruff]
+# Mirrors requires-python above.
 target-version = "py312"
 
 [tool.ruff.lint]
