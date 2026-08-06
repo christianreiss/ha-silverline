@@ -67,6 +67,7 @@
     "error": {
       "cannot_connect": "No se pudo conectar con la bomba de calor.",
       "invalid_auth": "El dispositivo rechazó la clave local.",
+      "invalid_key_format": "Esto no parece una clave local de Tuya. Debe tener exactamente 16 caracteres: comprueba si hay espacios, comillas o un salto de línea de más en lo que has pegado.",
       "unknown": "Error inesperado."
     },
     "abort": {

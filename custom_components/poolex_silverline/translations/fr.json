@@ -67,6 +67,7 @@
     "error": {
       "cannot_connect": "Échec de la connexion à la pompe à chaleur.",
       "invalid_auth": "La clé locale a été rejetée par l'appareil.",
+      "invalid_key_format": "Cela ne ressemble pas à une clé locale Tuya. Elle doit comporter exactement 16 caractères — vérifiez qu'il n'y a pas d'espace, de guillemet ou de saut de ligne en trop dans ce que vous avez collé.",
       "unknown": "Erreur inattendue."
     },
     "abort": {

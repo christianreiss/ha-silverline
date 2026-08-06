@@ -67,6 +67,7 @@
     "error": {
       "cannot_connect": "Connessione alla pompa di calore non riuscita.",
       "invalid_auth": "La chiave locale è stata rifiutata dal dispositivo.",
+      "invalid_key_format": "Questa non sembra una chiave locale Tuya. Deve essere esattamente di 16 caratteri: controlla che non ci siano spazi, virgolette o un a capo di troppo in ciò che hai incollato.",
       "unknown": "Errore imprevisto."
     },
     "abort": {

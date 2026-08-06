@@ -23,6 +23,7 @@ from ._config_validation import (
     _USER_SCHEMA,
     _try_validate,
     _verify_host,
+    normalize_credentials,
     options_schema,
     scan_interval_from_options,
 )
@@ -67,6 +68,10 @@ class SilverlineConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         errors: dict[str, str] = {}
         if user_input is not None:
+            # Trim before the unique-id check: a device_id with a stray
+            # trailing space would otherwise mint a second entry for a
+            # device that is already configured.
+            user_input = normalize_credentials(user_input)
             await self.async_set_unique_id(user_input[CONF_DEVICE_ID])
             self._abort_if_unique_id_configured()
             error, version = await _try_validate(user_input)
@@ -117,6 +122,7 @@ class SilverlineConfigFlow(ConfigFlow, domain=DOMAIN):
         entry = self._get_reauth_entry()
 
         if user_input is not None:
+            user_input = normalize_credentials(user_input)
             candidate = {**entry.data, CONF_LOCAL_KEY: user_input[CONF_LOCAL_KEY]}
             error, version = await _try_validate(candidate)
             if error is None:
@@ -139,6 +145,7 @@ class SilverlineConfigFlow(ConfigFlow, domain=DOMAIN):
         entry = self._get_reconfigure_entry()
 
         if user_input is not None:
+            user_input = normalize_credentials(user_input)
             await self.async_set_unique_id(user_input[CONF_DEVICE_ID])
             self._abort_if_unique_id_mismatch(reason="device_id_mismatch")
             error, version = await _try_validate(user_input)
@@ -264,6 +271,7 @@ class SilverlineConfigFlow(ConfigFlow, domain=DOMAIN):
         assert self._discovery_device_id is not None
         errors: dict[str, str] = {}
         if user_input is not None:
+            user_input = normalize_credentials(user_input)
             candidate = {
                 CONF_HOST: self._discovery_host,
                 CONF_PORT: DEFAULT_PORT,

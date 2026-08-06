@@ -67,6 +67,7 @@
     "error": {
       "cannot_connect": "Failed to connect to the heat pump.",
       "invalid_auth": "The local key was rejected by the device.",
+      "invalid_key_format": "That does not look like a Tuya local key. It must be exactly 16 characters — check for stray spaces, quotes or a line break in what you pasted.",
       "unknown": "Unexpected error."
     },
     "abort": {

@@ -67,6 +67,7 @@
     "error": {
       "cannot_connect": "Verbindung zur Wärmepumpe fehlgeschlagen.",
       "invalid_auth": "Der Local Key wurde vom Gerät abgelehnt.",
+      "invalid_key_format": "Das sieht nicht nach einem Tuya Local Key aus. Er muss genau 16 Zeichen lang sein — prüfe das Eingefügte auf überzählige Leerzeichen, Anführungszeichen oder einen Zeilenumbruch.",
       "unknown": "Unerwarteter Fehler."
     },
     "abort": {

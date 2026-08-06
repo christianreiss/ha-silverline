@@ -68,7 +68,9 @@ async def test_user_flow_happy_path(hass: HomeAssistant, mock_client_factory) ->
     [
         (CannotConnect("nope"), "cannot_connect"),
         (InvalidAuth("bad key"), "invalid_auth"),
-        (ValueError("local_key must be 16 ASCII characters"), "invalid_auth"),
+        # A malformed frame surfaces as ValueError; a malformed *key* is
+        # caught before any I/O and reported as invalid_key_format instead.
+        (ValueError("garbage frame"), "invalid_auth"),
         (RuntimeError("boom"), "unknown"),
     ],
 )
@@ -517,6 +519,176 @@ async def test_discovery_invalid_key_re_prompts(
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "discovery_confirm"
     assert result["errors"] == {"base": "invalid_auth"}
+
+
+# ---------------------------------------------------------------------------
+# Pasted-credential hygiene (issue #17)
+# ---------------------------------------------------------------------------
+
+
+async def test_user_flow_strips_whitespace_from_pasted_credentials(
+    hass: HomeAssistant, mock_client_factory
+) -> None:
+    """Credentials pasted out of a terminal often carry a trailing newline or
+    space. They must be trimmed before validation, and the entry must store the
+    trimmed values — an untrimmed key is not 16 bytes and never reaches the
+    device at all."""
+    flow_id = await _start_user_flow(hass)
+    padded = {
+        **ENTRY_DATA,
+        CONF_HOST: f" {HOST}\n",
+        CONF_DEVICE_ID: f"  {DEVICE_ID} ",
+        CONF_LOCAL_KEY: f"{LOCAL_KEY}\n",
+    }
+    result = await hass.config_entries.flow.async_configure(flow_id, padded)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "model"
+
+    result = await _submit_model_step(hass, result["flow_id"])
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_HOST] == HOST
+    assert result["data"][CONF_DEVICE_ID] == DEVICE_ID
+    assert result["data"][CONF_LOCAL_KEY] == LOCAL_KEY
+    # The trimmed device_id is what identifies the entry, so a padded paste
+    # cannot mint a duplicate entry for an already-configured device.
+    assert result["result"].unique_id == DEVICE_ID
+
+
+async def test_user_flow_padded_device_id_aborts_as_already_configured(
+    hass: HomeAssistant, mock_client_factory, config_entry: MockConfigEntry
+) -> None:
+    """Trimming happens before the unique-id check, not after it."""
+    config_entry.add_to_hass(hass)
+    flow_id = await _start_user_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        flow_id, {**ENTRY_DATA, CONF_DEVICE_ID: f" {DEVICE_ID}\n"}
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+
+
+@pytest.mark.parametrize(
+    "bad_key",
+    [
+        "too-short",
+        # The 22-character device ID pasted into the key field.
+        DEVICE_ID,
+        # Surrounding quotes survived a copy out of a JSON dump.
+        f'"{LOCAL_KEY}"',
+    ],
+)
+async def test_user_flow_rejects_malformed_local_key_without_connecting(
+    hass: HomeAssistant, mock_client_factory, bad_key: str
+) -> None:
+    """A key that cannot be a Tuya key is answered locally with
+    invalid_key_format — never as invalid_auth, which would blame the device
+    for a rejection it never issued (issue #17)."""
+    flow_id = await _start_user_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        flow_id, {**ENTRY_DATA, CONF_LOCAL_KEY: bad_key}
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "invalid_key_format"}
+    # Answered without any network I/O.
+    assert not mock_client_factory.connect.called
+
+
+async def test_reauth_flow_rejects_malformed_local_key(
+    hass: HomeAssistant, mock_client_factory, config_entry: MockConfigEntry
+) -> None:
+    """The same guard applies on the reauth path, where the user is retyping
+    the key by hand."""
+    config_entry.add_to_hass(hass)
+    result = await config_entry.start_reauth_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_LOCAL_KEY: f" {LOCAL_KEY} x"}
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "invalid_key_format"}
+    assert not mock_client_factory.connect.called
+
+
+async def test_reauth_flow_strips_whitespace_from_pasted_key(
+    hass: HomeAssistant, mock_client_factory, config_entry: MockConfigEntry
+) -> None:
+    """A padded key on reauth is trimmed and stored trimmed."""
+    config_entry.add_to_hass(hass)
+    result = await config_entry.start_reauth_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_LOCAL_KEY: " fedcba9876543210\n"}
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reauth_successful"
+    assert config_entry.data[CONF_LOCAL_KEY] == "fedcba9876543210"
+    await hass.async_block_till_done()
+
+
+async def test_discovery_confirm_strips_whitespace_from_pasted_key(
+    hass: HomeAssistant, mock_client_factory
+) -> None:
+    """The discovery confirm step asks only for the key, so it needs the same
+    trimming as the manual step."""
+    from homeassistant.config_entries import SOURCE_INTEGRATION_DISCOVERY
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": SOURCE_INTEGRATION_DISCOVERY},
+        data={"device_id": DEVICE_ID, "ip": HOST, "version": "3.5"},
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_LOCAL_KEY: f" {LOCAL_KEY} "}
+    )
+    assert result["step_id"] == "model"
+    result = await _submit_model_step(hass, result["flow_id"])
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_LOCAL_KEY] == LOCAL_KEY
+
+
+async def test_reconfigure_flow_strips_whitespace(
+    hass: HomeAssistant, mock_client_factory, config_entry: MockConfigEntry
+) -> None:
+    """Reconfigure trims too — its device_id feeds the unique-id mismatch
+    guard, which a stray space would otherwise trip."""
+    config_entry.add_to_hass(hass)
+    result = await config_entry.start_reconfigure_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            **ENTRY_DATA,
+            CONF_HOST: f"{HOST} ",
+            CONF_DEVICE_ID: f" {DEVICE_ID}",
+            CONF_LOCAL_KEY: f"{LOCAL_KEY} ",
+        },
+    )
+    assert result["step_id"] == "model"
+    result = await _submit_model_step(hass, result["flow_id"])
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert config_entry.data[CONF_HOST] == HOST
+    assert config_entry.data[CONF_LOCAL_KEY] == LOCAL_KEY
+    await hass.async_block_till_done()
+
+
+async def test_discovery_accepts_silverline_pro_fi_70_product_key(
+    hass: HomeAssistant, mock_client_factory
+) -> None:
+    """The 2026 Silverline Pro FI 70 broadcasts productKey
+    yzcbhasasaeljgvn; without it in the allow-list discovery aborts as
+    unsupported_product (issue #17)."""
+    from homeassistant.config_entries import SOURCE_INTEGRATION_DISCOVERY
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": SOURCE_INTEGRATION_DISCOVERY},
+        data={
+            "device_id": DEVICE_ID,
+            "ip": HOST,
+            "version": "3.5",
+            "product_key": "yzcbhasasaeljgvn",
+        },
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "discovery_confirm"
 
 
 # ---------------------------------------------------------------------------

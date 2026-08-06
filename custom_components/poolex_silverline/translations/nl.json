@@ -67,6 +67,7 @@
     "error": {
       "cannot_connect": "Verbinding met de warmtepomp is mislukt.",
       "invalid_auth": "De lokale sleutel is door het apparaat geweigerd.",
+      "invalid_key_format": "Dit lijkt geen Tuya-sleutel te zijn. De lokale sleutel moet precies 16 tekens lang zijn — controleer op extra spaties, aanhalingstekens of een regeleinde in wat je hebt geplakt.",
       "unknown": "Onverwachte fout."
     },
     "abort": {

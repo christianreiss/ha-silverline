@@ -67,6 +67,7 @@
     "error": {
       "cannot_connect": "Nie udało się połączyć z pompą ciepła.",
       "invalid_auth": "Klucz lokalny został odrzucony przez urządzenie.",
+      "invalid_key_format": "To nie wygląda na lokalny klucz Tuya. Musi mieć dokładnie 16 znaków — sprawdź, czy we wklejonym tekście nie ma dodatkowych spacji, cudzysłowów lub znaku nowej linii.",
       "unknown": "Nieoczekiwany błąd."
     },
     "abort": {

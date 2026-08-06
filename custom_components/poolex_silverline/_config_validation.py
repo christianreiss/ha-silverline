@@ -82,8 +82,16 @@ _KNOWN_POOLEX_PRODUCT_KEYS: frozenset[str] = frozenset(
         "xiusqryqukyqkq3w",  # Steinbach Silent Mini (issue #10)
         "am4nomaadnhwvekq",  # Poolex Nano Fi 3kW / PC-NANO-B3N (issue #11)
         "yk3bytlujz2xshuy",  # Poolex Nano 5kW WiFi (issue #16)
+        "yzcbhasasaeljgvn",  # Poolex Silverline Pro FI 70, 2026 (issue #17)
     }
 )
+
+#: Tuya local keys are exactly 16 ASCII characters — every codec in
+#: pysilverline enforces that and raises ValueError before a single byte
+#: reaches the device. Checking it here instead lets the flow say "that is
+#: not a well-formed key" rather than blaming the device for a rejection it
+#: never issued (issue #17).
+_LOCAL_KEY_LENGTH = 16
 
 # The local_key is a long-lived shared secret used to encrypt every frame
 # exchanged with the device. Render it as a password field so HA masks it in
@@ -166,6 +174,49 @@ _MODEL_SCHEMA = vol.Schema(
 )
 
 
+def normalize_credentials(data: Mapping[str, Any]) -> dict[str, Any]:
+    """Return ``data`` with surrounding whitespace trimmed off the text fields.
+
+    Host, device ID and local key are all hand-pasted, usually out of a
+    terminal (``tinytuya scan``) or the Tuya IoT console, and a trailing
+    newline or space rides along often enough to matter. An untrimmed
+    local_key is no longer 16 bytes, so the codec rejects it before the
+    device is ever contacted — which the flow then reported as "the local key
+    was rejected by the device", pointing the diagnosis at the wrong end of
+    the wire (issue #17).
+
+    Only whitespace is stripped: the values themselves are never rewritten,
+    so a genuinely wrong key still fails against the device as it should.
+    """
+    normalized = dict(data)
+    for key in (CONF_HOST, CONF_DEVICE_ID, CONF_LOCAL_KEY):
+        value = normalized.get(key)
+        if isinstance(value, str):
+            normalized[key] = value.strip()
+    return normalized
+
+
+def _local_key_format_error(data: Mapping[str, Any]) -> str | None:
+    """Return an error key when the local_key cannot be a Tuya key at all.
+
+    A length mismatch is the common paste accident (surrounding quotes from a
+    JSON dump, the 22-character device ID pasted into the wrong field). It is
+    knowable without any network I/O, so answer it directly instead of
+    letting the codec's ValueError masquerade as a device rejection.
+    """
+    local_key = data.get(CONF_LOCAL_KEY)
+    if not isinstance(local_key, str):
+        return "invalid_key_format"
+    if len(local_key.encode("utf-8")) != _LOCAL_KEY_LENGTH:
+        _LOGGER.debug(
+            "local_key is %d characters, expected %d — not a Tuya local key",
+            len(local_key),
+            _LOCAL_KEY_LENGTH,
+        )
+        return "invalid_key_format"
+    return None
+
+
 async def _validate(data: Mapping[str, Any]) -> str | None:
     """Open a connection with the supplied credentials and pull status once.
 
@@ -225,14 +276,28 @@ async def _try_validate(
     Returns ``(error_key, protocol_version)``.  On success, error_key is
     None and protocol_version holds the detected value.  On failure,
     error_key is set and protocol_version is None.
+
+    The failure branches log at debug level because the error keys alone are
+    too coarse to diagnose a setup failure from a user's log: InvalidAuth is
+    raised both by a v3.4/v3.5 handshake that could not decrypt the device's
+    reply ("HMAC mismatch" / "GCM tag mismatch" — a wrong or rotated key) and
+    by a DP_QUERY the device answered with a rejection retcode *after* the
+    handshake succeeded (a firmware quirk, not a key problem). The exception
+    message names which one, and it carries no secret material.
     """
+    key_error = _local_key_format_error(data)
+    if key_error is not None:
+        return key_error, None
     try:
         version = await _validate(data)
-    except CannotConnect:
+    except CannotConnect as err:
+        _LOGGER.debug("Validation failed — could not reach the device: %s", err)
         return "cannot_connect", None
-    except InvalidAuth:
+    except InvalidAuth as err:
+        _LOGGER.debug("Validation failed — credentials rejected: %s", err)
         return "invalid_auth", None
-    except ValueError:
+    except ValueError as err:
+        _LOGGER.debug("Validation failed — malformed value or frame: %s", err)
         return "invalid_auth", None
     except Exception:
         _LOGGER.exception("Unexpected error during validation")
