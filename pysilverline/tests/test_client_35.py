@@ -37,6 +37,8 @@ KEY_B = KEY.encode()
 DEVICE_ID = "bf12345678abcdefghijkl"
 # Fixed device nonce so derivations are deterministic across the test run.
 REMOTE_NONCE = bytes(range(16, 32))
+# Both opcodes a status read can travel under (legacy 0x0a / tinytuya 0x10).
+QUERY_CMDS = {const.CMD_DP_QUERY, const.CMD_DP_QUERY_NEW}
 
 
 async def _start_test_server(handler: Any) -> asyncio.Server:
@@ -234,12 +236,29 @@ class FakeTuya35Server:
             writer.close()
 
 
-def _dp_query_handler(dps: dict[str, Any]) -> Any:
+def _dp_query_handler(dps: dict[str, Any], *, cmd: int = const.CMD_DP_QUERY_NEW) -> Any:
+    """Answer a status query with a zero retcode and a dps JSON body.
+
+    Defaults to echoing DP_QUERY_NEW (0x10) — the opcode the client sends on
+    v3.5 (mirroring tinytuya's DP_QUERY → DP_QUERY_NEW rewrite for 3.4/3.5,
+    hardware-proven on the JetLine FI and the 2026 FI 70, issues #7/#17).
+    Pass ``cmd=const.CMD_DP_QUERY`` to model a unit answering the legacy read.
+    """
+
     def handler(seq: int, body: dict[str, Any], session_key: bytes) -> bytes:
         payload = (
             struct.pack(">I", 0) + json.dumps({"devId": DEVICE_ID, "dps": dps}).encode()
         )
-        return _encode_35(seq, const.CMD_DP_QUERY, payload, session_key)
+        return _encode_35(seq, cmd, payload, session_key)
+
+    return handler
+
+
+def _reject_query_handler(cmd: int, retcode: int = 0xFFFFFFFF) -> Any:
+    """Nack a status query with a bare non-zero retcode and no JSON body."""
+
+    def handler(seq: int, body: dict[str, Any], session_key: bytes) -> bytes:
+        return _encode_35(seq, cmd, struct.pack(">I", retcode), session_key)
 
     return handler
 
@@ -268,7 +287,7 @@ def _control_new_handler(ack: bytes = b"\x00\x00\x00\x00") -> Any:
 async def test_v35_autoprobe_handshake_and_get_status() -> None:
     """Auto-probe (no pinned version) negotiates v3.5 and reads DPs end to end."""
     async with FakeTuya35Server() as server:
-        server.handlers[const.CMD_DP_QUERY] = _dp_query_handler(
+        server.handlers[const.CMD_DP_QUERY_NEW] = _dp_query_handler(
             {"1": True, "4": "Heat", "3": 27, "2": 30}
         )
         client = SilverlineClient(
@@ -303,7 +322,7 @@ async def test_v35_autoprobe_handshake_and_get_status() -> None:
 async def test_v35_pinned_handshake_and_get_status() -> None:
     """Pinning protocol_version='3.5' skips the probe and negotiates directly."""
     async with FakeTuya35Server() as server:
-        server.handlers[const.CMD_DP_QUERY] = _dp_query_handler({"1": False})
+        server.handlers[const.CMD_DP_QUERY_NEW] = _dp_query_handler({"1": False})
         client = SilverlineClient(
             host="127.0.0.1",
             port=server.port,
@@ -324,8 +343,8 @@ async def test_v35_pinned_handshake_and_get_status() -> None:
 async def test_v35_response_seq_does_not_echo_request() -> None:
     """Regression: v3.5 responses carry a device-global seqno, not our echo.
 
-    The fake answers DP_QUERY with ``_next_resp_seq()`` — a counter starting at
-    0x8000, far above the client's per-connection request seqs — so the
+    The fake answers the status read with ``_next_resp_seq()`` — a counter
+    starting at 0x8000, far above the client's per-connection request seqs — so the
     response seq provably never equals the request seq. A client that
     correlates responses by seqno (the v3.3 model) would never resolve the
     request future and ``get_status`` would raise ``CannotConnect`` on timeout.
@@ -334,7 +353,7 @@ async def test_v35_response_seq_does_not_echo_request() -> None:
     ``version < 3.5``).
     """
     async with FakeTuya35Server() as server:
-        server.handlers[const.CMD_DP_QUERY] = _dp_query_handler(
+        server.handlers[const.CMD_DP_QUERY_NEW] = _dp_query_handler(
             {"1": True, "4": "Heat", "3": 27}
         )
         client = SilverlineClient(
@@ -361,7 +380,7 @@ async def test_v35_response_seq_does_not_echo_request() -> None:
 async def test_v35_handshake_with_retcode_in_resp() -> None:
     """Some firmwares prefix the NEG_RESP payload with a 4-byte retcode."""
     async with FakeTuya35Server(retcode_in_resp=True) as server:
-        server.handlers[const.CMD_DP_QUERY] = _dp_query_handler({"1": True})
+        server.handlers[const.CMD_DP_QUERY_NEW] = _dp_query_handler({"1": True})
         client = SilverlineClient(
             host="127.0.0.1",
             port=server.port,
@@ -375,6 +394,166 @@ async def test_v35_handshake_with_retcode_in_resp() -> None:
             assert client.detected_version == "3.5"
             state = await client.get_status()
             assert state.power is True
+        finally:
+            await client.disconnect()
+
+
+async def test_v35_fi70_serves_only_dp_query_new() -> None:
+    """Issue #17: the 2026 FI 70 rejects legacy DP_QUERY; only 0x10 works.
+
+    tinytuya reads this exact unit successfully because it sends
+    DP_QUERY_NEW (0x10) with an empty body on v3.5. The client must lead
+    with that opcode — the legacy 0x0a read (which this firmware nacks)
+    should never even be sent.
+    """
+    async with FakeTuya35Server() as server:
+        server.handlers[const.CMD_DP_QUERY] = _reject_query_handler(const.CMD_DP_QUERY)
+        server.handlers[const.CMD_DP_QUERY_NEW] = _dp_query_handler(
+            {"1": True, "2": 30, "3": 25, "4": "HEAT", "21": 0}
+        )
+        client = SilverlineClient(
+            host="127.0.0.1",
+            port=server.port,
+            device_id=DEVICE_ID,
+            local_key=KEY,
+            protocol_version=None,  # auto-probe, as the config flow does
+            request_timeout=2.0,
+        )
+        await client.connect()
+        try:
+            assert client.detected_version == "3.5"
+            state = await client.get_status()
+            assert state.power is True
+            assert state.temp_set == 30
+            # tinytuya parity: the query body is exactly {} — no gwId/devId.
+            queries = [r for r in server.received if r[1] in QUERY_CMDS]
+            assert [(cmd, body) for _, cmd, body in queries] == [
+                (const.CMD_DP_QUERY_NEW, {})
+            ]
+        finally:
+            await client.disconnect()
+
+
+async def test_v35_falls_back_to_legacy_dp_query_and_latches() -> None:
+    """A v3.5 unit that nacks 0x10 is retried once with 0x0a, then latched.
+
+    No such unit is known (both confirmed v3.5 pumps serve 0x10), but the
+    fallback guarantees the primary-opcode switch can never regress one:
+    whichever read the firmware answers wins, and later polls skip the
+    rejected opcode entirely.
+    """
+    async with FakeTuya35Server() as server:
+        server.handlers[const.CMD_DP_QUERY_NEW] = _reject_query_handler(
+            const.CMD_DP_QUERY_NEW
+        )
+        server.handlers[const.CMD_DP_QUERY] = _dp_query_handler(
+            {"1": False, "3": 22}, cmd=const.CMD_DP_QUERY
+        )
+        client = SilverlineClient(
+            host="127.0.0.1",
+            port=server.port,
+            device_id=DEVICE_ID,
+            local_key=KEY,
+            protocol_version="3.5",
+            request_timeout=2.0,
+        )
+        await client.connect()
+        try:
+            state = await client.get_status()
+            assert state.power is False
+            assert state.temp_current == 22
+            await client.get_status()
+            # The nack was seen exactly once: the second poll went straight
+            # to the latched 0x0a without re-trying the rejected 0x10.
+            new_queries = [r for r in server.received if r[1] == const.CMD_DP_QUERY_NEW]
+            legacy_queries = [r for r in server.received if r[1] == const.CMD_DP_QUERY]
+            assert len(new_queries) == 1
+            assert len(legacy_queries) == 2
+        finally:
+            await client.disconnect()
+
+
+async def test_v35_silent_primary_falls_back_on_live_socket() -> None:
+    """A firmware that ignores 0x10 (never answers, socket stays up) still
+    gets read: the timeout on the primary triggers the 0x0a fallback."""
+    async with FakeTuya35Server() as server:
+        # No CMD_DP_QUERY_NEW handler → the 0x10 read is recorded but never
+        # answered; the legacy read works.
+        server.handlers[const.CMD_DP_QUERY] = _dp_query_handler(
+            {"1": True}, cmd=const.CMD_DP_QUERY
+        )
+        client = SilverlineClient(
+            host="127.0.0.1",
+            port=server.port,
+            device_id=DEVICE_ID,
+            local_key=KEY,
+            protocol_version="3.5",
+            request_timeout=0.3,
+        )
+        await client.connect()
+        try:
+            state = await client.get_status()
+            assert state.power is True
+            assert any(r[1] == const.CMD_DP_QUERY_NEW for r in server.received)
+        finally:
+            await client.disconnect()
+
+
+async def test_v35_both_query_opcodes_rejected_raises_primary_error() -> None:
+    """When 0x10 and 0x0a are both nacked, the primary's InvalidAuth wins —
+    it names the opcode this protocol version is expected to speak."""
+    from pysilverline.exceptions import InvalidAuth
+
+    async with FakeTuya35Server() as server:
+        server.handlers[const.CMD_DP_QUERY_NEW] = _reject_query_handler(
+            const.CMD_DP_QUERY_NEW
+        )
+        server.handlers[const.CMD_DP_QUERY] = _reject_query_handler(const.CMD_DP_QUERY)
+        client = SilverlineClient(
+            host="127.0.0.1",
+            port=server.port,
+            device_id=DEVICE_ID,
+            local_key=KEY,
+            protocol_version="3.5",
+            request_timeout=2.0,
+        )
+        await client.connect()
+        try:
+            with pytest.raises(InvalidAuth, match="DP_QUERY_NEW rejected"):
+                await client.get_status()
+        finally:
+            await client.disconnect()
+
+
+async def test_v35_query_response_with_version_header_envelope() -> None:
+    """A 0x10 answer shaped [retcode][15-byte "3.5" header][protocol-4
+    envelope] parses — the same framing JetLine FI firmware puts on STATUS
+    pushes, tolerated on query responses exactly as tinytuya does."""
+    envelope = {"protocol": 4, "t": 1700000000, "data": {"dps": {"1": True, "2": 29}}}
+
+    def handler(seq: int, body: dict[str, Any], session_key: bytes) -> bytes:
+        payload = (
+            struct.pack(">I", 0)
+            + const.PROTOCOL_35_HEADER
+            + json.dumps(envelope).encode()
+        )
+        return _encode_35(seq, const.CMD_DP_QUERY_NEW, payload, session_key)
+
+    async with FakeTuya35Server() as server:
+        server.handlers[const.CMD_DP_QUERY_NEW] = handler
+        client = SilverlineClient(
+            host="127.0.0.1",
+            port=server.port,
+            device_id=DEVICE_ID,
+            local_key=KEY,
+            protocol_version="3.5",
+            request_timeout=2.0,
+        )
+        await client.connect()
+        try:
+            state = await client.get_status()
+            assert state.power is True
+            assert state.temp_set == 29
         finally:
             await client.disconnect()
 
@@ -451,7 +630,7 @@ async def test_v35_set_multiple_raises_on_nonzero_retcode() -> None:
 async def test_v35_push_is_dispatched_to_listener() -> None:
     """A spontaneous device push over v3.5 reaches registered listeners."""
     async with FakeTuya35Server() as server:
-        server.handlers[const.CMD_DP_QUERY] = _dp_query_handler({"1": True})
+        server.handlers[const.CMD_DP_QUERY_NEW] = _dp_query_handler({"1": True})
         client = SilverlineClient(
             host="127.0.0.1",
             port=server.port,

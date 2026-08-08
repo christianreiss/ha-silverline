@@ -315,6 +315,46 @@ async def test_v34_pinned_handshake_and_get_status() -> None:
             await client.disconnect()
 
 
+async def test_v34_falls_back_to_dp_query_new_and_latches() -> None:
+    """A v3.4 unit that nacks the legacy 0x0a read is retried once with
+    DP_QUERY_NEW (0x10) — the opcode tinytuya sends for every v3.4+ read —
+    and the working opcode is latched (issue #17 insurance). The confirmed
+    wfzeiyn hardware answers 0x0a, so the v3.4 primary stays legacy."""
+
+    def _reject_legacy(seq: int, body: dict[str, Any], session_key: bytes) -> bytes:
+        return _encode_34(seq, const.CMD_DP_QUERY, b"", session_key, retcode=0xFFFFFFFF)
+
+    def _serve_new(seq: int, body: dict[str, Any], session_key: bytes) -> bytes:
+        payload = json.dumps({"devId": DEVICE_ID, "dps": {"1": True, "3": 24}}).encode()
+        return _encode_34(seq, const.CMD_DP_QUERY_NEW, payload, session_key, retcode=0)
+
+    async with FakeTuya34Server() as server:
+        server.handlers[const.CMD_DP_QUERY] = _reject_legacy
+        server.handlers[const.CMD_DP_QUERY_NEW] = _serve_new
+        client = SilverlineClient(
+            host="127.0.0.1",
+            port=server.port,
+            device_id=DEVICE_ID,
+            local_key=KEY,
+            protocol_version="3.4",
+            request_timeout=2.0,
+        )
+        await client.connect()
+        try:
+            state = await client.get_status()
+            assert state.power is True
+            assert state.temp_current == 24
+            await client.get_status()
+            # The nack was seen exactly once — the second poll went straight
+            # to the latched 0x10.
+            legacy = [r for r in server.received if r[1] == const.CMD_DP_QUERY]
+            new = [r for r in server.received if r[1] == const.CMD_DP_QUERY_NEW]
+            assert len(legacy) == 1
+            assert len(new) == 2
+        finally:
+            await client.disconnect()
+
+
 async def test_v34_set_multiple_uses_control_new() -> None:
     """v3.4 writes go via CONTROL_NEW (0x0D) with a protocol:5 / data.dps body."""
     async with FakeTuya34Server() as server:

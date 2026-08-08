@@ -299,6 +299,36 @@ def test_frame35_split_response_payload_no_retcode_for_status() -> None:
     assert extracted == payload
 
 
+def test_frame35_split_response_payload_strips_retcode_for_dp_query_new() -> None:
+    """0x10 responses carry a retcode like every other 6699 response —
+    tinytuya peels it unconditionally (issue #17, FI 70 read path)."""
+    body = b'{"dps":{"1":true}}'
+    payload = (0).to_bytes(4, "big") + body
+    rc, extracted = Frame35Codec.split_response_payload(const.CMD_DP_QUERY_NEW, payload)
+    assert rc == 0
+    assert extracted == body
+
+
+def test_frame35_split_response_payload_strips_version_header() -> None:
+    """[retcode][15-byte "3.5" header][json] — the JetLine-FI push framing,
+    tolerated on query responses too (tinytuya strips it on every frame)."""
+    body = b'{"protocol":4,"data":{"dps":{"1":true}}}'
+    payload = (0).to_bytes(4, "big") + const.PROTOCOL_35_HEADER + body
+    rc, extracted = Frame35Codec.split_response_payload(const.CMD_DP_QUERY_NEW, payload)
+    assert rc == 0
+    assert extracted == body
+
+
+def test_frame35_split_response_payload_header_without_json_left_intact() -> None:
+    """A "3.x"-looking prefix NOT followed by a JSON object is not sliced —
+    unknown framing must reach decrypt_body unchanged and fail loudly there."""
+    body = b"3.5 degrees warmer than yesterday"
+    payload = (0).to_bytes(4, "big") + body
+    rc, extracted = Frame35Codec.split_response_payload(const.CMD_DP_QUERY_NEW, payload)
+    assert rc == 0
+    assert extracted == body
+
+
 def test_frame35_split_request_payload_strips_retcode_prefix() -> None:
     retcode = b"\x00\x00\x00\x00"
     json_body = b'{"dps":{"1":true}}'

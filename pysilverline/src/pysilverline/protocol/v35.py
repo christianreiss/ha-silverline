@@ -147,7 +147,16 @@ class Frame35Codec:
         """Peel a 4-byte retcode from a decrypted response payload.
 
         Payload is already decrypted by ``decode()``; this mirrors the v3.3
-        method's interface so callers need no version-awareness.
+        method's interface so callers need no version-awareness. tinytuya
+        peels the retcode unconditionally from every inbound 6699 frame
+        (``unpack_message`` with ``no_retcode=False``), so responses to any
+        request opcode — DP_QUERY_NEW included — carry one.
+
+        A 15-byte Tuya version header may follow the retcode, exactly as on
+        JetLine FI STATUS pushes (see ``split_request_payload``); tinytuya
+        strips it from every inbound frame (``_decode_payload``). Guarded by
+        the JSON-open check so unrecognised framing reaches ``decrypt_body``
+        unsliced and fails loudly there.
         """
         retcode: int | None = None
         body = payload
@@ -155,11 +164,15 @@ class Frame35Codec:
             const.CMD_CONTROL,
             const.CMD_CONTROL_NEW,
             const.CMD_DP_QUERY,
+            const.CMD_DP_QUERY_NEW,
             const.CMD_DP_REFRESH,
         ):
             if len(body) >= 4:
                 retcode = struct.unpack(">I", body[:4])[0]
                 body = body[4:]
+            vh = _35_VERSION_HEADER_SIZE
+            if len(body) > vh and body[0:2] == b"3." and body[vh : vh + 1] == b"{":
+                body = body[vh:]
         return retcode, body
 
     @staticmethod

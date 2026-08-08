@@ -126,7 +126,14 @@ class FakeTuya35Server:
                         codec.update_session_key(session_key)
                         continue
 
-                    if frame.cmd == const.CMD_DP_QUERY and session_key is not None:
+                    if (
+                        frame.cmd in (const.CMD_DP_QUERY, const.CMD_DP_QUERY_NEW)
+                        and session_key is not None
+                    ):
+                        # Serve the read under either opcode, echoing the one
+                        # asked. Real v3.5 firmware serves DP_QUERY_NEW (0x10)
+                        # — the client's primary since issue #17 — and the
+                        # JetLine FI also answers the legacy 0x0a.
                         self.queries += 1
                         payload = (
                             struct.pack(">I", 0)
@@ -135,7 +142,7 @@ class FakeTuya35Server:
                         writer.write(
                             _encode_35(
                                 self._next_resp_seq(),  # global seqno, not an echo
-                                const.CMD_DP_QUERY,
+                                frame.cmd,
                                 payload,
                                 session_key,
                             )

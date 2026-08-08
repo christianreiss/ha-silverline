@@ -246,6 +246,18 @@ def test_frame34_split_response_strips_retcode_for_control() -> None:
     assert body == ciphertext
 
 
+def test_frame34_split_response_strips_retcode_for_dp_query_new() -> None:
+    """DP_QUERY_NEW (0x10) responses peel their retcode like DP_QUERY ones —
+    it is the read opcode tinytuya uses on v3.4+, and the client's fallback
+    can send it to a v3.4 device (issue #17)."""
+    codec = Frame34Codec(KEY)
+    ciphertext = aes_encrypt(b'{"dps":{"1":true}}', KEY_B)
+    payload = struct.pack(">I", 0) + ciphertext
+    rc, body = codec.split_response_payload(const.CMD_DP_QUERY_NEW, payload)
+    assert rc == 0
+    assert body == ciphertext
+
+
 def test_frame34_split_response_no_retcode_for_status() -> None:
     codec = Frame34Codec(KEY)
     ciphertext = aes_encrypt(b'{"dps":{}}', KEY_B)

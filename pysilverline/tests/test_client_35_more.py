@@ -29,11 +29,11 @@ from tests.test_client_35 import (
 
 
 async def test_v35_get_status_times_out_when_device_silent() -> None:
-    """Handshake succeeds, but the device never answers the DP_QUERY → the
+    """Handshake succeeds, but the device answers no read at all → the
     request times out as CannotConnect (no hang, no wrong exception)."""
     async with FakeTuya35Server() as server:
-        # No CMD_DP_QUERY handler registered → the server records the query but
-        # never replies.
+        # No query handlers registered → the server records the primary 0x10
+        # read and the 0x0a fallback but never replies to either.
         client = SilverlineClient(
             host="127.0.0.1",
             port=server.port,
@@ -47,8 +47,11 @@ async def test_v35_get_status_times_out_when_device_silent() -> None:
             assert client.detected_version == "3.5"
             with pytest.raises(CannotConnect):
                 await client.get_status()
-            # The query did reach the device (decrypted under the session key).
-            assert any(cmd == const.CMD_DP_QUERY for _, cmd, _ in server.received)
+            # Both reads reached the device (decrypted under the session key):
+            # the DP_QUERY_NEW primary, then the DP_QUERY timeout fallback.
+            seen = [cmd for _, cmd, _ in server.received]
+            assert const.CMD_DP_QUERY_NEW in seen
+            assert const.CMD_DP_QUERY in seen
         finally:
             await client.disconnect()
 
@@ -88,7 +91,9 @@ async def test_v35_reconnect_re_handshakes(
     (connect() resets the v3.5 codec to the real key before each handshake)."""
     monkeypatch.setattr(client_mod, "_RECONNECT_BACKOFF", (0.05, 0.05, 0.05, 0.05))
     async with FakeTuya35Server() as server:
-        server.handlers[const.CMD_DP_QUERY] = _dp_query_handler({"1": True, "3": 25})
+        server.handlers[const.CMD_DP_QUERY_NEW] = _dp_query_handler(
+            {"1": True, "3": 25}
+        )
         server.drop_after_handshake = True  # hang up connection #1 post-handshake
         client = SilverlineClient(
             host="127.0.0.1",
@@ -134,7 +139,7 @@ async def test_v35_reconnect_survives_invalid_auth_and_surfaces_it(
     """
     monkeypatch.setattr(client_mod, "_RECONNECT_BACKOFF", (0.05, 0.05))
     async with FakeTuya35Server() as server:
-        server.handlers[const.CMD_DP_QUERY] = _dp_query_handler({"1": True})
+        server.handlers[const.CMD_DP_QUERY_NEW] = _dp_query_handler({"1": True})
         server.drop_after_handshake = True  # hang up connection #1 post-handshake
         client = SilverlineClient(
             host="127.0.0.1",
@@ -209,7 +214,7 @@ async def test_v35_disconnect_clears_stale_reconnect_auth_error(
     """
     monkeypatch.setattr(client_mod, "_RECONNECT_BACKOFF", (0.05, 0.05))
     async with FakeTuya35Server() as server:
-        server.handlers[const.CMD_DP_QUERY] = _dp_query_handler({"1": True})
+        server.handlers[const.CMD_DP_QUERY_NEW] = _dp_query_handler({"1": True})
         server.drop_after_handshake = True  # hang up connection #1 post-handshake
         client = SilverlineClient(
             host="127.0.0.1",
@@ -248,7 +253,7 @@ async def test_v35_malformed_frame_drops_connection(
     # Long backoff so the dropped state is observable before any reconnect.
     monkeypatch.setattr(client_mod, "_RECONNECT_BACKOFF", (5.0,))
     async with FakeTuya35Server() as server:
-        server.handlers[const.CMD_DP_QUERY] = _dp_query_handler({"1": True})
+        server.handlers[const.CMD_DP_QUERY_NEW] = _dp_query_handler({"1": True})
         events: list[bool] = []
         client = SilverlineClient(
             host="127.0.0.1",

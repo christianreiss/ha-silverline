@@ -146,6 +146,7 @@ class Frame34Codec:
             const.CMD_CONTROL,
             const.CMD_CONTROL_NEW,
             const.CMD_DP_QUERY,
+            const.CMD_DP_QUERY_NEW,
             const.CMD_DP_REFRESH,
         ):
             # AES-ECB ciphertext length is always a multiple of 16; a 4-byte

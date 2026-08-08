@@ -43,6 +43,34 @@ _MAX_READ_BUFFER: int = 256 * 1024
 PushListener = Callable[[DeviceState], None]
 ConnectionListener = Callable[[bool], None]
 
+#: The two opcodes a full-state read can travel under. tinytuya rewrites
+#: DP_QUERY → DP_QUERY_NEW for v3.4/v3.5 (``payload_dict`` command_override)
+#: and ignores which opcode the device answers with; real firmware is split —
+#: the 2026 FI 70 (issue #17) only serves 0x10 while every earlier confirmed
+#: unit answers 0x0a — so requests and responses under either opcode are
+#: treated as one equivalence class throughout this module.
+_QUERY_CMDS: frozenset[int] = frozenset({const.CMD_DP_QUERY, const.CMD_DP_QUERY_NEW})
+_SIBLING_QUERY_CMD: dict[int, int] = {
+    const.CMD_DP_QUERY: const.CMD_DP_QUERY_NEW,
+    const.CMD_DP_QUERY_NEW: const.CMD_DP_QUERY,
+}
+
+
+def _query_cmd_name(cmd: int) -> str:
+    return "DP_QUERY_NEW" if cmd == const.CMD_DP_QUERY_NEW else "DP_QUERY"
+
+
+def _cmd_matches(pending_cmd: int, frame_cmd: int) -> bool:
+    """Whether a response frame's cmd answers a pending request's cmd.
+
+    Exact match, except DP_QUERY/DP_QUERY_NEW answer each other: tinytuya
+    never checks the response cmd at all, and a late 0x10 answer to a
+    timed-out 0x0a query (or vice versa) is still a full-state snapshot.
+    """
+    return pending_cmd == frame_cmd or (
+        pending_cmd in _QUERY_CMDS and frame_cmd in _QUERY_CMDS
+    )
+
 
 def _unwrap_dps(decoded: object) -> dict[str, Any]:
     """Extract the ``dps`` mapping from a decoded device body.
@@ -127,6 +155,10 @@ class SilverlineClient:
         # "not connected" so callers can trigger reauth; cleared by the next
         # successful connect().
         self._reconnect_auth_error: InvalidAuth | None = None
+        # Query opcode proven to work on this device (see get_status). None
+        # until the first successful read; survives reconnects so the
+        # fallback's cost is paid at most once per client.
+        self._query_cmd: int | None = None
 
     @property
     def connected(self) -> bool:
@@ -293,26 +325,87 @@ class SilverlineClient:
                 _LOGGER.exception("connection listener raised")
 
     async def get_status(self) -> DeviceState:
-        """Issue a DP_QUERY and return the resulting DeviceState."""
-        body = {
-            "gwId": self.device_id,
-            "devId": self.device_id,
-            "uid": "",
-            "t": int(time.time()),
-        }
-        frame = await self._request(const.CMD_DP_QUERY, body)
+        """Issue a DP query and return the resulting DeviceState.
+
+        v3.5 reads go out as DP_QUERY_NEW (0x10) with an empty body — the
+        exact read tinytuya sends for 3.4/3.5 (``payload_dict`` rewrites
+        DP_QUERY → DP_QUERY_NEW with body ``{}``), hardware-proven on both
+        known v3.5 units: the JetLine Selection FI (issue #7, tinytuya read
+        test) and the 2026 FI 70 (issue #17), whose firmware does not serve
+        the legacy 0x0a read at all. v3.3/v3.4 keep the legacy DP_QUERY
+        primary, which is what their confirmed hardware answers.
+
+        On v3.4/v3.5, a read the device rejects — or leaves unanswered on a
+        live socket — is retried once under the sibling opcode, and the
+        opcode that succeeds is latched for the client's lifetime. Devices
+        whose primary opcode works never see the sibling.
+        """
+        primary = self._query_cmd
+        if primary is None:
+            primary = (
+                const.CMD_DP_QUERY_NEW
+                if self._detected_version == "3.5"
+                else const.CMD_DP_QUERY
+            )
+        try:
+            state = await self._query_status(primary)
+        except SilverlineError as err:
+            fallback = _SIBLING_QUERY_CMD[primary]
+            if self._detected_version not in ("3.4", "3.5"):
+                raise
+            if isinstance(err, CannotConnect) and not self.connected:
+                # The socket died (not a quiet firmware ignoring the opcode);
+                # retrying under another opcode would stall on a dead pipe.
+                raise
+            _LOGGER.debug(
+                "%s failed (%s); retrying as %s",
+                _query_cmd_name(primary),
+                err,
+                _query_cmd_name(fallback),
+            )
+            try:
+                state = await self._query_status(fallback)
+            except SilverlineError as fallback_err:
+                _LOGGER.debug(
+                    "%s fallback also failed: %s",
+                    _query_cmd_name(fallback),
+                    fallback_err,
+                )
+                # Surface the primary's failure — it names the opcode this
+                # protocol version is expected to speak.
+                raise err from None
+            self._query_cmd = fallback
+            return state
+        self._query_cmd = primary
+        return state
+
+    async def _query_status(self, cmd: int) -> DeviceState:
+        if cmd == const.CMD_DP_QUERY_NEW:
+            # tinytuya sends exactly b"{}" here — no gwId/devId/uid/t
+            # ("v3.3+ devices do not need devId/gwId/uid", XenonDevice
+            # payload_dict). The FI 70 accepts precisely this shape.
+            body: dict[str, Any] = {}
+        else:
+            body = {
+                "gwId": self.device_id,
+                "devId": self.device_id,
+                "uid": "",
+                "t": int(time.time()),
+            }
+        name = _query_cmd_name(cmd)
+        frame = await self._request(cmd, body)
         retcode, ciphertext = self._codec.split_response_payload(
             frame.cmd, frame.payload
         )
         if is_invalid_auth_retcode(retcode):
-            raise InvalidAuth(f"DP_QUERY rejected retcode={retcode}")
+            raise InvalidAuth(f"{name} rejected retcode={retcode}")
         # Mirror set_multiple: any other non-zero retcode is a device-side
         # failure we shouldn't paper over by decrypting an empty body.
         if retcode not in (None, 0):
-            raise SilverlineError(f"DP_QUERY failed retcode=0x{retcode:08x}")
+            raise SilverlineError(f"{name} failed retcode=0x{retcode:08x}")
         decoded = self._codec.decrypt_body(ciphertext)
         dps = _unwrap_dps(decoded)
-        _LOGGER.debug("DP_QUERY returned dps=%s", dps)
+        _LOGGER.debug("%s returned dps=%s", name, dps)
         # Merge rather than replace: some Tuya firmware variants only
         # ship certain DPs in spontaneous STATUS pushes, not in
         # DP_QUERY responses. If we replaced wholesale, those push-only
@@ -539,15 +632,21 @@ class SilverlineClient:
         future. Benign here — our requests are full-state snapshots (DP_QUERY)
         or idempotent writes (CONTROL), self-correcting on the next poll — and
         tinytuya is looser still (no correlation at all).
+
+        Matching is by ``_cmd_matches``, not equality: DP_QUERY and
+        DP_QUERY_NEW answer each other, so a firmware that echoes 0x10 for a
+        0x0a read (or vice versa) still resolves the waiting future instead
+        of timing out.
         """
         entry = self._pending.get(seq)
-        if entry is not None and entry[0] == cmd:
+        if entry is not None and _cmd_matches(entry[0], cmd):
             del self._pending[seq]
             return entry[1]
         if self._detected_version in ("3.4", "3.5"):
             # dict preserves insertion order → first match is the oldest request
             match_seq = next(
-                (s for s, (c, _f) in self._pending.items() if c == cmd), None
+                (s for s, (c, _f) in self._pending.items() if _cmd_matches(c, cmd)),
+                None,
             )
             if match_seq is not None:
                 return self._pending.pop(match_seq)[1]
@@ -563,6 +662,7 @@ class SilverlineClient:
             const.CMD_CONTROL,
             const.CMD_CONTROL_NEW,
             const.CMD_DP_QUERY,
+            const.CMD_DP_QUERY_NEW,
             const.CMD_DP_REFRESH,
         ):
             fut = self._take_pending(frame.cmd, frame.seq)
