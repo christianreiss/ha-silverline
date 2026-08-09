@@ -71,7 +71,7 @@ WiFi control board (issue #7).
 | Nulite | v3.3 / v3.5 | ✅ | ✅ | ✅ full | ✅ | 🔵 inferred |
 | Poolex Silverline (Tuya v3.4 firmware) | v3.4 | ✅ | ✅ | ✅ full (own DP map) | ✅ | 🟢 live-verified |
 | Poolex Nano Fi 3kW (PC-NANO-B3N) | v3.5 | ✅ | ✅ | ✅ own DP map (own AC voltage/current sensors too) | ✅ | 🟢 live-verified |
-| Poolex Nano 5kW WiFi | v3.4 / v3.5 | ✅ | ❓ unconfirmed (falls back to plain heat/cool) | ❌ none (5-DP firmware) | ✅ (DP 21 water-flow bit only) | 🟢 user-verified |
+| Poolex Nano 5kW WiFi (also sold as "Spawler o'spa Flow 5kW", "Varpoolfaye Pool Mini") | v3.4 / v3.5 | ✅ | ❓ unconfirmed (falls back to plain heat/cool) | ❌ none (5-DP firmware) | ✅ (DP 21 water-flow bit only) | 🟢 live-verified |
 | Other Poolstar / Tuya WBR3 OEM | auto | ✅ | ✅ | live-detected | ✅ | ⚪ unknown |
 
 **Legend** — 🟢 live-verified (verified directly by me, or by a community
@@ -267,11 +267,13 @@ Changing the option reloads the entry, which briefly reconnects the socket.
   failure mode from the WBR3 behaviour above, where the DPs stay present
   but stale. It is recorded here as a lead, not a documented behaviour: the
   captures on either side of the test also differ in power state (DP 1
-  `false` vs `true`) and in how long the device had been offline, and an
-  earlier capture from the same unit — also firewalled, also powered off —
-  did return the full DP set plus a DP 101. Isolating it needs an A/B taken
-  at the same power state. If your DPs go missing, restoring the device's
-  outbound cloud access is the first thing to try.
+  `false` vs `true`), and an earlier capture from the same unit — powered
+  off, and reportedly under the same firewall rule — did return the full DP
+  set plus a DP 101. That DP 101 has not reappeared since, *including* after
+  the block was lifted, so at least part of what makes the reported DP set
+  drift is not cloud reachability. Isolating it needs an A/B taken at the
+  same power state. If your DPs go missing, restoring the device's outbound
+  cloud access is the first thing to try.
 - **°F mode is not supported.** Lock the wired remote to °C — on °F some
   firmwares move the fault bitmap from DP 13 to DP 21 and reuse DP 13 for
   the unit-conversion enum, which the integration does not yet handle.
