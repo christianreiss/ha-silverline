@@ -506,6 +506,7 @@ async def test_v34_model_selects_v34_sensor_catalog(hass: HomeAssistant) -> None
     client.device_id = device_id
     client.connected = True
     client.state = state
+    client.dp_layout = LAYOUT_V34_WFZEIYN
     client.detected_version = "3.4"
     client.connect = AsyncMock(return_value=None)
     client.disconnect = AsyncMock(return_value=None)
@@ -670,6 +671,7 @@ async def test_nano_fi_3kw_model_selects_sensor_catalog(hass: HomeAssistant) -> 
     client.device_id = device_id
     client.connected = True
     client.state = state
+    client.dp_layout = LAYOUT_NANO_FI_3KW
     client.detected_version = "3.5"
     client.connect = AsyncMock(return_value=None)
     client.disconnect = AsyncMock(return_value=None)
@@ -764,6 +766,90 @@ async def test_nano_fi_3kw_model_selects_sensor_catalog(hass: HomeAssistant) -> 
     assert _state("actual_frequency") == "35"
 
 
+async def test_nano_5kw_model_selects_sensor_catalog(hass: HomeAssistant) -> None:
+    """A `nano_5kw` entry builds the dedicated Nano 5kW sensor catalog:
+    temperature_delta, fault_code (decoded from DP 21, not DP 13), and
+    runtime_today only. Regression guard for issue #18: DP 101 being
+    present (as a boolean on this firmware, not a temperature) must NOT
+    register a permanently-"unavailable" exhaust_temperature sensor — the
+    generic SENSORS catalog's DP 101 -> suction_temp mapping is exactly
+    what produced that bug."""
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from homeassistant.const import CONF_HOST, CONF_PORT
+    from pysilverline.layouts import LAYOUT_NANO_5KW
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    from custom_components.poolex_silverline.const import (
+        CONF_DEVICE_ID,
+        CONF_LOCAL_KEY,
+        CONF_MODEL,
+        DOMAIN,
+    )
+
+    device_id = "bf99887766nano5kwzzyy"
+    # Matches issue #18's second reporter: DP 101 present but boolean, not
+    # a temperature. DP 21 = 256 (bit 8) is the hardware-confirmed E6 /
+    # water-flow fault from issue #16.
+    nano_5kw_dps = {
+        "1": True,
+        "2": 30,
+        "3": 24,
+        "4": "Heat",
+        "21": 256,
+        "101": False,
+    }
+    state = DeviceState.from_dps(nano_5kw_dps, layout=LAYOUT_NANO_5KW)
+
+    client = MagicMock()
+    client.host = "10.0.0.61"
+    client.port = 6668
+    client.device_id = device_id
+    client.connected = True
+    client.state = state
+    client.detected_version = "3.4"
+    client.dp_layout = LAYOUT_NANO_5KW
+    client.connect = AsyncMock(return_value=None)
+    client.disconnect = AsyncMock(return_value=None)
+    client.get_status = AsyncMock(return_value=state)
+    client.set_dp = AsyncMock(return_value=None)
+    client.set_multiple = AsyncMock(return_value=None)
+    client.add_listener = MagicMock(return_value=lambda: None)
+    client.add_connection_listener = MagicMock(return_value=lambda: None)
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=device_id,
+        data={
+            CONF_HOST: "10.0.0.61",
+            CONF_PORT: 6668,
+            CONF_DEVICE_ID: device_id,
+            CONF_LOCAL_KEY: "0123456789abcdef",
+            CONF_MODEL: "nano_5kw",
+        },
+        version=1,
+        minor_version=1,
+    )
+    entry.add_to_hass(hass)
+    with patch(
+        "custom_components.poolex_silverline.SilverlineClient", return_value=client
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    registry = er.async_get(hass)
+    sensor_keys = {
+        e.unique_id.removeprefix(f"{device_id}_"): e
+        for e in er.async_entries_for_config_entry(registry, entry.entry_id)
+        if e.domain == "sensor"
+    }
+    assert sensor_keys.keys() == {"temperature_delta", "fault_code", "runtime_today"}
+
+    state_obj = hass.states.get(sensor_keys["fault_code"].entity_id)
+    assert state_obj is not None
+    assert state_obj.state == "water_flow"
+
+
 async def test_v34_entity_inventory_snapshot(
     hass: HomeAssistant,
     snapshot: SnapshotAssertion,
@@ -821,6 +907,7 @@ async def test_v34_entity_inventory_snapshot(
     client.device_id = device_id
     client.connected = True
     client.state = state
+    client.dp_layout = LAYOUT_V34_WFZEIYN
     client.detected_version = "3.4"
     client.connect = AsyncMock(return_value=None)
     client.disconnect = AsyncMock(return_value=None)
@@ -921,6 +1008,7 @@ async def test_energy_sensor_restores_across_restart(hass: HomeAssistant) -> Non
     client.device_id = device_id
     client.connected = True
     client.state = state
+    client.dp_layout = LAYOUT_V34_WFZEIYN
     client.detected_version = "3.4"
     client.connect = AsyncMock(return_value=None)
     client.disconnect = AsyncMock(return_value=None)

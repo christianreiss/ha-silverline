@@ -23,6 +23,14 @@ class DpLayout:
     and the raw integer alone cannot tell them apart. Both divisors leave the
     value an int when set to 1, so unaffected devices and their diagnostic
     dumps stay byte-for-byte unchanged.
+
+    ``fault`` is the wire DP carrying this firmware's status/fault bitmap.
+    Every model confirmed so far uses DP 13 (the default) except the Nano
+    5kW family, which reports it on DP 21 instead (issue #16) — a distinct
+    bitmap with its own bit layout, not the same bitmap relocated. Callers
+    that decode ``DeviceState.fault`` must pair it with the matching bit-name
+    table for this DP (``FAULT_BIT_NAMES`` for 13, ``NANO_5KW_FAULT_BIT_NAMES``
+    for 21) rather than assuming one universal table.
     """
 
     temp_current_divisor: int = 1
@@ -50,3 +58,4 @@ class DpLayout:
     ac_voltage: int | None = None
     ac_current: int | None = None
     ac_current_divisor: int = 1
+    fault: int | None = 13

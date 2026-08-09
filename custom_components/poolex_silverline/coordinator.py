@@ -21,6 +21,7 @@ from pysilverline import (
     SilverlineClient,
     SilverlineError,
 )
+from pysilverline import const as tuya_const
 
 from ._config_validation import scan_interval_from_options
 from ._energy import accumulate_energy, is_usable_power, max_energy_gap
@@ -200,7 +201,16 @@ class SilverlineCoordinator(DataUpdateCoordinator[DeviceState]):
         # monotonic() is read HERE (not inside the reconciler) so the E03
         # debounce clock stays patchable as
         # coordinator.time.monotonic in tests.
-        self._faults.reconcile(self.hass, state, now=time.monotonic())
+        #
+        # Repair-issue reconciliation decodes DP 13's bitmap specifically
+        # (FAULT_BIT_CODES / the E03 debounce are DP-13 semantics) — gate it
+        # to models whose fault DP actually is 13. The Nano 5kW family
+        # (issue #16) reports its fault bitmap on DP 21 instead, with a
+        # different bit layout; running it through this reconciler would
+        # mislabel bit 8 (water flow) as bit 8's DP-13 meaning (defrost
+        # sensor / P1) and raise a wrong Repair card.
+        if self.client.dp_layout.fault == tuya_const.DP_FAULT:
+            self._faults.reconcile(self.hass, state, now=time.monotonic())
         self._tick_runtime(state)
         self._tick_energy(state)
 

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Final
 
 from pysilverline.devices import (
+    MODEL_NANO_5KW,
     MODEL_NANO_FI_3KW,
     MODEL_PC_INV_120,
     MODEL_SILVERLINE_V34,
@@ -218,31 +219,52 @@ DEVICE_PROFILES: Final[dict[str, DeviceProfile]] = {
         display_name="Poolex Nano Fi 3kW (PC-NANO-B3N)",
         known_dps=None,
     ),
-    "nano_5kw": DeviceProfile(
-        # Poolex Nano 5kW WiFi, Tuya pid yk3bytlujz2xshuy, protocol v3.5
-        # (issue #16). Cross-checked against the public tuya-local product
-        # schema for this exact pid (same OEM hardware, catalogued there as
-        # "Varpoolfaye Pool Mini") — confirms the firmware genuinely exposes
-        # only {1,2,3,4,21}: no inlet/outlet/suction/discharge temp,
-        # frequency, fan, pump, or voltage/current DPs exist on this
-        # hardware tier at all. Unlike issue #15 (FI 120), this isn't
-        # cloud-gating — those DPs are simply absent from the product's
-        # schema. DP 21 is a status/fault bitfield, not a runtime counter;
-        # that schema decodes bit 8 (value 256) as a water-flow problem with
-        # the remaining bits an undifferentiated "fault present" catch-all,
-        # which isn't enough to safely wire up a binary_sensor yet pending
-        # hardware confirmation from the reporter. The tuya-local config
-        # only models Heat/Cool/Auto for DP 4 — but it maps HA's climate
-        # hvac_mode, not this integration's boost/eco presets, so it does
-        # NOT prove the firmware rejects BoostHeat/SilentHeat/etc. Unconfirmed
-        # either way, so boost/eco presets fall back to the plain string (same
-        # defensive pattern as steinbach_silent_mini) rather than risk writing
-        # an enum value the device doesn't understand. Per-mode setpoint
-        # clamp bounds are
+    MODEL_NANO_5KW: DeviceProfile(
+        # Poolex Nano 5kW WiFi, Tuya pid yk3bytlujz2xshuy, protocol v3.4/v3.5
+        # (issue #16; same pid also reported as "Poolex Spawler o'spa Flow
+        # 5kW" on protocol v3.4, issue #18). Cross-checked against the
+        # public tuya-local product schema for this exact pid (same OEM
+        # hardware, catalogued there as "Varpoolfaye Pool Mini") — confirms
+        # the firmware genuinely exposes only {1,2,3,4,21} (+ an
+        # unconfirmed boolean on DP 101 seen on one unit, issue #18): no
+        # inlet/outlet/suction/discharge temp, frequency, fan, pump, or
+        # voltage/current DPs exist on this hardware tier at all. Unlike
+        # issue #15 (FI 120), this isn't cloud-gating — those DPs are
+        # simply absent from the product's schema.
+        #
+        # DP 21 is a status/fault bitfield, not a runtime counter — routed
+        # via LAYOUT_NANO_5KW's `fault=21` (see pysilverline.devices). Bit 8
+        # (value 256) is hardware-confirmed as a water-flow fault (E6 on the
+        # physical display): a reporter captured DP21=0 in normal operation
+        # and DP21=256 with E6 showing, self-clearing once flow was restored
+        # (issue #16). See NANO_5KW_FAULT_BIT_NAMES in pysilverline.const —
+        # only that one bit is confirmed; the rest surface as generic
+        # "bitN" placeholders rather than guessed labels.
+        #
+        # The tuya-local config only models Heat/Cool/Auto for DP 4 — but it
+        # maps HA's climate hvac_mode, not this integration's boost/eco
+        # presets, so it does NOT prove the firmware rejects
+        # BoostHeat/SilentHeat/etc. Unconfirmed either way, so boost/eco
+        # presets fall back to the plain string (same defensive pattern as
+        # steinbach_silent_mini) rather than risk writing an enum value the
+        # device doesn't understand. Per-mode setpoint clamp bounds are
         # unverified (only the raw DP 2 range 5-40°C is confirmed) — left as
         # None to fall back to the global defaults rather than assume.
+        #
+        # known_dps is a FIXED set (not None/live-detect), unlike most other
+        # profiles: this firmware only reports DPs 3/4/21 while powered ON —
+        # a second issue #18 diagnostic dump taken while the unit was off
+        # showed only {1,2}. supported_dps latches from whichever poll
+        # happens to be the *first* one after setup (coordinator.py), so
+        # live-detect would permanently starve every entity gated on
+        # "3"/"4"/"21" for anyone who sets up (or reloads) the integration
+        # while the pump happens to be idle. A fixed set — confirmed present
+        # across both issue #16 and #18 reporters whenever the unit was on —
+        # sidesteps that race entirely, matching the same pattern already
+        # used for pc_slp090n above. DP 101 is deliberately excluded: its
+        # meaning is unconfirmed and no entity reads it.
         display_name="Poolex Nano 5kW WiFi",
-        known_dps=None,
+        known_dps=frozenset({1, 2, 3, 4, 21}),
         preset_to_heat_dp={"none": "Heat"},
         preset_to_cool_dp={"none": "Cool"},
     ),

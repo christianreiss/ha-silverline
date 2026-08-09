@@ -37,27 +37,35 @@ _LEARN_MORE_URL: Final = (
 )
 
 
-def _decode_fault(raw: int | None) -> str | None:
+def _decode_fault(
+    raw: int | None, *, names: dict[int, str] | None = None
+) -> str | None:
     """Return every active fault bit as a comma-joined name list.
 
-    - ``None`` when DP 13 hasn't been observed yet.
+    - ``None`` when the backing fault DP hasn't been observed yet.
     - ``None`` when the fault bitmap is zero — the sensor surfaces as
       "unknown" / no state which matches the OEM controller's blank
       display when nothing is wrong.
-    - Otherwise a comma-joined list of FAULT_BIT_NAMES values in bit
-      order, plus ``"bit<n>"`` placeholders for any bits we don't have a
-      symbolic name for so a new fault on a new firmware variant still
-      surfaces instead of being silently dropped.
+    - Otherwise a comma-joined list of ``names`` values in bit order, plus
+      ``"bit<n>"`` placeholders for any bits we don't have a symbolic name
+      for so a new fault on a new firmware variant still surfaces instead
+      of being silently dropped.
+
+    ``names`` defaults to FAULT_BIT_NAMES (the DP 13 bitmap shared by the
+    standard Poolstar family). Callers decoding a different firmware's
+    fault DP — e.g. the Nano 5kW family's DP 21 — must pass that DP's own
+    bit-name table; the tables are not interchangeable (see DpLayout.fault).
     """
     if raw is None or raw == 0:
         return None
-    names: list[str] = []
+    table = names if names is not None else tuya_const.FAULT_BIT_NAMES
+    result: list[str] = []
     bit = 0
     while (1 << bit) <= raw:
         if raw & (1 << bit):
-            names.append(tuya_const.FAULT_BIT_NAMES.get(bit, f"bit{bit}"))
+            result.append(table.get(bit, f"bit{bit}"))
         bit += 1
-    return ", ".join(names)
+    return ", ".join(result)
 
 
 class FaultReconciler:

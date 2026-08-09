@@ -138,7 +138,7 @@ class DeviceState:
             temp_set=_int(const.DP_TEMP_SET),
             temp_current=_temp_current(),
             mode=_str(const.DP_MODE),
-            fault=_int(const.DP_FAULT),
+            fault=_int(layout.fault),
             suction_temp=_int(layout.suction_temp),
             ambient_temp=_int(layout.ambient_temp),
             pool_temp=_int(layout.pool_temp),

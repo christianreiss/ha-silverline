@@ -24,10 +24,15 @@ from .util import compute_hvac_action
 
 PARALLEL_UPDATES = 0
 
-# Which fault bits are common enough to want on the dashboard out of the
-# box. The remaining bits in FAULT_BIT_NAMES become disabled-by-default
-# entities the user can turn on if they care about that specific fault.
-_DEFAULT_ENABLED_FAULT_BITS: frozenset[int] = frozenset({0, 1, 2, 3, 4})
+# Which fault names are common enough to want on the dashboard out of the
+# box, keyed by symbolic name (not bit position) since the same name can
+# sit on a different bit across fault tables — e.g. "water_flow" is bit 0
+# in FAULT_BIT_NAMES (DP 13) but bit 8 in NANO_5KW_FAULT_BIT_NAMES (DP 21).
+# The remaining names become disabled-by-default entities the user can turn
+# on if they care about that specific fault.
+_DEFAULT_ENABLED_FAULT_NAMES: frozenset[str] = frozenset(
+    {"water_flow", "antifreeze", "high_pressure", "low_pressure", "communication"}
+)
 
 
 def _bit(state: DeviceState, position: int) -> bool | None:
@@ -53,13 +58,24 @@ class SilverlineBinarySensorDescription(BinarySensorEntityDescription):
     value_fn: Callable[[DeviceState], bool | None]
     # See SilverlineSensorDescription.dp_keys — same firmware-capability gate.
     dp_keys: tuple[str, ...]
+    # Fault-bit descriptions only: the wire DP their bit table assumes
+    # (13 for FAULT_BIT_NAMES, 21 for NANO_5KW_FAULT_BIT_NAMES). None for
+    # non-fault descriptions. Gated in async_setup_entry against the
+    # model's actual dp_layout.fault so two models that both happen to
+    # expose a DP numerically equal to this one (e.g. a future firmware
+    # with an unrelated DP 21) can never mis-instantiate each other's bit
+    # table — dp_keys alone can't tell "has this DP" from "this DP means
+    # what I think it means".
+    required_fault_dp: int | None = None
 
 
-def _fault_binary_sensor(bit: int, name: str) -> SilverlineBinarySensorDescription:
-    """Build one fault-bit binary sensor description.
+def _fault_binary_sensor(
+    bit: int, name: str, *, dp: int
+) -> SilverlineBinarySensorDescription:
+    """Build one fault-bit binary sensor description for fault DP ``dp``.
 
     Keeping this as a helper keeps the BINARY_SENSORS tuple in lock-step
-    with FAULT_BIT_NAMES — adding a new bit to the library mapping
+    with the bit-name tables — adding a new bit to either mapping
     automatically registers a corresponding entity.
     """
 
@@ -67,6 +83,8 @@ def _fault_binary_sensor(bit: int, name: str) -> SilverlineBinarySensorDescripti
         # ``bit`` is closed over by reference rather than cell-bound via a
         # default arg — wrapping the call in a def fixes the type so the
         # SilverlineBinarySensorDescription field's Callable matches strictly.
+        # state.fault is sourced from whichever DP the model's layout maps
+        # to `fault` (13 or 21), so the same _bit() helper works for both.
         return _bit(state, bit)
 
     return SilverlineBinarySensorDescription(
@@ -74,9 +92,10 @@ def _fault_binary_sensor(bit: int, name: str) -> SilverlineBinarySensorDescripti
         translation_key=f"fault_{name}",
         device_class=BinarySensorDeviceClass.PROBLEM,
         entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=bit in _DEFAULT_ENABLED_FAULT_BITS,
+        entity_registry_enabled_default=name in _DEFAULT_ENABLED_FAULT_NAMES,
         value_fn=_value_fn,
-        dp_keys=("13",),
+        dp_keys=(str(dp),),
+        required_fault_dp=dp,
     )
 
 
@@ -110,8 +129,12 @@ BINARY_SENSORS: tuple[SilverlineBinarySensorDescription, ...] = (
         dp_keys=("111",),
     ),
     *(
-        _fault_binary_sensor(bit, name)
+        _fault_binary_sensor(bit, name, dp=tuya_const.DP_FAULT)
         for bit, name in sorted(tuya_const.FAULT_BIT_NAMES.items())
+    ),
+    *(
+        _fault_binary_sensor(bit, name, dp=21)
+        for bit, name in sorted(tuya_const.NANO_5KW_FAULT_BIT_NAMES.items())
     ),
 )
 
@@ -132,6 +155,11 @@ async def async_setup_entry(
     def _is_supported(description: SilverlineBinarySensorDescription) -> bool:
         if description.key == "compressor_running":
             return freq_dp is not None and str(freq_dp) in supported
+        if description.required_fault_dp is not None:
+            return (
+                coordinator.client.dp_layout.fault == description.required_fault_dp
+                and set(description.dp_keys) <= supported
+            )
         return set(description.dp_keys) <= supported
 
     async_add_entities(

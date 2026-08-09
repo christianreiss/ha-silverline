@@ -71,7 +71,7 @@ WiFi control board (issue #7).
 | Nulite | v3.3 / v3.5 | ✅ | ✅ | ✅ full | ✅ | 🔵 inferred |
 | Poolex Silverline (Tuya v3.4 firmware) | v3.4 | ✅ | ✅ | ✅ full (own DP map) | ✅ | 🟢 live-verified |
 | Poolex Nano Fi 3kW (PC-NANO-B3N) | v3.5 | ✅ | ✅ | ✅ own DP map (own AC voltage/current sensors too) | ✅ | 🟢 live-verified |
-| Poolex Nano 5kW WiFi | v3.5 | ✅ | ❓ unconfirmed (falls back to plain heat/cool) | ❌ none (5-DP firmware) | ❌ (DP 21, not yet wired up) | 🟡 user-reported |
+| Poolex Nano 5kW WiFi | v3.4 / v3.5 | ✅ | ❓ unconfirmed (falls back to plain heat/cool) | ❌ none (5-DP firmware) | ✅ (DP 21 water-flow bit only) | 🟡 user-reported |
 | Other Poolstar / Tuya WBR3 OEM | auto | ✅ | ✅ | live-detected | ✅ | ⚪ unknown |
 
 **Legend** — 🟢 live-verified · 🔵 high confidence (same OEM platform, not
@@ -129,15 +129,24 @@ in-house) · ⚪ unknown · ✅ present · ❌ absent · ❓ firmware-dependent
   [Known limitations](#known-limitations)).
 - **Poolex Nano 5kW WiFi is a genuinely minimal-DP device, not cloud-gated.**
   Reported with only `{1, 2, 3, 4, 21}` available (issue #16, productKey
-  `yk3bytlujz2xshuy`). Cross-referenced against the public tuya-local
-  project, which catalogues this exact productKey under a different OEM
-  brand name ("Varpoolfaye Pool Mini") with the same 5-DP schema —
-  confirming there is no inlet/outlet/suction/discharge temp, frequency,
-  fan, pump, or voltage/current telemetry to expose on this hardware tier
-  at all, unlike the richer Nano Fi 3kW. DP 21 is a status/fault bitfield
-  rather than a runtime counter on this firmware, but the exact bit layout
-  isn't confirmed enough yet to wire up a fault sensor. Boost/eco preset
-  support is unconfirmed (the cross-referenced schema only models
+  `yk3bytlujz2xshuy`; also seen rebranded as the "Poolex Spawler o'spa Flow
+  5kW" on protocol v3.4, issue #18). Cross-referenced against the public
+  tuya-local project, which catalogues this exact productKey under a
+  different OEM brand name ("Varpoolfaye Pool Mini") with the same 5-DP
+  schema — confirming there is no inlet/outlet/suction/discharge temp,
+  frequency, fan, pump, or voltage/current telemetry to expose on this
+  hardware tier at all, unlike the richer Nano Fi 3kW. Some units also
+  expose a DP 101 that is a boolean, not a temperature — the integration
+  no longer maps it as one (issue #18), so it won't show a permanently
+  "unavailable" suction-temperature sensor. DP 21 is a status/fault
+  bitfield rather than a runtime counter on this firmware; bit 8 (raw
+  value 256) is hardware-confirmed as the E6 / insufficient-water-flow
+  fault (a reporter captured DP21 = 0 normally and 256 with the physical
+  controller showing E6, self-clearing once flow was restored) and
+  surfaces as the `fault_water_flow` binary sensor and the `fault_code`
+  sensor. Other bits on this DP are not yet identified and surface as
+  generic `bitN` placeholders rather than a guessed label. Boost/eco
+  preset support is unconfirmed (the cross-referenced schema only models
   Heat/Cool/Auto, and doesn't cover presets either way), so selecting them
   degrades to the plain heat/cool string rather than risking an
   unsupported write.

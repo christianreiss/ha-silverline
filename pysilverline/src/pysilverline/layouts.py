@@ -9,6 +9,7 @@ integration's ``__init__.py``, and the tests) keep resolving from
 from __future__ import annotations
 
 from .devices import LAYOUT_BY_NAME as LAYOUT_BY_NAME
+from .devices import LAYOUT_NANO_5KW as LAYOUT_NANO_5KW
 from .devices import LAYOUT_NANO_FI_3KW as LAYOUT_NANO_FI_3KW
 from .devices import LAYOUT_PC_INV_120 as LAYOUT_PC_INV_120
 from .devices import LAYOUT_STANDARD as LAYOUT_STANDARD
@@ -19,6 +20,7 @@ from .devices import layout_for_model as layout_for_model
 __all__ = [
     "DpLayout",
     "LAYOUT_BY_NAME",
+    "LAYOUT_NANO_5KW",
     "LAYOUT_NANO_FI_3KW",
     "LAYOUT_PC_INV_120",
     "LAYOUT_STANDARD",

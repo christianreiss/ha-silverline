@@ -255,3 +255,78 @@ async def test_e03_debounce_resets_when_bit_clears(
         )
         await hass.async_block_till_done()
         assert _issue(hass, "fault_E03") is not None
+
+
+async def test_nano_5kw_fault_does_not_create_dp13_repair_issue(
+    hass: HomeAssistant,
+) -> None:
+    """Regression guard: the Nano 5kW family (issue #16) reports its fault
+    bitmap on DP 21, not DP 13. Repair-issue reconciliation decodes DP 13
+    specifically (FAULT_BIT_CODES / the E03 debounce are DP-13 semantics).
+    DP 21 = 256 is bit 8 — if reconcile ran against it unconditionally, bit
+    8 would resolve through FAULT_BIT_CODES to "P1" (defrost sensor), a
+    wrong Repair card for what is actually a water-flow fault. It must
+    raise no Repair issue at all: this model's fault decoding is handled
+    by its own sensor/binary_sensor entities, not the DP-13 reconciler."""
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from homeassistant.const import CONF_HOST, CONF_PORT
+    from pysilverline.layouts import LAYOUT_NANO_5KW
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    from custom_components.poolex_silverline.const import (
+        CONF_DEVICE_ID,
+        CONF_LOCAL_KEY,
+        CONF_MODEL,
+        DOMAIN,
+    )
+
+    device_id = "bf99887766nano5kwrpair"
+    state = DeviceState.from_dps(
+        {"1": True, "2": 30, "3": 24, "4": "Heat", "21": 256},
+        layout=LAYOUT_NANO_5KW,
+    )
+
+    client = MagicMock()
+    client.host = "10.0.0.63"
+    client.port = 6668
+    client.device_id = device_id
+    client.connected = True
+    client.state = state
+    client.detected_version = "3.4"
+    client.dp_layout = LAYOUT_NANO_5KW
+    client.connect = AsyncMock(return_value=None)
+    client.disconnect = AsyncMock(return_value=None)
+    client.get_status = AsyncMock(return_value=state)
+    client.set_dp = AsyncMock(return_value=None)
+    client.set_multiple = AsyncMock(return_value=None)
+    client.add_listener = MagicMock(return_value=lambda: None)
+    client.add_connection_listener = MagicMock(return_value=lambda: None)
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=device_id,
+        data={
+            CONF_HOST: "10.0.0.63",
+            CONF_PORT: 6668,
+            CONF_DEVICE_ID: device_id,
+            CONF_LOCAL_KEY: "0123456789abcdef",
+            CONF_MODEL: "nano_5kw",
+        },
+        version=1,
+        minor_version=1,
+    )
+    entry.add_to_hass(hass)
+    with patch(
+        "custom_components.poolex_silverline.SilverlineClient", return_value=client
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert _issue(hass, "fault_P1") is None
+    assert _issue(hass, "fault_E03") is None
+    all_issues = ir.async_get(hass).issues
+    assert not any(
+        issue_id[0] == DOMAIN and issue_id[1].startswith("fault_")
+        for issue_id in all_issues
+    )

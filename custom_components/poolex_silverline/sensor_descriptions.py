@@ -44,9 +44,10 @@ from homeassistant.const import (
     UnitOfTemperature,
     UnitOfTime,
 )
-from pysilverline.devices import MODEL_NANO_FI_3KW, MODEL_SILVERLINE_V34
+from pysilverline.devices import MODEL_NANO_5KW, MODEL_NANO_FI_3KW, MODEL_SILVERLINE_V34
 
 from pysilverline import DeviceState
+from pysilverline import const as tuya_const
 
 from ._faults import _decode_fault
 
@@ -135,6 +136,19 @@ _FAULT_CODE = SilverlineSensorDescription(
     entity_category=EntityCategory.DIAGNOSTIC,
     value_fn=lambda d: _decode_fault(d.fault),
     dp_keys=("13",),
+)
+
+# Nano 5kW family (issue #16): the status/fault bitmap lives on DP 21
+# instead of DP 13, with its own bit layout — reuses the "fault_code"
+# translation (same concept, different DP) rather than the DP 13 table.
+_FAULT_CODE_NANO_5KW = SilverlineSensorDescription(
+    key="fault_code",
+    translation_key="fault_code",
+    entity_category=EntityCategory.DIAGNOSTIC,
+    value_fn=lambda d: _decode_fault(
+        d.fault, names=tuya_const.NANO_5KW_FAULT_BIT_NAMES
+    ),
+    dp_keys=("21",),
 )
 
 _CONDENSING_TEMPERATURE = SilverlineSensorDescription(
@@ -564,15 +578,32 @@ NANO_FI_SENSORS: tuple[SilverlineSensorDescription, ...] = (
 )
 
 
+#: Diagnostic catalog for the Poolex Nano 5kW WiFi family (productKey
+#: yk3bytlujz2xshuy — also seen rebranded as "Poolex Spawler o'spa Flow
+#: 5kW", issue #16 / #18). This hardware exposes nothing beyond
+#: {1,2,3,4,21} (+ an unconfirmed boolean on DP 101 that is NOT a
+#: temperature on this firmware — the generic SENSORS catalog's
+#: _EXHAUST_TEMPERATURE would otherwise register against it and sit
+#: permanently "unavailable", exactly issue #18's complaint). DP 21 carries
+#: this family's status/fault bitmap in place of the standard DP 13.
+NANO_5KW_SENSORS: tuple[SilverlineSensorDescription, ...] = (
+    _TEMPERATURE_DELTA,
+    _FAULT_CODE_NANO_5KW,
+    _RUNTIME_TODAY,
+)
+
+
 def descriptions_for_model(model_key: str) -> tuple[SilverlineSensorDescription, ...]:
     """Return the diagnostic sensor catalog for ``model_key``.
 
-    The v3.4 wfzeiyn firmware and the Nano Fi 3kW both renumber their DPs
-    relative to the legacy layout, so each gets a dedicated catalog;
-    every other model uses the legacy numbering.
+    The v3.4 wfzeiyn firmware, the Nano Fi 3kW, and the Nano 5kW family
+    all renumber or omit DPs relative to the legacy layout, so each gets a
+    dedicated catalog; every other model uses the legacy numbering.
     """
     if model_key == MODEL_SILVERLINE_V34:
         return V34_SENSORS
     if model_key == MODEL_NANO_FI_3KW:
         return NANO_FI_SENSORS
+    if model_key == MODEL_NANO_5KW:
+        return NANO_5KW_SENSORS
     return SENSORS

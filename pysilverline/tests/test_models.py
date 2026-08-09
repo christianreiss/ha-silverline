@@ -163,6 +163,29 @@ def test_from_dps_default_layout_keeps_current_temp_int() -> None:
     assert isinstance(state.temp_current, int)
 
 
+def test_from_dps_nano_5kw_layout_reads_fault_from_dp21() -> None:
+    """The Nano 5kW family (issue #16) carries its fault bitmap on DP 21,
+    not the standard DP 13 — the layout's `fault` field routes DeviceState
+    to the right wire DP instead of assuming 13 universally."""
+    from pysilverline.layouts import LAYOUT_NANO_5KW
+
+    state = DeviceState.from_dps(
+        {"1": True, "2": 30, "3": 24, "4": "Heat", "21": 256},
+        layout=LAYOUT_NANO_5KW,
+    )
+    assert state.fault == 256
+    # This family has no diagnostic DPs beyond power/setpoint/temp/mode/fault.
+    assert state.suction_temp is None
+    assert state.actual_frequency is None
+
+
+def test_from_dps_default_layout_still_reads_fault_from_dp13() -> None:
+    """Every layout defaults `fault=13` — the Nano 5kW override must not
+    leak into models that never set it explicitly."""
+    state = DeviceState.from_dps({"13": 4, "21": 256})
+    assert state.fault == 4
+
+
 def test_from_dps_default_layout_unchanged_by_v34_fields() -> None:
     """The legacy default layout leaves the new v3.4-only fields None and keeps
     fan on DP 110 — backward compatibility for existing devices."""

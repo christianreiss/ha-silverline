@@ -130,3 +130,20 @@ FAULT_BIT_CODES: Final = {
     8: "P1",
     9: "P7",
 }
+
+#: Symbolic bit names for the status/fault bitmap on DP 21 — Poolex Nano
+#: 5kW WiFi and its OEM siblings (productKey ``yk3bytlujz2xshuy``, issue
+#: #16). This is a DIFFERENT bitmap from FAULT_BIT_NAMES: same OEM concept
+#: (a fault bitfield) but a distinct hardware/firmware family with its own
+#: bit assignments — do not assume the two tables share a bit layout.
+#:
+#: Bit 8 (raw value 256) is hardware-confirmed: a reporter captured DP 21
+#: == 0 during normal operation and DP 21 == 256 with the physical
+#: controller displaying E6 (insufficient water flow), self-clearing once
+#: flow was restored. Cross-referenced against the public tuya-local schema
+#: for this productKey, which lumps every other bit into an undifferentiated
+#: "fault present" flag — those stay undecoded (surfaced as "bitN" by
+#: _decode_fault) rather than guessed.
+NANO_5KW_FAULT_BIT_NAMES: Final = {
+    8: "water_flow",
+}

@@ -219,3 +219,84 @@ async def test_unknown_model_leaves_supported_dps_empty(
     # not in the 'other' profile, so its presence proves the poll populated
     # supported_dps rather than the model profile.
     assert "101" in coordinator.supported_dps  # populated by poll, not by profile
+
+
+async def test_nano_5kw_pre_populates_supported_dps_even_when_device_off(
+    hass: HomeAssistant,
+) -> None:
+    """Regression guard (issue #16/#18): the Nano 5kW family only reports
+    DPs 3/4/21 while powered ON — a live diagnostic dump taken while the
+    unit was off showed only {1,2}. If supported_dps were live-detected
+    (known_dps=None) and the very first poll after setup landed while the
+    pump was idle, the coordinator's once-only latch (see
+    coordinator._async_update_data) would freeze supported_dps at {1,2}
+    forever, permanently starving temperature_delta/runtime_today/the DP21
+    fault sensor — even after the pump powers back on. known_dps must be a
+    FIXED set for this profile so entities register from the profile alone,
+    independent of what the first poll happens to catch."""
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from homeassistant.const import CONF_HOST, CONF_PORT
+    from homeassistant.helpers import entity_registry as er
+    from pysilverline.layouts import LAYOUT_NANO_5KW
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    from custom_components.poolex_silverline.const import (
+        CONF_DEVICE_ID,
+        CONF_LOCAL_KEY,
+        CONF_MODEL,
+        DOMAIN,
+    )
+
+    device_id = "bf99887766nano5kwoffff"
+    # Device off at the moment of the first poll — exactly issue #18's
+    # second diagnostic capture (only DP 1/2 present).
+    off_state = DeviceState.from_dps({"1": False, "2": 30}, layout=LAYOUT_NANO_5KW)
+
+    client = MagicMock()
+    client.host = "10.0.0.64"
+    client.port = 6668
+    client.device_id = device_id
+    client.connected = True
+    client.state = off_state
+    client.detected_version = "3.4"
+    client.dp_layout = LAYOUT_NANO_5KW
+    client.connect = AsyncMock(return_value=None)
+    client.disconnect = AsyncMock(return_value=None)
+    client.get_status = AsyncMock(return_value=off_state)
+    client.set_dp = AsyncMock(return_value=None)
+    client.set_multiple = AsyncMock(return_value=None)
+    client.add_listener = MagicMock(return_value=lambda: None)
+    client.add_connection_listener = MagicMock(return_value=lambda: None)
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=device_id,
+        data={
+            CONF_HOST: "10.0.0.64",
+            CONF_PORT: 6668,
+            CONF_DEVICE_ID: device_id,
+            CONF_LOCAL_KEY: "0123456789abcdef",
+            CONF_MODEL: "nano_5kw",
+        },
+        version=1,
+        minor_version=1,
+    )
+    entry.add_to_hass(hass)
+    with patch(
+        "custom_components.poolex_silverline.SilverlineClient", return_value=client
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    coordinator = entry.runtime_data
+    # Fixed from the profile, unaffected by the device being off at setup.
+    assert coordinator.supported_dps == {"1", "2", "3", "4", "21"}
+
+    registry = er.async_get(hass)
+    sensor_keys = {
+        e.unique_id.removeprefix(f"{device_id}_")
+        for e in er.async_entries_for_config_entry(registry, entry.entry_id)
+        if e.domain == "sensor"
+    }
+    assert sensor_keys == {"temperature_delta", "fault_code", "runtime_today"}

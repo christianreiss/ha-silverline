@@ -5,6 +5,7 @@ from __future__ import annotations
 from pysilverline.devices import get_layout
 from pysilverline.layouts import (
     LAYOUT_BY_NAME,
+    LAYOUT_NANO_5KW,
     LAYOUT_NANO_FI_3KW,
     LAYOUT_PC_INV_120,
     LAYOUT_STANDARD,
@@ -111,3 +112,46 @@ def test_nano_fi_3kw_dp_mapping() -> None:
     assert layout.temp_current_divisor == 1
     assert layout.ac_voltage == 120
     assert layout.ac_current == 121
+
+
+def test_layout_for_model_nano_5kw_key() -> None:
+    assert layout_for_model("nano_5kw") is LAYOUT_NANO_5KW
+
+
+def test_layout_by_name_nano_5kw_alias() -> None:
+    assert LAYOUT_BY_NAME["nano_5kw"] is LAYOUT_NANO_5KW
+
+
+def test_nano_5kw_dp_mapping() -> None:
+    """Pin the Nano 5kW family's minimal DP mapping (issue #16 / #18):
+    fault lives on DP 21 instead of the standard DP 13, and every
+    diagnostic field this hardware doesn't expose stays unmapped rather
+    than inheriting a standard-layout default that would coincide with an
+    unrelated DP (e.g. DP 101 being a boolean, not suction_temp, on this
+    firmware — issue #18)."""
+    layout = LAYOUT_NANO_5KW
+    assert layout.fault == 21
+    assert layout.suction_temp is None
+    assert layout.outlet_temp is None
+    assert layout.ambient_temp is None
+    assert layout.pool_temp is None
+    assert layout.discharge_temp is None
+    assert layout.inlet_temp is None
+    assert layout.actual_frequency is None
+    assert layout.target_frequency is None
+    assert layout.water_pump is None
+    assert layout.total_hours is None
+    assert layout.ac_voltage is None
+    assert layout.ac_current is None
+
+
+def test_default_layouts_still_map_fault_to_dp13() -> None:
+    """Every pre-existing layout must default to `fault=13` — the Nano 5kW
+    override must not silently change what any other model reads."""
+    for layout in (
+        LAYOUT_STANDARD,
+        LAYOUT_V34_WFZEIYN,
+        LAYOUT_PC_INV_120,
+        LAYOUT_NANO_FI_3KW,
+    ):
+        assert layout.fault == 13

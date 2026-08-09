@@ -139,3 +139,77 @@ async def test_all_ten_fault_bits_have_entities(
         entry = by_uid.get(f"{device}_{key}")
         assert entry is not None, f"missing registry entry for {key}"
         assert entry.disabled_by is not None, f"{key} should be disabled by default"
+
+
+async def test_nano_5kw_water_flow_fault_binary_sensor(hass: HomeAssistant) -> None:
+    """The Nano 5kW family (issue #16) reports its fault bitmap on DP 21,
+    not DP 13. Bit 8 (256) is the hardware-confirmed E6 / water-flow fault
+    — must surface as ON, and the standard family's DP-13 fault_water_flow
+    entity (bit 0) must NOT also be registered for this model."""
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from homeassistant.const import CONF_HOST, CONF_PORT
+    from pysilverline.layouts import LAYOUT_NANO_5KW
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    from custom_components.poolex_silverline.const import (
+        CONF_DEVICE_ID,
+        CONF_LOCAL_KEY,
+        CONF_MODEL,
+        DOMAIN,
+    )
+
+    device_id = "bf99887766nano5kwbinry"
+    state = DeviceState.from_dps(
+        {"1": True, "2": 30, "3": 24, "4": "Heat", "21": 256},
+        layout=LAYOUT_NANO_5KW,
+    )
+
+    client = MagicMock()
+    client.host = "10.0.0.62"
+    client.port = 6668
+    client.device_id = device_id
+    client.connected = True
+    client.state = state
+    client.detected_version = "3.4"
+    client.dp_layout = LAYOUT_NANO_5KW
+    client.connect = AsyncMock(return_value=None)
+    client.disconnect = AsyncMock(return_value=None)
+    client.get_status = AsyncMock(return_value=state)
+    client.set_dp = AsyncMock(return_value=None)
+    client.set_multiple = AsyncMock(return_value=None)
+    client.add_listener = MagicMock(return_value=lambda: None)
+    client.add_connection_listener = MagicMock(return_value=lambda: None)
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=device_id,
+        data={
+            CONF_HOST: "10.0.0.62",
+            CONF_PORT: 6668,
+            CONF_DEVICE_ID: device_id,
+            CONF_LOCAL_KEY: "0123456789abcdef",
+            CONF_MODEL: "nano_5kw",
+        },
+        version=1,
+        minor_version=1,
+    )
+    entry.add_to_hass(hass)
+    with patch(
+        "custom_components.poolex_silverline.SilverlineClient", return_value=client
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    registry = er.async_get(hass)
+    by_uid = {
+        e.unique_id: e
+        for e in registry.entities.values()
+        if e.config_entry_id == entry.entry_id and e.domain == "binary_sensor"
+    }
+    fault_entry = by_uid.get(f"{device_id}_fault_water_flow")
+    assert fault_entry is not None
+    assert hass.states.get(fault_entry.entity_id).state == STATE_ON
+    # Only one fault_water_flow entity total — the DP-13 bit-0 version must
+    # not also register for a model whose layout.fault is 21.
+    assert sum(1 for uid in by_uid if uid.endswith("_fault_water_flow")) == 1
