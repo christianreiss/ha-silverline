@@ -3,7 +3,7 @@ name = "ha-silverline"
 # The authoritative version for users is manifest.json. This block exists
 # only so pytest / mypy / coverage can pick the repo up as a package
 # during local dev; keep it in sync with the manifest when bumping.
-version = "0.11.3"
+version = "0.11.4"
 description = "Home Assistant custom component for Poolex Silverline pool heat pumps."
 # 3.13 is a deliberate floor, NOT current HA's (2026.5 requires >=3.14.2). It
 # is the oldest interpreter the integration source must stay parseable on,
