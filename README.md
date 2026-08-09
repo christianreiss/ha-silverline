@@ -127,7 +127,8 @@ directly) · ⚪ unknown · ✅ present · ❌ absent · ❓ firmware-dependent
   being collected.
 - **°C only.** °F shifts the fault bitmap and is not supported (see
   [Known limitations](#known-limitations)).
-- **Poolex Nano 5kW WiFi is a genuinely minimal-DP device, not cloud-gated.**
+- **Poolex Nano 5kW WiFi has a genuinely minimal DP schema — there is no
+  richer telemetry hidden behind the Tuya cloud on this hardware tier.**
   Reported with only `{1, 2, 3, 4, 21}` available (issue #16, productKey
   `yk3bytlujz2xshuy`; also seen rebranded as the "Poolex Spawler o'spa Flow
   5kW" on protocol v3.4, issue #18). Cross-referenced against the public
@@ -149,7 +150,9 @@ directly) · ⚪ unknown · ✅ present · ❌ absent · ❓ firmware-dependent
   preset support is unconfirmed (the cross-referenced schema only models
   Heat/Cool/Auto, and doesn't cover presets either way), so selecting them
   degrades to the plain heat/cool string rather than risking an
-  unsupported write.
+  unsupported write. Which of those DPs the device actually *reports* has
+  been observed to vary on the v3.4 rebrand — see the cloud-session note
+  under [Known limitations](#known-limitations).
 - Presets `boost` / `eco` do not apply in `heat_cool` (Auto) — a device
   limitation.
 
@@ -251,11 +254,24 @@ Changing the option reloads the entry, which briefly reconnects the socket.
   snapshot — no local command forces a fresh read, including `updatedps`,
   alternate query opcodes, a control write, or even a full power-cycle.
   Control DPs (power/mode/setpoint) are unaffected and always read/write
-  live regardless of cloud state. Not tested on the v3.4 board (request-scoped
-  sockets, different module design) or the newer v3.5 JetLine FI WiFi control
-  board (issue #7) — those may behave differently. If you want a WBR3-module
-  device fully air-gapped, only control is guaranteed to stay current —
-  sensor readings will freeze at their last cloud-synced values.
+  live regardless of cloud state. Not confirmed on the newer v3.5 JetLine FI
+  WiFi control board (issue #7) — that may behave differently. If you want a
+  WBR3-module device fully air-gapped, only control is guaranteed to stay
+  current — sensor readings will freeze at their last cloud-synced values.
+- **Unconfirmed lead: a v3.4 Nano 5kW-family unit may drop DPs entirely
+  (not just freeze them) while firewalled from the Tuya cloud.** A reporter
+  running the "Spawler o'spa Flow 5kW" rebrand with the device blocked from
+  the internet saw `DP_QUERY` return only DPs 1 and 2 — no current
+  temperature (3), mode (4) or fault bitmap (21) — and saw all three come
+  back after lifting the firewall rule (issue #18). That is a *different*
+  failure mode from the WBR3 behaviour above, where the DPs stay present
+  but stale. It is recorded here as a lead, not a documented behaviour: the
+  captures on either side of the test also differ in power state (DP 1
+  `false` vs `true`) and in how long the device had been offline, and an
+  earlier capture from the same unit — also firewalled, also powered off —
+  did return the full DP set plus a DP 101. Isolating it needs an A/B taken
+  at the same power state. If your DPs go missing, restoring the device's
+  outbound cloud access is the first thing to try.
 - **°F mode is not supported.** Lock the wired remote to °C — on °F some
   firmwares move the fault bitmap from DP 13 to DP 21 and reuse DP 13 for
   the unit-conversion enum, which the integration does not yet handle.
@@ -304,6 +320,21 @@ the mode change is applied first so your target lands under the new mode.
   permanently `unavailable` sensor — confuses dashboards and template
   sensors). Compare with the supported DPs in the device's diagnostics
   download to confirm.
+
+**Current temperature (or mode, or the fault sensor) stopped updating**
+- If the device is firewalled from the internet, try lifting the block and
+  see whether the missing values return — on some firmware the DPs stop
+  being reported entirely without a Tuya cloud session (issue #18) or
+  freeze at their last cloud-synced value (issue #15). See
+  [Known limitations](#known-limitations).
+- If the reading is present but implausible, check whether the filter pump
+  has been off: the sensor sits in the heat exchanger, not the bulk pool.
+
+**The `fault_code` sensor shows `unavailable`**
+- That is the no-active-fault state, not a failure. The bitmap decodes to
+  no value when it reads zero, mirroring the blank display on the OEM
+  controller; the entity becomes available again the moment a fault bit
+  sets.
 
 **Capturing a live DP dump for a bug report**
 - The repository ships `scripts/probe.py`, which reads credentials
