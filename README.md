@@ -280,10 +280,12 @@ Changing the option reloads the entry, which briefly reconnects the socket.
   frozen value. If you keep this hardware firewalled, avoid power-cycling
   it (including brief power outages); if it does restart while blocked,
   Home Assistant can restore control but not current temperature or fault
-  reporting until connectivity comes back. One loose end: an early capture
-  from the same unit also showed a DP 101 that has never reappeared since,
-  on this hardware or after connectivity was restored — unrelated to the
-  mechanism above and still unexplained.
+  reporting until connectivity comes back. Confirmed stable, not decaying:
+  a follow-up capture taken 24+ hours into the same firewall rule showed
+  no further change beyond what the restart already caused. One loose end:
+  an early capture from the same unit also showed a DP 101 that has never
+  reappeared since, including after using the device's own physical
+  buttons — unrelated to the mechanism above and still unexplained.
 - **°F mode is not supported.** Lock the wired remote to °C — on °F some
   firmwares move the fault bitmap from DP 13 to DP 21 and reuse DP 13 for
   the unit-conversion enum, which the integration does not yet handle.
