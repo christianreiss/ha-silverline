@@ -258,22 +258,32 @@ Changing the option reloads the entry, which briefly reconnects the socket.
   WiFi control board (issue #7) — that may behave differently. If you want a
   WBR3-module device fully air-gapped, only control is guaranteed to stay
   current — sensor readings will freeze at their last cloud-synced values.
-- **Unconfirmed lead: a v3.4 Nano 5kW-family unit may drop DPs entirely
-  (not just freeze them) while firewalled from the Tuya cloud.** A reporter
-  running the "Spawler o'spa Flow 5kW" rebrand with the device blocked from
-  the internet saw `DP_QUERY` return only DPs 1 and 2 — no current
-  temperature (3), mode (4) or fault bitmap (21) — and saw all three come
-  back after lifting the firewall rule (issue #18). That is a *different*
-  failure mode from the WBR3 behaviour above, where the DPs stay present
-  but stale. It is recorded here as a lead, not a documented behaviour: the
-  captures on either side of the test also differ in power state (DP 1
-  `false` vs `true`), and an earlier capture from the same unit — powered
-  off, and reportedly under the same firewall rule — did return the full DP
-  set plus a DP 101. That DP 101 has not reappeared since, *including* after
-  the block was lifted, so at least part of what makes the reported DP set
-  drift is not cloud reachability. Isolating it needs an A/B taken at the
-  same power state. If your DPs go missing, restoring the device's outbound
-  cloud access is the first thing to try.
+- **Confirmed: a v3.4 Nano 5kW-family unit drops measurement DPs entirely
+  (not just freezes them) if it restarts without Tuya cloud access** — a
+  different, harder failure mode than the WBR3 freeze-in-place behaviour
+  above. A reporter running the "Spawler o'spa Flow 5kW" rebrand isolated
+  this with a same-power-state A/B (issue #18): re-enabling a firewall rule
+  on a device that was already running, with an already-populated DP cache,
+  changed nothing — DPs 1, 2, 3 (current temp), 4 (mode) and 21 (fault
+  bitmap) kept reporting. Power-cycling the unit while still firewalled did:
+  the next `DP_QUERY` returned only DP 1 (bare power state), everything
+  else gone. So the trigger is a restart without cloud reachability, not
+  merely being firewalled while already running. Control is partly
+  recoverable without the cloud — writing to the device locally (e.g.
+  toggling power or changing the setpoint from Home Assistant) brought DP 2
+  (setpoint) and DP 4 (mode) back into the reported set, because the local
+  socket echoes back whatever was just written — but DP 3 (current
+  temperature) and DP 21 (fault bitmap) stayed missing regardless, since
+  nothing writes those locally; the module apparently only populates
+  read-only measurement DPs via an actual cloud session, same underlying
+  cause as the WBR3 behaviour, just manifesting as absence instead of a
+  frozen value. If you keep this hardware firewalled, avoid power-cycling
+  it (including brief power outages); if it does restart while blocked,
+  Home Assistant can restore control but not current temperature or fault
+  reporting until connectivity comes back. One loose end: an early capture
+  from the same unit also showed a DP 101 that has never reappeared since,
+  on this hardware or after connectivity was restored — unrelated to the
+  mechanism above and still unexplained.
 - **°F mode is not supported.** Lock the wired remote to °C — on °F some
   firmwares move the fault bitmap from DP 13 to DP 21 and reuse DP 13 for
   the unit-conversion enum, which the integration does not yet handle.
