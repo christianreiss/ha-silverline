@@ -657,11 +657,15 @@ async def test_nano_fi_3kw_model_selects_sensor_catalog(hass: HomeAssistant) -> 
         "105": 13,
         "106": 29,
         "108": 29,
+        "109": 0,
         "110": 35,
         "111": 83,
         "117": 14,
         "120": 234,
         "121": 2,
+        "124": 45,
+        "132": -5,
+        "142": 40,
     }
     state = DeviceState.from_dps(nano_fi_dps, layout=LAYOUT_NANO_FI_3KW)
 
@@ -717,8 +721,12 @@ async def test_nano_fi_3kw_model_selects_sensor_catalog(hass: HomeAssistant) -> 
         "outdoor_coil_temperature",
         "indoor_coil_temperature",
         "exhaust_temperature",
+        "target_frequency",
         "actual_frequency",
         "water_pump_rpm",
+        "condensing_temperature",
+        "superheat",
+        "target_condensing_temperature",
         "ac_voltage",
         "ac_current",
     } <= sensor_keys.keys()
@@ -729,14 +737,10 @@ async def test_nano_fi_3kw_model_selects_sensor_catalog(hass: HomeAssistant) -> 
     assert "eev_steps" not in sensor_keys
     assert "main_valve_opening" not in sensor_keys
     assert "aux_valve_opening" not in sensor_keys
-    assert "target_frequency" not in sensor_keys
     assert "total_operating_hours" not in sensor_keys
-    assert "condensing_temperature" not in sensor_keys
     assert "evaporating_temperature" not in sensor_keys
-    assert "superheat" not in sensor_keys
     assert "compressor_load" not in sensor_keys
     assert "target_superheat" not in sensor_keys
-    assert "target_condensing_temperature" not in sensor_keys
 
     def _state(key: str) -> str | None:
         s = hass.states.get(sensor_keys[key].entity_id)
@@ -764,6 +768,20 @@ async def test_nano_fi_3kw_model_selects_sensor_catalog(hass: HomeAssistant) -> 
     assert _state("indoor_coil_temperature") == "29"
     assert _state("exhaust_temperature") == "14"  # reads d.suction_temp
     assert _state("actual_frequency") == "35"
+    # target_frequency/condensing_temperature/superheat/target_condensing_
+    # temperature are disabled by default (like ac_current above), so verify
+    # them the same way: registered, disabled, and correct via value_fn.
+    # Confirmed on a Nano Fi 5kW (same pid, issue #19): target_frequency
+    # lives on DP 109 here, not the legacy layout's DP 107.
+    for key, expected in (
+        ("target_frequency", 0),
+        ("condensing_temperature", 45),
+        ("superheat", -5),
+        ("target_condensing_temperature", 40),
+    ):
+        assert sensor_keys[key].disabled_by is not None
+        desc = next(d for d in NANO_FI_SENSORS if d.key == key)
+        assert desc.value_fn(state) == expected
 
 
 async def test_nano_5kw_model_selects_sensor_catalog(hass: HomeAssistant) -> None:

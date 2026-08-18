@@ -103,6 +103,11 @@ def test_nano_fi_3kw_dp_mapping() -> None:
     assert layout.actual_frequency == 110
     assert layout.water_pump == 111
     assert layout.suction_temp == 117
+    # Confirmed on a Nano Fi 5kW (same pid, larger sibling) via issue #19.
+    assert layout.target_frequency == 109
+    assert layout.condensing_temp == 124
+    assert layout.superheat == 132
+    assert layout.target_condensing == 142
     # DP 120 on this firmware is AC line voltage, not a runtime-hours
     # counter — must stay unmapped rather than reused for total_hours.
     assert layout.total_hours is None

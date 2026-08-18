@@ -553,11 +553,15 @@ V34_SENSORS: tuple[SilverlineSensorDescription, ...] = (
 #: am4nomaadnhwvekq. DP numbering cross-checked against the official Tuya
 #: cloud product schema (see ``devices/nano_fi.py`` for the full per-DP
 #: reasoning). Sensors with no working data source on this firmware
-#: (fan speed, EEV steps, main/aux valve steps, target frequency, the
-#: refrigeration-circuit diagnostics, and total operating hours — DP 120
-#: is AC line voltage on this unit, not a runtime counter) are simply
-#: omitted from the catalog rather than included and left permanently
-#: "unavailable".
+#: (fan speed, EEV steps, main/aux valve steps, evaporating temp, compressor
+#: load, target superheat, and total operating hours — DP 120 is AC line
+#: voltage on this unit, not a runtime counter) are simply omitted from the
+#: catalog rather than included and left permanently "unavailable". Target
+#: frequency, condensing temp, superheat, and target condensing were
+#: confirmed live on a Nano Fi 5kW (same pid, issue #19) and are wired in
+#: below; only target frequency needs a ``dp_keys`` override (DP 109 here vs
+#: the legacy layout's DP 107) — the other three already sit on DPs that
+#: numerically match the legacy layout's defaults.
 NANO_FI_SENSORS: tuple[SilverlineSensorDescription, ...] = (
     _TEMPERATURE_DELTA,
     replace(_INLET_TEMPERATURE, dp_keys=("103",)),
@@ -567,9 +571,13 @@ NANO_FI_SENSORS: tuple[SilverlineSensorDescription, ...] = (
     _OUTDOOR_COIL_TEMPERATURE,  # dp_keys=("105",) — matches this firmware as-is
     _INDOOR_COIL_TEMPERATURE,  # dp_keys=("108",) — matches this firmware as-is
     replace(_EXHAUST_TEMPERATURE, dp_keys=("117",)),  # reads d.suction_temp
+    replace(_TARGET_FREQUENCY, dp_keys=("109",)),
     replace(_ACTUAL_FREQUENCY, dp_keys=("110",)),
     _WATER_PUMP_RPM,  # dp_keys=("111",) — matches this firmware as-is
     _FAULT_CODE,
+    _CONDENSING_TEMPERATURE,  # dp_keys=("124",) — matches this firmware as-is
+    _SUPERHEAT,  # dp_keys=("132",) — matches this firmware as-is
+    _TARGET_CONDENSING_TEMPERATURE,  # dp_keys=("142",) — matches this firmware as-is
     _RUNTIME_TODAY,
     _AC_VOLTAGE,
     _AC_CURRENT,
