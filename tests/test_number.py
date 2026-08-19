@@ -348,7 +348,9 @@ async def test_nano_fi_config_numbers_register_disabled_with_correct_bounds(
     assert expected.keys() <= number_keys.keys()
     for key, desc in expected.items():
         registry_entry = number_keys[key]
-        assert registry_entry.disabled_by is not None, f"{key} must be disabled by default"
+        assert registry_entry.disabled_by is not None, (
+            f"{key} must be disabled by default"
+        )
         assert desc.value_fn(state) is not None
 
     # Spot-check the range + value pulled from tuya-local's declared setpoints.
