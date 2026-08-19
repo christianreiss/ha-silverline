@@ -50,6 +50,18 @@ class DeviceState:
     # True/False only when the layout maps a DP for it (wire value 1 = True,
     # any other int = False); None on firmware that doesn't expose it.
     defrosting: bool | None = None
+    # Installer-menu config setpoints (Nano Fi 3kW, issue #19 follow-up).
+    # None unless the layout maps a DP for it.
+    heating_time: int | None = None
+    defrost_time_limit: int | None = None
+    defrost_cutout_temp: int | None = None
+    heating_start_hysteresis: int | None = None
+    heating_end_hysteresis: int | None = None
+    cooling_start_hysteresis: int | None = None
+    cooling_end_hysteresis: int | None = None
+    defrost_temp: int | None = None
+    max_temp_limit: int | None = None
+    min_temp_limit: int | None = None
     raw: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
@@ -180,6 +192,16 @@ class DeviceState:
             ac_voltage=_int(layout.ac_voltage),
             ac_current=_ac_current(),
             defrosting=_flag(layout.defrosting),
+            heating_time=_int(layout.heating_time),
+            defrost_time_limit=_int(layout.defrost_time_limit),
+            defrost_cutout_temp=_int(layout.defrost_cutout_temp),
+            heating_start_hysteresis=_int(layout.heating_start_hysteresis),
+            heating_end_hysteresis=_int(layout.heating_end_hysteresis),
+            cooling_start_hysteresis=_int(layout.cooling_start_hysteresis),
+            cooling_end_hysteresis=_int(layout.cooling_end_hysteresis),
+            defrost_temp=_int(layout.defrost_temp),
+            max_temp_limit=_int(layout.max_temp_limit),
+            min_temp_limit=_int(layout.min_temp_limit),
             raw=dict(dps),
         )
 

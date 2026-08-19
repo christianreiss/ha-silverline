@@ -144,7 +144,17 @@
       "power": { "name": "Alimentation" }
     },
     "number": {
-      "target_temperature": { "name": "Température cible" }
+      "target_temperature": { "name": "Température cible" },
+      "heating_time": { "name": "Durée de chauffe" },
+      "defrost_time_limit": { "name": "Limite de temps de dégivrage" },
+      "defrost_cutout_temperature": { "name": "Température de coupure du dégivrage" },
+      "heating_start_hysteresis": { "name": "Hystérésis de démarrage chauffage" },
+      "heating_end_hysteresis": { "name": "Hystérésis de fin chauffage" },
+      "cooling_start_hysteresis": { "name": "Hystérésis de démarrage refroidissement" },
+      "cooling_end_hysteresis": { "name": "Hystérésis de fin refroidissement" },
+      "defrost_temperature": { "name": "Température de dégivrage" },
+      "maximum_temperature_limit": { "name": "Limite de température maximale" },
+      "minimum_temperature_limit": { "name": "Limite de température minimale" }
     },
     "select": {
       "preset_mode": {

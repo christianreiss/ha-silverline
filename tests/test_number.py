@@ -255,3 +255,195 @@ async def test_set_value_surfaces_cannot_connect_as_homeassistant_error(
             blocking=True,
         )
     assert exc.value.translation_key == "set_failed"
+
+
+async def test_nano_fi_config_numbers_register_disabled_with_correct_bounds(
+    hass: HomeAssistant,
+) -> None:
+    """Nano Fi 3kW config setpoints (DP 124-145, issue #19 follow-up) register
+    as CONFIG-category, disabled-by-default number entities with the
+    tuya-local-derived range as their min/max, and read the right
+    DeviceState field. Writing goes to the DP named by the description's
+    own dp_keys, not a shared constant."""
+    from unittest.mock import MagicMock, patch
+
+    from homeassistant.const import CONF_HOST, CONF_PORT
+    from pysilverline.layouts import LAYOUT_NANO_FI_3KW
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    from custom_components.poolex_silverline.const import (
+        CONF_DEVICE_ID,
+        CONF_LOCAL_KEY,
+        CONF_MODEL,
+        DOMAIN,
+    )
+    from custom_components.poolex_silverline.number import (
+        NANO_FI_CONFIG_NUMBERS,
+        SilverlineNumber,
+    )
+
+    device_id = "bf11223344nanoficonf"
+    nano_fi_dps = {
+        "1": True,
+        "2": 30,
+        "3": 30,
+        "4": "Heat",
+        "13": 0,
+        "124": 45,
+        "125": 8,
+        "126": 18,
+        "127": 3,
+        "128": 1,
+        "130": 2,
+        "131": 1,
+        "132": -5,
+        "142": 40,
+        "145": 7,
+    }
+    state = DeviceState.from_dps(nano_fi_dps, layout=LAYOUT_NANO_FI_3KW)
+
+    client = MagicMock()
+    client.host = "10.0.0.61"
+    client.port = 6668
+    client.device_id = device_id
+    client.connected = True
+    client.state = state
+    client.dp_layout = LAYOUT_NANO_FI_3KW
+    client.detected_version = "3.5"
+    client.connect = AsyncMock(return_value=None)
+    client.disconnect = AsyncMock(return_value=None)
+    client.get_status = AsyncMock(return_value=state)
+    client.set_dp = AsyncMock(return_value=None)
+    client.set_multiple = AsyncMock(return_value=None)
+    client.add_listener = MagicMock(return_value=lambda: None)
+    client.add_connection_listener = MagicMock(return_value=lambda: None)
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=device_id,
+        data={
+            CONF_HOST: "10.0.0.61",
+            CONF_PORT: 6668,
+            CONF_DEVICE_ID: device_id,
+            CONF_LOCAL_KEY: "0123456789abcdef",
+            CONF_MODEL: "nano_fi_3kw",
+        },
+        version=1,
+        minor_version=1,
+    )
+    entry.add_to_hass(hass)
+    with patch(
+        "custom_components.poolex_silverline.SilverlineClient", return_value=client
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    registry = er.async_get(hass)
+    number_keys = {
+        e.unique_id.removeprefix(f"{device_id}_"): e
+        for e in er.async_entries_for_config_entry(registry, entry.entry_id)
+        if e.domain == "number"
+    }
+    expected = {d.key: d for d in NANO_FI_CONFIG_NUMBERS}
+    assert expected.keys() <= number_keys.keys()
+    for key, desc in expected.items():
+        registry_entry = number_keys[key]
+        assert registry_entry.disabled_by is not None, f"{key} must be disabled by default"
+        assert desc.value_fn(state) is not None
+
+    # Spot-check the range + value pulled from tuya-local's declared setpoints.
+    assert expected["heating_time"].native_min_value == 30
+    assert expected["heating_time"].native_max_value == 120
+    assert expected["heating_time"].value_fn(state) == 45
+    assert expected["defrost_temperature"].native_min_value == -20
+    assert expected["defrost_temperature"].native_max_value == 20
+    assert expected["defrost_temperature"].value_fn(state) == -5
+    assert expected["maximum_temperature_limit"].value_fn(state) == 40
+    assert expected["minimum_temperature_limit"].value_fn(state) == 7
+
+    coordinator = entry.runtime_data
+    heating_time_entity = SilverlineNumber(coordinator, expected["heating_time"])
+    await heating_time_entity.async_set_native_value(60)
+    client.set_multiple.assert_awaited_with({124: 60})
+
+
+async def test_v34_wfzeiyn_model_does_not_get_nano_fi_config_numbers(
+    hass: HomeAssistant,
+) -> None:
+    """DP 124/132/142 are legitimate condensing_temp/superheat/
+    target_condensing telemetry on the v3.4 wfzeiyn firmware — a raw
+    dp_keys gate would otherwise attach the Nano Fi 3kW's "Heating time"
+    config entity to this firmware's condensing-temp DP. numbers_for_model
+    must keep the config-setpoint block Nano Fi 3kW-only."""
+    from unittest.mock import MagicMock, patch
+
+    from homeassistant.const import CONF_HOST, CONF_PORT
+    from pysilverline.layouts import LAYOUT_V34_WFZEIYN
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    from custom_components.poolex_silverline.const import (
+        CONF_DEVICE_ID,
+        CONF_LOCAL_KEY,
+        CONF_MODEL,
+        DOMAIN,
+    )
+
+    device_id = "bf99001122v34collide"
+    v34_dps = {
+        "1": True,
+        "2": 28,
+        "3": 26,
+        "4": "Heat",
+        "13": 0,
+        "124": 45,  # condensing_temp on this firmware, not heating_time
+        "132": -5,  # superheat
+        "142": 40,  # target_condensing
+    }
+    state = DeviceState.from_dps(v34_dps, layout=LAYOUT_V34_WFZEIYN)
+
+    client = MagicMock()
+    client.host = "10.0.0.62"
+    client.port = 6668
+    client.device_id = device_id
+    client.connected = True
+    client.state = state
+    client.dp_layout = LAYOUT_V34_WFZEIYN
+    client.detected_version = "3.4"
+    client.connect = AsyncMock(return_value=None)
+    client.disconnect = AsyncMock(return_value=None)
+    client.get_status = AsyncMock(return_value=state)
+    client.set_dp = AsyncMock(return_value=None)
+    client.set_multiple = AsyncMock(return_value=None)
+    client.add_listener = MagicMock(return_value=lambda: None)
+    client.add_connection_listener = MagicMock(return_value=lambda: None)
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=device_id,
+        data={
+            CONF_HOST: "10.0.0.62",
+            CONF_PORT: 6668,
+            CONF_DEVICE_ID: device_id,
+            CONF_LOCAL_KEY: "0123456789abcdef",
+            CONF_MODEL: "silverline_v34",
+        },
+        version=1,
+        minor_version=1,
+    )
+    entry.add_to_hass(hass)
+    with patch(
+        "custom_components.poolex_silverline.SilverlineClient", return_value=client
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    registry = er.async_get(hass)
+    number_keys = {
+        e.unique_id.removeprefix(f"{device_id}_")
+        for e in er.async_entries_for_config_entry(registry, entry.entry_id)
+        if e.domain == "number"
+    }
+    # DP 2 registers target_temperature as normal; none of the Nano Fi
+    # config-setpoint keys should appear even though DP 124/132/142 are
+    # present in supported_dps.
+    assert number_keys == {"target_temperature"}

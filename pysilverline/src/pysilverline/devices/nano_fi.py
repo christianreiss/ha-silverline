@@ -46,9 +46,21 @@ temp of 45°C" / "superheat of -5°C" reading the earlier revision assumed
 from plausible-looking values alone (the exact same trap as this profile's
 own root cause: the "other" fallback reading DP 108, indoor coil temp, as
 compressor frequency because the number looked plausible). 124/132/142 are
-reverted to unmapped here; none of these ten DPs have a ``DpLayout`` field
-today (they are device settings, not sensor readings), so wiring them as HA
-`number` config entities would be new scope, not a bug fix.
+reverted to unmapped as condensing_temp/superheat/target_condensing here.
+
+Follow-up (issue #19, richardc1983): the manual shows this same DP block
+behind an installer menu (H0-H3 / P0-P3), and asked whether they could be
+exposed as configurable settings rather than just documented as unmapped.
+tuya-local's schema models all ten as plain writable ``number`` entities
+(``category: config``), so they are wired below onto dedicated ``DpLayout``
+fields (``heating_time``, ``defrost_time_limit``, ``defrost_cutout_temp``,
+``heating_start_hysteresis``, ``heating_end_hysteresis``,
+``cooling_start_hysteresis``, ``cooling_end_hysteresis``, ``defrost_temp``,
+``max_temp_limit``, ``min_temp_limit``) and exposed as CONFIG-category,
+disabled-by-default `number` entities in ``number.py``. This is read
+confidence only (tuya-local schema + range-matching, the same evidence
+level as the mislabel fix above) — nobody has confirmed a write actually
+takes on real hardware yet.
 
 DP 115 was not in the issue #19 diagnostics dump (config-category DPs like
 115-145 are typically only sent on an explicit query, not on every status
@@ -88,16 +100,21 @@ Cross-referenced field meanings (official Tuya schema for this pid):
     DP 121  ac_current         AC line current (no DpLayout field exists for
                                 this yet, so it stays unsurfaced for now)
     DP 124  heating_time       config setpoint, minutes (tuya-local schema,
-                                issue #19) — no DpLayout field, unmapped
+                                issue #19) — writable `number.heating_time`
+    DP 125  defrost_time_limit config setpoint, minutes — writable `number`
+    DP 126  defrost_cutout_temp config setpoint, °C — writable `number`
+    DP 127  heating_start_hysteresis config setpoint, °C delta — writable
+    DP 128  heating_end_hysteresis config setpoint, °C delta — writable
+    DP 130  cooling_start_hysteresis config setpoint, °C delta — writable
+    DP 131  cooling_end_hysteresis config setpoint, °C delta — writable
     DP 132  defrost_temp       config setpoint, °C (tuya-local schema,
-                                issue #19) — no DpLayout field, unmapped
-    DP 142  max_temp           config setpoint, °C (tuya-local schema,
-                                issue #19) — no DpLayout field, unmapped
+                                issue #19) — writable `number.defrost_temperature`
+    DP 142  max_temp_limit     config setpoint, °C (tuya-local schema,
+                                issue #19) — writable `number.maximum_temperature_limit`
+    DP 145  min_temp_limit     config setpoint, °C — writable `number`
 
 Everything not listed above (condensing/evaporating temp, superheat,
-compressor load, EEV steps, and DP 125/126/127/128/130/131/145) is either
-not exposed by this firmware as telemetry or, per the tuya-local schema
-above, is a configuration setpoint with no matching ``DpLayout`` field.
+compressor load, EEV steps) is not exposed by this firmware as telemetry.
 """
 
 from __future__ import annotations
@@ -137,4 +154,14 @@ LAYOUT_NANO_FI_3KW = DpLayout(
     # alike; set to 10 here if a reporter confirms tenths on this unit.
     ac_current_divisor=1,
     defrosting=115,
+    heating_time=124,
+    defrost_time_limit=125,
+    defrost_cutout_temp=126,
+    heating_start_hysteresis=127,
+    heating_end_hysteresis=128,
+    cooling_start_hysteresis=130,
+    cooling_end_hysteresis=131,
+    defrost_temp=132,
+    max_temp_limit=142,
+    min_temp_limit=145,
 )

@@ -144,7 +144,17 @@
       "power": { "name": "Alimentazione" }
     },
     "number": {
-      "target_temperature": { "name": "Temperatura obiettivo" }
+      "target_temperature": { "name": "Temperatura obiettivo" },
+      "heating_time": { "name": "Tempo di riscaldamento" },
+      "defrost_time_limit": { "name": "Limite tempo di sbrinamento" },
+      "defrost_cutout_temperature": { "name": "Temperatura di interruzione sbrinamento" },
+      "heating_start_hysteresis": { "name": "Isteresi inizio riscaldamento" },
+      "heating_end_hysteresis": { "name": "Isteresi fine riscaldamento" },
+      "cooling_start_hysteresis": { "name": "Isteresi inizio raffreddamento" },
+      "cooling_end_hysteresis": { "name": "Isteresi fine raffreddamento" },
+      "defrost_temperature": { "name": "Temperatura di sbrinamento" },
+      "maximum_temperature_limit": { "name": "Limite massimo di temperatura" },
+      "minimum_temperature_limit": { "name": "Limite minimo di temperatura" }
     },
     "select": {
       "preset_mode": {

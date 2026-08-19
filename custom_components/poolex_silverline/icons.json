@@ -76,7 +76,17 @@
       }
     },
     "number": {
-      "target_temperature": { "default": "mdi:thermometer" }
+      "target_temperature": { "default": "mdi:thermometer" },
+      "heating_time": { "default": "mdi:fire" },
+      "defrost_time_limit": { "default": "mdi:snowflake-melt" },
+      "defrost_cutout_temperature": { "default": "mdi:snowflake-melt" },
+      "heating_start_hysteresis": { "default": "mdi:thermometer-chevron-up" },
+      "heating_end_hysteresis": { "default": "mdi:thermometer-chevron-up" },
+      "cooling_start_hysteresis": { "default": "mdi:thermometer-chevron-down" },
+      "cooling_end_hysteresis": { "default": "mdi:thermometer-chevron-down" },
+      "defrost_temperature": { "default": "mdi:snowflake-thermometer" },
+      "maximum_temperature_limit": { "default": "mdi:thermometer-high" },
+      "minimum_temperature_limit": { "default": "mdi:thermometer-low" }
     },
     "select": {
       "preset_mode": { "default": "mdi:tune" },

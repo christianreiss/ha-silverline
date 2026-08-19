@@ -144,7 +144,17 @@
       "power": { "name": "Power" }
     },
     "number": {
-      "target_temperature": { "name": "Target temperature" }
+      "target_temperature": { "name": "Target temperature" },
+      "heating_time": { "name": "Heating time" },
+      "defrost_time_limit": { "name": "Defrost time limit" },
+      "defrost_cutout_temperature": { "name": "Defrost cutout temperature" },
+      "heating_start_hysteresis": { "name": "Heating start hysteresis" },
+      "heating_end_hysteresis": { "name": "Heating end hysteresis" },
+      "cooling_start_hysteresis": { "name": "Cooling start hysteresis" },
+      "cooling_end_hysteresis": { "name": "Cooling end hysteresis" },
+      "defrost_temperature": { "name": "Defrost temperature" },
+      "maximum_temperature_limit": { "name": "Maximum temperature limit" },
+      "minimum_temperature_limit": { "name": "Minimum temperature limit" }
     },
     "select": {
       "preset_mode": {

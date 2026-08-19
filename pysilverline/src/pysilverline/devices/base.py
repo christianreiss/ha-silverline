@@ -60,3 +60,16 @@ class DpLayout:
     ac_current_divisor: int = 1
     fault: int | None = 13
     defrosting: int | None = None
+    # Installer-menu config setpoints (Nano Fi 3kW, issue #19 follow-up).
+    # None on every other firmware — no device confirmed so far exposes
+    # these as anything other than the Nano Fi's DP 124-145 block.
+    heating_time: int | None = None
+    defrost_time_limit: int | None = None
+    defrost_cutout_temp: int | None = None
+    heating_start_hysteresis: int | None = None
+    heating_end_hysteresis: int | None = None
+    cooling_start_hysteresis: int | None = None
+    cooling_end_hysteresis: int | None = None
+    defrost_temp: int | None = None
+    max_temp_limit: int | None = None
+    min_temp_limit: int | None = None

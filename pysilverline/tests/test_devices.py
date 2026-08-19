@@ -61,6 +61,14 @@ def test_v34_wfzeiyn_dp_mapping() -> None:
     assert layout.total_hours is None
     assert layout.ac_voltage == 120
     assert layout.ac_current == 121
+    # This layout's condensing_temp/superheat/target_condensing (124/132/142)
+    # collide numerically with the Nano Fi 3kW's config-setpoint DPs
+    # (issue #19). heating_time etc. must stay unmapped here — a
+    # dp_keys-only gate on the number platform would otherwise attach a
+    # "Heating time" entity to this firmware's condensing-temp DP.
+    assert layout.heating_time is None
+    assert layout.defrost_temp is None
+    assert layout.max_temp_limit is None
 
 
 def test_ac_current_divisor_defaults_to_whole_amps() -> None:
@@ -122,6 +130,20 @@ def test_nano_fi_3kw_dp_mapping() -> None:
     assert layout.temp_current_divisor == 1
     assert layout.ac_voltage == 120
     assert layout.ac_current == 121
+    # Installer-menu config setpoints (issue #19 follow-up, richardc1983) —
+    # tuya-local models the whole 124-145 block as writable `number`
+    # entities; wired onto dedicated fields distinct from the reverted
+    # condensing_temp/superheat/target_condensing above.
+    assert layout.heating_time == 124
+    assert layout.defrost_time_limit == 125
+    assert layout.defrost_cutout_temp == 126
+    assert layout.heating_start_hysteresis == 127
+    assert layout.heating_end_hysteresis == 128
+    assert layout.cooling_start_hysteresis == 130
+    assert layout.cooling_end_hysteresis == 131
+    assert layout.defrost_temp == 132
+    assert layout.max_temp_limit == 142
+    assert layout.min_temp_limit == 145
 
 
 def test_layout_for_model_nano_5kw_key() -> None:
