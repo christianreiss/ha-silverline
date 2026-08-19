@@ -660,12 +660,14 @@ async def test_nano_fi_3kw_model_selects_sensor_catalog(hass: HomeAssistant) -> 
         "109": 0,
         "110": 35,
         "111": 83,
+        "115": 1,
         "117": 14,
         "120": 234,
         "121": 2,
-        "124": 45,
-        "132": -5,
-        "142": 40,
+        # DP 124/132/142 deliberately omitted: on this pid they are
+        # configuration setpoints (heating time/defrost temp/max temp,
+        # tuya-local schema, issue #19), not sensor telemetry — LAYOUT_NANO_FI_3KW
+        # leaves condensing_temp/superheat/target_condensing unmapped.
     }
     state = DeviceState.from_dps(nano_fi_dps, layout=LAYOUT_NANO_FI_3KW)
 
@@ -724,23 +726,25 @@ async def test_nano_fi_3kw_model_selects_sensor_catalog(hass: HomeAssistant) -> 
         "target_frequency",
         "actual_frequency",
         "water_pump_rpm",
-        "condensing_temperature",
-        "superheat",
-        "target_condensing_temperature",
         "ac_voltage",
         "ac_current",
     } <= sensor_keys.keys()
     # Sensors with no real data source on this firmware are absent rather
-    # than registered-but-permanently-unavailable.
+    # than registered-but-permanently-unavailable. condensing_temperature/
+    # superheat/target_condensing_temperature are absent too: on this pid
+    # DP 124/132/142 are configuration setpoints, not telemetry (issue #19).
     assert "ambient_temperature" not in sensor_keys  # discharge_temp is None
     assert "fan_speed" not in sensor_keys
     assert "eev_steps" not in sensor_keys
     assert "main_valve_opening" not in sensor_keys
     assert "aux_valve_opening" not in sensor_keys
     assert "total_operating_hours" not in sensor_keys
+    assert "condensing_temperature" not in sensor_keys
     assert "evaporating_temperature" not in sensor_keys
+    assert "superheat" not in sensor_keys
     assert "compressor_load" not in sensor_keys
     assert "target_superheat" not in sensor_keys
+    assert "target_condensing_temperature" not in sensor_keys
 
     def _state(key: str) -> str | None:
         s = hass.states.get(sensor_keys[key].entity_id)
@@ -768,20 +772,25 @@ async def test_nano_fi_3kw_model_selects_sensor_catalog(hass: HomeAssistant) -> 
     assert _state("indoor_coil_temperature") == "29"
     assert _state("exhaust_temperature") == "14"  # reads d.suction_temp
     assert _state("actual_frequency") == "35"
-    # target_frequency/condensing_temperature/superheat/target_condensing_
-    # temperature are disabled by default (like ac_current above), so verify
-    # them the same way: registered, disabled, and correct via value_fn.
-    # Confirmed on a Nano Fi 5kW (same pid, issue #19): target_frequency
-    # lives on DP 109 here, not the legacy layout's DP 107.
-    for key, expected in (
-        ("target_frequency", 0),
-        ("condensing_temperature", 45),
-        ("superheat", -5),
-        ("target_condensing_temperature", 40),
-    ):
-        assert sensor_keys[key].disabled_by is not None
-        desc = next(d for d in NANO_FI_SENSORS if d.key == key)
-        assert desc.value_fn(state) == expected
+    # target_frequency is disabled by default (like ac_current above), so
+    # verify it the same way: registered, disabled, and correct via
+    # value_fn. Confirmed on a Nano Fi 5kW (same pid, issue #19):
+    # target_frequency lives on DP 109 here, not the legacy layout's DP 107.
+    assert sensor_keys["target_frequency"].disabled_by is not None
+    target_frequency_desc = next(
+        d for d in NANO_FI_SENSORS if d.key == "target_frequency"
+    )
+    assert target_frequency_desc.value_fn(state) == 0
+
+    binary_sensor_keys = {
+        e.unique_id.removeprefix(f"{device_id}_"): e
+        for e in er.async_entries_for_config_entry(registry, entry.entry_id)
+        if e.domain == "binary_sensor"
+    }
+    assert "defrosting" in binary_sensor_keys
+    defrosting_state = hass.states.get(binary_sensor_keys["defrosting"].entity_id)
+    assert defrosting_state is not None
+    assert defrosting_state.state == "on"
 
 
 async def test_nano_5kw_model_selects_sensor_catalog(hass: HomeAssistant) -> None:

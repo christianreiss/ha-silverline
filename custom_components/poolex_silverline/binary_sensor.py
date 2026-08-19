@@ -128,6 +128,15 @@ BINARY_SENSORS: tuple[SilverlineBinarySensorDescription, ...] = (
         value_fn=lambda d: d.water_pump,
         dp_keys=("111",),
     ),
+    SilverlineBinarySensorDescription(
+        key="defrosting",
+        translation_key="defrosting",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda d: d.defrosting,
+        # Nano Fi 3kW/5kW only (DP 115, issue #19) — no other layout maps
+        # this field yet, so dp_keys alone is a safe gate.
+        dp_keys=("115",),
+    ),
     *(
         _fault_binary_sensor(bit, name, dp=tuya_const.DP_FAULT)
         for bit, name in sorted(tuya_const.FAULT_BIT_NAMES.items())

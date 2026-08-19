@@ -13,21 +13,49 @@ DP 114 (fan_speed) is declared in the generic Tuya product schema for this
 pid but has never been observed on the wire — left unmapped (``None``)
 rather than guessed.
 
-DP 109, 124, 132 and 142 were confirmed live on a Poolex Nano Fi 5kW
-(PC-NANO-B5N) — the same pid, a larger sibling in this line — via a
-diagnostics dump in issue #19 (reporter @patrickpetos, 2026-08-18):
+DP 109 was confirmed live on a Poolex Nano Fi 5kW (PC-NANO-B5N) — the same
+pid, a larger sibling in this line — via a diagnostics dump in issue #19
+(reporter @patrickpetos, 2026-08-18) and wired in as ``target_frequency``.
 
-    "109": 0, "124": 45, "125": 8, "126": 18, "127": 3, "128": 1,
-    "130": 2, "131": 1, "132": -5, "142": 40, "145": 7
+That same dump also carried DP 124/125/126/127/128/130/131/132/142/145. An
+earlier revision of this file wired 124/132/142 in as condensing_temp/
+superheat/target_condensing, reasoning that they "numerically match the
+legacy layout's defaults" (see ``base.DpLayout``) — but that legacy default
+comes from an unrelated product family (the standard PC-SLP090N/JetLine
+layout), not from this pid, and was never actually cross-checked against
+this device's schema. It was wrong: a public tuya-local device config for
+this exact productId (``poolex_icespa51_heatpump.yaml``, "Poolex IceSpa 51")
+defines the whole 124-145 block as **configuration setpoints**, not live
+refrigeration-circuit telemetry:
 
-109/124/132/142 map onto fields this layout already declares (target_frequency,
-condensing_temp, superheat, target_condensing) with plausible physical values,
-so they are wired in below. 125/126/127/128/130/131/145 have no known meaning
-yet and stay unmapped — no ``DpLayout`` field fits them, and guessing wire
-semantics from a single reading risks mislabeling a working sensor (the exact
-"other"-fallback failure mode this profile exists to avoid — see issue #19's
-root cause: an entry left on "other" reads DP 108, indoor coil temp, as
-actual_frequency, so the compressor/pool-heat state never leaves "active").
+    DP 124  Heating time              config, minutes, range 30-120
+    DP 125  Defrost time limit        config, minutes, range 1-25
+    DP 126  Defrost cutout temp       config, °C, range -20..20
+    DP 127  Heating start hysteresis  config, °C delta, range 0..18
+    DP 128  Heating end hysteresis    config, °C delta, range 0..18
+    DP 130  Cooling start hysteresis  config, °C delta, range 0..18
+    DP 131  Cooling end hysteresis    config, °C delta, range 0..18
+    DP 132  Defrost temperature       config, °C, range -20..20
+    DP 142  Maximum temperature       config, °C, range 35-60
+    DP 145  Minimum temperature       config, °C, range 2-10
+
+Every value in the issue #19 dump (124:45, 125:8, 126:18, 127:3, 128:1,
+130:2, 131:1, 132:-5, 142:40, 145:7) falls inside its declared range above —
+strong corroboration that this is the correct reading, not the "condenser
+temp of 45°C" / "superheat of -5°C" reading the earlier revision assumed
+from plausible-looking values alone (the exact same trap as this profile's
+own root cause: the "other" fallback reading DP 108, indoor coil temp, as
+compressor frequency because the number looked plausible). 124/132/142 are
+reverted to unmapped here; none of these ten DPs have a ``DpLayout`` field
+today (they are device settings, not sensor readings), so wiring them as HA
+`number` config entities would be new scope, not a bug fix.
+
+DP 115 was not in the issue #19 diagnostics dump (config-category DPs like
+115-145 are typically only sent on an explicit query, not on every status
+push) but is declared by the same tuya-local schema as an ``hvac_action``
+enum where wire value 1 means "defrosting" — this is the defrost flag asked
+about at the start of issue #19. Wired in below as ``defrosting``; unconfirmed
+against a live diagnostics dump since no reporter's has carried it yet.
 
 Cross-referenced field meanings (official Tuya schema for this pid):
 
@@ -46,6 +74,8 @@ Cross-referenced field meanings (official Tuya schema for this pid):
                                 role DP 111 plays as ``water_pump`` on the
                                 standard layout
     DP 112  aux_valve          (not observed on the wire on this unit)
+    DP 115  defrosting         hvac_action enum, 1 = defrosting (tuya-local
+                                schema; not yet seen on the wire — issue #19)
     DP 116  exhaust_temp       always reports -30 on this unit (no working
                                 sensor wired to this DP) — left unmapped
     DP 117  return_temp        compressor return/suction gas temperature
@@ -57,16 +87,17 @@ Cross-referenced field meanings (official Tuya schema for this pid):
                                 runtime counter at all.
     DP 121  ac_current         AC line current (no DpLayout field exists for
                                 this yet, so it stays unsurfaced for now)
-    DP 124  condensing_temp    condenser temperature (confirmed on the Fi
-                                5kW, issue #19)
-    DP 132  superheat          compressor suction superheat, can be negative
-                                (confirmed on the Fi 5kW, issue #19)
-    DP 142  target_condensing  target condensing temperature (confirmed on
-                                the Fi 5kW, issue #19)
+    DP 124  heating_time       config setpoint, minutes (tuya-local schema,
+                                issue #19) — no DpLayout field, unmapped
+    DP 132  defrost_temp       config setpoint, °C (tuya-local schema,
+                                issue #19) — no DpLayout field, unmapped
+    DP 142  max_temp           config setpoint, °C (tuya-local schema,
+                                issue #19) — no DpLayout field, unmapped
 
-Everything not listed above (evaporating temp, compressor load, EEV steps,
-defrosting, and DP 125/126/127/128/130/131/145) is either not exposed by
-this firmware or of unconfirmed meaning.
+Everything not listed above (condensing/evaporating temp, superheat,
+compressor load, EEV steps, and DP 125/126/127/128/130/131/145) is either
+not exposed by this firmware as telemetry or, per the tuya-local schema
+above, is a configuration setpoint with no matching ``DpLayout`` field.
 """
 
 from __future__ import annotations
@@ -91,13 +122,13 @@ LAYOUT_NANO_FI_3KW = DpLayout(
     fan_speed=None,
     aux_valve_opening=None,
     water_pump=111,
-    condensing_temp=124,
+    condensing_temp=None,
     evaporating_temp=None,
-    superheat=132,
+    superheat=None,
     compressor_load=None,
     total_hours=None,
     target_superheat=None,
-    target_condensing=142,
+    target_condensing=None,
     ac_voltage=120,
     ac_current=121,
     # UNCONFIRMED, same open question as LAYOUT_V34_WFZEIYN: the Tuya schema
@@ -105,4 +136,5 @@ LAYOUT_NANO_FI_3KW = DpLayout(
     # this firmware against a clamp meter. Kept at 1 so both AC layouts behave
     # alike; set to 10 here if a reporter confirms tenths on this unit.
     ac_current_divisor=1,
+    defrosting=115,
 )

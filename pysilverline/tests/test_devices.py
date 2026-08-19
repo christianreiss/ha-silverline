@@ -105,9 +105,14 @@ def test_nano_fi_3kw_dp_mapping() -> None:
     assert layout.suction_temp == 117
     # Confirmed on a Nano Fi 5kW (same pid, larger sibling) via issue #19.
     assert layout.target_frequency == 109
-    assert layout.condensing_temp == 124
-    assert layout.superheat == 132
-    assert layout.target_condensing == 142
+    assert layout.defrosting == 115
+    # DP 124/132/142 are configuration setpoints on this pid (heating time,
+    # defrost temp, max temp — tuya-local schema, issue #19), not
+    # condensing_temp/superheat/target_condensing telemetry. Must stay
+    # unmapped rather than reintroduce the earlier mislabeling.
+    assert layout.condensing_temp is None
+    assert layout.superheat is None
+    assert layout.target_condensing is None
     # DP 120 on this firmware is AC line voltage, not a runtime-hours
     # counter — must stay unmapped rather than reused for total_hours.
     assert layout.total_hours is None

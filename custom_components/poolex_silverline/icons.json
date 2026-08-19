@@ -49,6 +49,13 @@
         }
       },
       "water_pump": { "default": "mdi:water-pump" },
+      "defrosting": {
+        "default": "mdi:snowflake-melt",
+        "state": {
+          "on": "mdi:snowflake-melt",
+          "off": "mdi:snowflake-off"
+        }
+      },
       "fault_water_flow": { "default": "mdi:water-alert" },
       "fault_antifreeze": { "default": "mdi:snowflake-alert" },
       "fault_high_pressure": { "default": "mdi:gauge-full" },

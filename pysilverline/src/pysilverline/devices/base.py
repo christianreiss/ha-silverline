@@ -59,3 +59,4 @@ class DpLayout:
     ac_current: int | None = None
     ac_current_divisor: int = 1
     fault: int | None = 13
+    defrosting: int | None = None

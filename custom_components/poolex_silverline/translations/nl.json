@@ -128,6 +128,7 @@
     "binary_sensor": {
       "compressor_running": { "name": "Compressor" },
       "water_pump": { "name": "Waterpomp" },
+      "defrosting": { "name": "Ontdooien" },
       "fault_water_flow": { "name": "Waterdoorstromingsfout" },
       "fault_antifreeze": { "name": "Antivriesfout" },
       "fault_high_pressure": { "name": "Hogedrukfout" },

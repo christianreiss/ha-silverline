@@ -47,6 +47,9 @@ class DeviceState:
     # float when the layout's ac_current_divisor scales tenths-of-an-amp
     # firmware down; whole-amp firmware keeps an int here. See DpLayout.
     ac_current: float | int | None = None
+    # True/False only when the layout maps a DP for it (wire value 1 = True,
+    # any other int = False); None on firmware that doesn't expose it.
+    defrosting: bool | None = None
     raw: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
@@ -96,6 +99,19 @@ class DeviceState:
             if isinstance(value, bool):
                 return None
             return value if isinstance(value, int) else None
+
+        def _flag(dp: int | None) -> bool | None:
+            # Wire value 1 = the flag is set; any other int (typically 0) =
+            # not set. Same "coerce, don't trust" stance as the other
+            # readers — a non-int value on this DP yields None.
+            if dp is None:
+                return None
+            value = dps.get(str(dp))
+            if isinstance(value, bool):
+                return value
+            if isinstance(value, int):
+                return value == 1
+            return None
 
         def _int(dp: int | None) -> int | None:
             if dp is None:
@@ -163,6 +179,7 @@ class DeviceState:
             target_condensing=_int(layout.target_condensing),
             ac_voltage=_int(layout.ac_voltage),
             ac_current=_ac_current(),
+            defrosting=_flag(layout.defrosting),
             raw=dict(dps),
         )
 
