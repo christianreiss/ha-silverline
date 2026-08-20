@@ -204,6 +204,10 @@ DEVICE_PROFILES: Final[dict[str, DeviceProfile]] = {
     ),
     MODEL_NANO_FI_3KW: DeviceProfile(
         # Poolex Nano Fi 3kW (ref. PC-NANO-B3N), distributed by Poolstar SAS.
+        # The 5kW sibling (PC-NANO-B5N) shares this pid and this layout and is
+        # user-confirmed working on it (issue #19; HA community thread 1011340
+        # post 25, 2026-08-12) — the label names both so 5kW owners stop having
+        # to guess that the "3kW" entry is the right one for their unit.
         # Tuya pid am4nomaadnhwvekq, protocol v3.5. Cross-checked DP-by-DP
         # against the official Tuya cloud product schema (pulled via the
         # xtend_tuya integration's diagnostics) — see LAYOUT_NANO_FI_3KW for
@@ -216,7 +220,7 @@ DEVICE_PROFILES: Final[dict[str, DeviceProfile]] = {
         # clamp bounds are unverified on this specific firmware (only the raw
         # DP 2 range 0-40°C is confirmed) — left as None to fall back to the
         # global defaults rather than assume.
-        display_name="Poolex Nano Fi 3kW (PC-NANO-B3N)",
+        display_name="Poolex Nano Fi 3kW / 5kW (PC-NANO-B3N / B5N)",
         known_dps=None,
     ),
     MODEL_NANO_5KW: DeviceProfile(

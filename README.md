@@ -70,7 +70,7 @@ WiFi control board (issue #7).
 | Phalén Calidi XP | v3.3 / v3.5 | ✅ | ✅ | ✅ full | ✅ | 🔵 inferred |
 | Nulite | v3.3 / v3.5 | ✅ | ✅ | ✅ full | ✅ | 🔵 inferred |
 | Poolex Silverline (Tuya v3.4 firmware) | v3.4 | ✅ | ✅ | ✅ full (own DP map) | ✅ | 🟢 live-verified |
-| Poolex Nano Fi 3kW (PC-NANO-B3N) | v3.5 | ✅ | ✅ | ✅ own DP map (own AC voltage/current sensors too) | ✅ | 🟢 live-verified |
+| Poolex Nano Fi 3kW / 5kW (PC-NANO-B3N / B5N) | v3.5 | ✅ | ✅ | ✅ own DP map (own AC voltage/current sensors too) | ✅ | 🟢 live-verified |
 | Poolex Nano 5kW WiFi (also sold as "Spawler o'spa Flow 5kW", "Varpoolfaye Pool Mini") | v3.4 / v3.5 | ✅ | ❓ unconfirmed (falls back to plain heat/cool) | ❌ none (5-DP firmware) | ✅ (DP 21 water-flow bit only) | 🟢 live-verified |
 | Other Poolstar / Tuya WBR3 OEM | auto | ✅ | ✅ | live-detected | ✅ | ⚪ unknown |
 

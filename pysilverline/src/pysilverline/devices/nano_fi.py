@@ -48,6 +48,15 @@ own root cause: the "other" fallback reading DP 108, indoor coil temp, as
 compressor frequency because the number looked plausible). 124/132/142 are
 reverted to unmapped as condensing_temp/superheat/target_condensing here.
 
+Independently corroborated a second time on *different* hardware: a Poolex
+F-Spa 7kW paired via tuya-local on Homey (HA community thread 1011340,
+post 23, @omerobbie, 2026-07-17) reports the same block at 124:45, 125:8,
+127:1, 128:1, 130:2, 131:1, 132:-5, 142:40, 145:7 — near-identical factory
+defaults on a product that is not a Nano Fi. A live refrigeration-circuit
+reading would not land on the same numbers across two unrelated units;
+identical config defaults would. This is read corroboration only: nobody
+has still confirmed that a *write* to these DPs takes on real hardware.
+
 Follow-up (issue #19, richardc1983): the manual shows this same DP block
 behind an installer menu (H0-H3 / P0-P3), and asked whether they could be
 exposed as configurable settings rather than just documented as unmapped.
@@ -62,12 +71,16 @@ confidence only (tuya-local schema + range-matching, the same evidence
 level as the mislabel fix above) — nobody has confirmed a write actually
 takes on real hardware yet.
 
-DP 115 was not in the issue #19 diagnostics dump (config-category DPs like
-115-145 are typically only sent on an explicit query, not on every status
-push) but is declared by the same tuya-local schema as an ``hvac_action``
-enum where wire value 1 means "defrosting" — this is the defrost flag asked
-about at the start of issue #19. Wired in below as ``defrosting``; unconfirmed
-against a live diagnostics dump since no reporter's has carried it yet.
+DP 115 was not in the issue #19 diagnostics dump, but it *is* on the wire:
+a Nano Fi 5kW dump posted to the HA community thread 1011340 (post 25,
+2026-08-12, integration 0.11.4) lists 115 in ``supported_dps`` with
+``raw["115"] = 0``. So 115 arrives on ordinary status pushes, while the
+124-145 config block does not — that split is what the earlier "typically
+only sent on an explicit query" note was groping at. What is still
+schema-only is the *decode*: tuya-local declares 115 an ``hvac_action``
+enum where wire value 1 means "defrosting" (the defrost flag asked about at
+the start of issue #19), and every capture so far reads 0, so the 1 ⇒
+defrosting half is uncorroborated. Wired in below as ``defrosting``.
 
 Cross-referenced field meanings (official Tuya schema for this pid):
 
@@ -81,13 +94,30 @@ Cross-referenced field meanings (official Tuya schema for this pid):
     DP 109  target_frequency   requested compressor frequency (0 = idle;
                                 confirmed on the Fi 5kW, issue #19)
     DP 110  actual_frequency   real compressor frequency
-    DP 111  main_valve         main valve opening (%) — reused as the closest
-                                available "pump/valve activity" proxy, same
-                                role DP 111 plays as ``water_pump`` on the
-                                standard layout
+    DP 111  main_valve         reused as the closest available "pump/valve
+                                activity" proxy, the same role DP 111 plays
+                                as ``water_pump`` on the standard layout.
+                                OPEN QUESTION — the unit and its label
+                                disagree twice over. This table has long
+                                called it "main valve opening (%)", but the
+                                mapping below routes it through
+                                ``DeviceState.water_pump_rpm``, which
+                                ``sensor_descriptions.py`` publishes in
+                                **RPM**, not percent. And the two samples in
+                                hand (101 on the Fi 5kW in issue #19, 480 on
+                                the F-Spa 7kW in community thread 1011340
+                                post 23) fit neither a percentage nor each
+                                other. Deliberately not rewired: guessing a
+                                unit from a plausible-looking number is the
+                                exact trap the rest of this docstring exists
+                                to memorialize. The discriminator is a
+                                heating-cycle log showing whether 111 tracks
+                                compressor load.
     DP 112  aux_valve          (not observed on the wire on this unit)
     DP 115  defrosting         hvac_action enum, 1 = defrosting (tuya-local
-                                schema; not yet seen on the wire — issue #19)
+                                schema; DP present on the wire reading 0,
+                                the 1 ⇒ defrosting decode still unconfirmed
+                                — issue #19)
     DP 116  exhaust_temp       always reports -30 on this unit (no working
                                 sensor wired to this DP) — left unmapped
     DP 117  return_temp        compressor return/suction gas temperature
@@ -97,8 +127,9 @@ Cross-referenced field meanings (official Tuya schema for this pid):
                                 total_hours) misreads this as total operating
                                 hours; this device has no exposed lifetime
                                 runtime counter at all.
-    DP 121  ac_current         AC line current (no DpLayout field exists for
-                                this yet, so it stays unsurfaced for now)
+    DP 121  ac_current         AC line current — mapped below via
+                                ``ac_current``; see ``ac_current_divisor``
+                                for the open whole-amps-vs-tenths question
     DP 124  heating_time       config setpoint, minutes (tuya-local schema,
                                 issue #19) — writable `number.heating_time`
     DP 125  defrost_time_limit config setpoint, minutes — writable `number`
