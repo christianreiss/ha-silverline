@@ -54,22 +54,28 @@ post 23, @omerobbie, 2026-07-17) reports the same block at 124:45, 125:8,
 127:1, 128:1, 130:2, 131:1, 132:-5, 142:40, 145:7 — near-identical factory
 defaults on a product that is not a Nano Fi. A live refrigeration-circuit
 reading would not land on the same numbers across two unrelated units;
-identical config defaults would. This is read corroboration only: nobody
-has still confirmed that a *write* to these DPs takes on real hardware.
+identical config defaults would.
 
-Follow-up (issue #19, richardc1983): the manual shows this same DP block
-behind an installer menu (H0-H3 / P0-P3), and asked whether they could be
-exposed as configurable settings rather than just documented as unmapped.
-tuya-local's schema models all ten as plain writable ``number`` entities
-(``category: config``), so they are wired below onto dedicated ``DpLayout``
-fields (``heating_time``, ``defrost_time_limit``, ``defrost_cutout_temp``,
+Both halves are now settled on real hardware (issue #19, @richardc1983,
+2026-08-20). **Read: confirmed.** With the ten entities enabled, every
+value matched what the unit's own code-locked installer menu displayed —
+the decode above is no longer schema-only. **Write: rejected.** Writing
+any of them is accepted without an error, without a fault code and
+without a log entry, and the controller re-asserts its previous value a
+few seconds later. Coherent with the menu itself: these parameters sit
+behind an access code on the physical panel, so the firmware takes the
+remote write and simply declines to keep it. No protocol change fixes
+that, so an earlier revision's writable ``number`` entities were the
+wrong shape — they offered a control that silently snaps back. They are
+read-only DIAGNOSTIC sensors from 0.5.7 on (still disabled by default;
+ten extra entities is a lot to hand everyone unasked).
+
+The block is wired onto dedicated ``DpLayout`` fields (``heating_time``,
+``defrost_time_limit``, ``defrost_cutout_temp``,
 ``heating_start_hysteresis``, ``heating_end_hysteresis``,
 ``cooling_start_hysteresis``, ``cooling_end_hysteresis``, ``defrost_temp``,
-``max_temp_limit``, ``min_temp_limit``) and exposed as CONFIG-category,
-disabled-by-default `number` entities in ``number.py``. This is read
-confidence only (tuya-local schema + range-matching, the same evidence
-level as the mislabel fix above) — nobody has confirmed a write actually
-takes on real hardware yet.
+``max_temp_limit``, ``min_temp_limit``) — the fields stay, only the
+platform that publishes them changed.
 
 DP 115 was not in the issue #19 diagnostics dump, but it *is* on the wire:
 a Nano Fi 5kW dump posted to the HA community thread 1011340 (post 25,
@@ -94,25 +100,26 @@ Cross-referenced field meanings (official Tuya schema for this pid):
     DP 109  target_frequency   requested compressor frequency (0 = idle;
                                 confirmed on the Fi 5kW, issue #19)
     DP 110  actual_frequency   real compressor frequency
-    DP 111  main_valve         reused as the closest available "pump/valve
-                                activity" proxy, the same role DP 111 plays
-                                as ``water_pump`` on the standard layout.
-                                OPEN QUESTION — the unit and its label
-                                disagree twice over. This table has long
-                                called it "main valve opening (%)", but the
-                                mapping below routes it through
-                                ``DeviceState.water_pump_rpm``, which
-                                ``sensor_descriptions.py`` publishes in
-                                **RPM**, not percent. And the two samples in
-                                hand (101 on the Fi 5kW in issue #19, 480 on
-                                the F-Spa 7kW in community thread 1011340
-                                post 23) fit neither a percentage nor each
-                                other. Deliberately not rewired: guessing a
-                                unit from a plausible-looking number is the
-                                exact trap the rest of this docstring exists
-                                to memorialize. The discriminator is a
-                                heating-cycle log showing whether 111 tracks
-                                compressor load.
+    DP 111  main_valve         RESOLVED — main (electronic) expansion valve
+                                opening, in steps. Mapped to ``eev_steps``.
+                                A Fi 5kW owner read the live value off the
+                                unit's own parameter display and matched it
+                                to parameter "1F Main EEV opening" (issue
+                                #19, @patrickpetos, 2026-08-21) — a direct
+                                hardware label, stronger than the
+                                heating-cycle correlation this entry used to
+                                ask for. tuya-local names the same DP "Main
+                                valve", and the three samples in hand (143
+                                and 394 on Fi 5kW units, 480 on an F-Spa
+                                7kW) are ordinary EEV step counts while
+                                being impossible circulation-pump speeds.
+                                Until 0.5.6 this was routed through
+                                ``water_pump``/``water_pump_rpm`` and
+                                published as "Circulation pump speed" in
+                                RPM — wrong on both the quantity and the
+                                unit. This firmware exposes no pump DP at
+                                all, so ``water_pump`` is now unmapped and
+                                the "Water pump" binary sensor is gone here.
     DP 112  aux_valve          (not observed on the wire on this unit)
     DP 115  defrosting         hvac_action enum, 1 = defrosting (tuya-local
                                 schema; DP present on the wire reading 0,
@@ -130,22 +137,23 @@ Cross-referenced field meanings (official Tuya schema for this pid):
     DP 121  ac_current         AC line current — mapped below via
                                 ``ac_current``; see ``ac_current_divisor``
                                 for the open whole-amps-vs-tenths question
-    DP 124  heating_time       config setpoint, minutes (tuya-local schema,
-                                issue #19) — writable `number.heating_time`
-    DP 125  defrost_time_limit config setpoint, minutes — writable `number`
-    DP 126  defrost_cutout_temp config setpoint, °C — writable `number`
-    DP 127  heating_start_hysteresis config setpoint, °C delta — writable
-    DP 128  heating_end_hysteresis config setpoint, °C delta — writable
-    DP 130  cooling_start_hysteresis config setpoint, °C delta — writable
-    DP 131  cooling_end_hysteresis config setpoint, °C delta — writable
-    DP 132  defrost_temp       config setpoint, °C (tuya-local schema,
-                                issue #19) — writable `number.defrost_temperature`
-    DP 142  max_temp_limit     config setpoint, °C (tuya-local schema,
-                                issue #19) — writable `number.maximum_temperature_limit`
-    DP 145  min_temp_limit     config setpoint, °C — writable `number`
+    DP 124  heating_time       installer setpoint, minutes — read-only
+    DP 125  defrost_time_limit installer setpoint, minutes — read-only
+    DP 126  defrost_cutout_temp installer setpoint, °C — read-only
+    DP 127  heating_start_hysteresis installer setpoint, °C delta — read-only
+    DP 128  heating_end_hysteresis installer setpoint, °C delta — read-only
+    DP 130  cooling_start_hysteresis installer setpoint, °C delta — read-only
+    DP 131  cooling_end_hysteresis installer setpoint, °C delta — read-only
+    DP 132  defrost_temp       installer setpoint, °C — read-only
+    DP 142  max_temp_limit     installer setpoint, °C — read-only
+    DP 145  min_temp_limit     installer setpoint, °C — read-only
+                               (all ten hardware-confirmed on read and
+                                hardware-confirmed to reject writes —
+                                issue #19)
 
 Everything not listed above (condensing/evaporating temp, superheat,
-compressor load, EEV steps) is not exposed by this firmware as telemetry.
+compressor load, fan speed, aux valve) is not exposed by this firmware as
+telemetry.
 """
 
 from __future__ import annotations
@@ -166,10 +174,10 @@ LAYOUT_NANO_FI_3KW = DpLayout(
     indoor_coil_temp=108,
     target_frequency=109,
     actual_frequency=110,
-    eev_steps=None,
+    eev_steps=111,  # main EEV opening, in steps — see DP 111 above
     fan_speed=None,
     aux_valve_opening=None,
-    water_pump=111,
+    water_pump=None,  # this firmware has no circulation-pump DP
     condensing_temp=None,
     evaporating_temp=None,
     superheat=None,

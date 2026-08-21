@@ -725,18 +725,25 @@ async def test_nano_fi_3kw_model_selects_sensor_catalog(hass: HomeAssistant) -> 
         "exhaust_temperature",
         "target_frequency",
         "actual_frequency",
-        "water_pump_rpm",
+        # DP 111 is the main EEV opening in steps on this firmware, not a
+        # circulation-pump speed (issue #19): a Fi 5kW owner matched it to
+        # the unit's own "1F Main EEV opening" parameter. Guards against a
+        # relapse to the "Circulation pump speed in RPM" mislabel.
+        "main_valve_opening",
         "ac_voltage",
         "ac_current",
     } <= sensor_keys.keys()
+    assert "water_pump_rpm" not in sensor_keys
     # Sensors with no real data source on this firmware are absent rather
     # than registered-but-permanently-unavailable. condensing_temperature/
     # superheat/target_condensing_temperature are absent too: on this pid
     # DP 124/132/142 are configuration setpoints, not telemetry (issue #19).
     assert "ambient_temperature" not in sensor_keys  # discharge_temp is None
     assert "fan_speed" not in sensor_keys
+    # eev_steps and main_valve_opening both read d.eev_steps; this catalog
+    # publishes DP 111 through main_valve_opening only, so the legacy
+    # DP-109 entity must not also register (DP 109 is target_frequency here).
     assert "eev_steps" not in sensor_keys
-    assert "main_valve_opening" not in sensor_keys
     assert "aux_valve_opening" not in sensor_keys
     assert "total_operating_hours" not in sensor_keys
     assert "condensing_temperature" not in sensor_keys
@@ -787,6 +794,9 @@ async def test_nano_fi_3kw_model_selects_sensor_catalog(hass: HomeAssistant) -> 
         for e in er.async_entries_for_config_entry(registry, entry.entry_id)
         if e.domain == "binary_sensor"
     }
+    # No pump DP on this firmware: DP 111 is the EEV. A raw "111" gate would
+    # register a "Water pump" that really reports "the EEV is open".
+    assert "water_pump" not in binary_sensor_keys
     assert "defrosting" in binary_sensor_keys
     defrosting_state = hass.states.get(binary_sensor_keys["defrosting"].entity_id)
     assert defrosting_state is not None

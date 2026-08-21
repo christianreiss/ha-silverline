@@ -123,7 +123,17 @@
       "target_superheat": { "name": "Doeloververhitting" },
       "electrical_power": { "name": "Elektrisch vermogen" },
       "energy_consumption": { "name": "Energieverbruik" },
-      "target_condensing_temperature": { "name": "Doelcondensatietemperatuur" }
+      "target_condensing_temperature": { "name": "Doelcondensatietemperatuur" },
+      "heating_time": { "name": "Verwarmingstijd" },
+      "defrost_time_limit": { "name": "Ontdooitijdslimiet" },
+      "defrost_cutout_temperature": { "name": "Ontdooi-afsluittemperatuur" },
+      "heating_start_hysteresis": { "name": "Hysterese verwarming start" },
+      "heating_end_hysteresis": { "name": "Hysterese verwarming einde" },
+      "cooling_start_hysteresis": { "name": "Hysterese koeling start" },
+      "cooling_end_hysteresis": { "name": "Hysterese koeling einde" },
+      "defrost_temperature": { "name": "Ontdooitemperatuur" },
+      "maximum_temperature_limit": { "name": "Maximale temperatuurgrens" },
+      "minimum_temperature_limit": { "name": "Minimale temperatuurgrens" }
     },
     "binary_sensor": {
       "compressor_running": { "name": "Compressor" },
@@ -144,17 +154,7 @@
       "power": { "name": "Voeding" }
     },
     "number": {
-      "target_temperature": { "name": "Doeltemperatuur" },
-      "heating_time": { "name": "Verwarmingstijd" },
-      "defrost_time_limit": { "name": "Ontdooitijdslimiet" },
-      "defrost_cutout_temperature": { "name": "Ontdooi-afsluittemperatuur" },
-      "heating_start_hysteresis": { "name": "Hysterese verwarming start" },
-      "heating_end_hysteresis": { "name": "Hysterese verwarming einde" },
-      "cooling_start_hysteresis": { "name": "Hysterese koeling start" },
-      "cooling_end_hysteresis": { "name": "Hysterese koeling einde" },
-      "defrost_temperature": { "name": "Ontdooitemperatuur" },
-      "maximum_temperature_limit": { "name": "Maximale temperatuurgrens" },
-      "minimum_temperature_limit": { "name": "Minimale temperatuurgrens" }
+      "target_temperature": { "name": "Doeltemperatuur" }
     },
     "select": {
       "preset_mode": {

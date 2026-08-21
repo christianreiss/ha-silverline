@@ -490,6 +490,128 @@ _ENERGY_CONSUMPTION = SilverlineSensorDescription(
 )
 
 
+# ---- Nano Fi installer setpoints (DP 124-145, issue #19) --------------------
+#
+# Read-only on purpose. These ten DPs mirror the code-locked installer menu
+# on the physical panel (H0-H3 / P0-P3 in the manual). A reporter enabled the
+# whole block on a Nano Fi 5kW and confirmed every value matches what that
+# menu displays — but also that writing one is silently declined: the unit
+# acks nothing, logs nothing, raises no fault, and re-asserts its old value a
+# few seconds later (issue #19, 2026-08-20). An earlier revision shipped them
+# as writable `number` entities on tuya-local's schema alone; a control that
+# snaps back is worse than a reading, so they are plain diagnostic sensors.
+#
+# No `state_class`: these are settings that change only when an installer
+# edits them, so long-term statistics would be noise. The four hysteresis
+# entries carry SensorDeviceClass.TEMPERATURE_DELTA rather than TEMPERATURE
+# so HA converts them as differences (a 5 °C delta is 9 °F, not 41 °F).
+#
+# Disabled by default: ten extra entities is a lot to hand every owner
+# unasked, and they are only interesting while commissioning a unit.
+
+NANO_FI_CONFIG_SENSORS: tuple[SilverlineSensorDescription, ...] = (
+    SilverlineSensorDescription(
+        key="heating_time",
+        translation_key="heating_time",
+        device_class=SensorDeviceClass.DURATION,
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        value_fn=lambda d: d.heating_time,
+        dp_keys=("124",),
+    ),
+    SilverlineSensorDescription(
+        key="defrost_time_limit",
+        translation_key="defrost_time_limit",
+        device_class=SensorDeviceClass.DURATION,
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        value_fn=lambda d: d.defrost_time_limit,
+        dp_keys=("125",),
+    ),
+    SilverlineSensorDescription(
+        key="defrost_cutout_temperature",
+        translation_key="defrost_cutout_temperature",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        value_fn=lambda d: d.defrost_cutout_temp,
+        dp_keys=("126",),
+    ),
+    SilverlineSensorDescription(
+        key="heating_start_hysteresis",
+        translation_key="heating_start_hysteresis",
+        device_class=SensorDeviceClass.TEMPERATURE_DELTA,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        value_fn=lambda d: d.heating_start_hysteresis,
+        dp_keys=("127",),
+    ),
+    SilverlineSensorDescription(
+        key="heating_end_hysteresis",
+        translation_key="heating_end_hysteresis",
+        device_class=SensorDeviceClass.TEMPERATURE_DELTA,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        value_fn=lambda d: d.heating_end_hysteresis,
+        dp_keys=("128",),
+    ),
+    SilverlineSensorDescription(
+        key="cooling_start_hysteresis",
+        translation_key="cooling_start_hysteresis",
+        device_class=SensorDeviceClass.TEMPERATURE_DELTA,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        value_fn=lambda d: d.cooling_start_hysteresis,
+        dp_keys=("130",),
+    ),
+    SilverlineSensorDescription(
+        key="cooling_end_hysteresis",
+        translation_key="cooling_end_hysteresis",
+        device_class=SensorDeviceClass.TEMPERATURE_DELTA,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        value_fn=lambda d: d.cooling_end_hysteresis,
+        dp_keys=("131",),
+    ),
+    SilverlineSensorDescription(
+        key="defrost_temperature",
+        translation_key="defrost_temperature",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        value_fn=lambda d: d.defrost_temp,
+        dp_keys=("132",),
+    ),
+    SilverlineSensorDescription(
+        key="maximum_temperature_limit",
+        translation_key="maximum_temperature_limit",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        value_fn=lambda d: d.max_temp_limit,
+        dp_keys=("142",),
+    ),
+    SilverlineSensorDescription(
+        key="minimum_temperature_limit",
+        translation_key="minimum_temperature_limit",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        value_fn=lambda d: d.min_temp_limit,
+        dp_keys=("145",),
+    ),
+)
+
 SENSORS: tuple[SilverlineSensorDescription, ...] = (
     _TEMPERATURE_DELTA,
     _EXHAUST_TEMPERATURE,
@@ -553,7 +675,7 @@ V34_SENSORS: tuple[SilverlineSensorDescription, ...] = (
 #: am4nomaadnhwvekq. DP numbering cross-checked against the official Tuya
 #: cloud product schema (see ``devices/nano_fi.py`` for the full per-DP
 #: reasoning). Sensors with no working data source on this firmware
-#: (fan speed, EEV steps, main/aux valve steps, condensing/evaporating temp,
+#: (fan speed, aux valve steps, condensing/evaporating temp,
 #: superheat, compressor load, target superheat/condensing, and total
 #: operating hours — DP 120 is AC line voltage on this unit, not a runtime
 #: counter) are simply omitted from the catalog rather than included and
@@ -576,13 +698,18 @@ NANO_FI_SENSORS: tuple[SilverlineSensorDescription, ...] = (
     replace(_EXHAUST_TEMPERATURE, dp_keys=("117",)),  # reads d.suction_temp
     replace(_TARGET_FREQUENCY, dp_keys=("109",)),
     replace(_ACTUAL_FREQUENCY, dp_keys=("110",)),
-    _WATER_PUMP_RPM,  # dp_keys=("111",) — matches this firmware as-is
+    # DP 111 is the main EEV opening in steps, not a circulation-pump speed:
+    # a Fi 5kW owner matched the live value against the unit's own parameter
+    # "1F Main EEV opening" (issue #19). Until 0.11.7 it was published as
+    # "Circulation pump speed" in RPM — wrong quantity, wrong unit.
+    replace(_MAIN_VALVE_OPENING, dp_keys=("111",)),
     _FAULT_CODE,
     _RUNTIME_TODAY,
     _AC_VOLTAGE,
     _AC_CURRENT,
     _ELECTRICAL_POWER,
     _ENERGY_CONSUMPTION,
+    *NANO_FI_CONFIG_SENSORS,
 )
 
 

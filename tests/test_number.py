@@ -13,9 +13,11 @@ from homeassistant.components.number import (
 from homeassistant.components.number import (
     DOMAIN as NUMBER_DOMAIN,
 )
+from homeassistant.components.sensor import SensorDeviceClass
 from homeassistant.const import (
     ATTR_ENTITY_ID,
     STATE_UNAVAILABLE,
+    EntityCategory,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
@@ -257,14 +259,15 @@ async def test_set_value_surfaces_cannot_connect_as_homeassistant_error(
     assert exc.value.translation_key == "set_failed"
 
 
-async def test_nano_fi_config_numbers_register_disabled_with_correct_bounds(
+async def test_nano_fi_config_setpoints_are_readonly_sensors_not_numbers(
     hass: HomeAssistant,
 ) -> None:
-    """Nano Fi 3kW config setpoints (DP 124-145, issue #19 follow-up) register
-    as CONFIG-category, disabled-by-default number entities with the
-    tuya-local-derived range as their min/max, and read the right
-    DeviceState field. Writing goes to the DP named by the description's
-    own dp_keys, not a shared constant."""
+    """Nano Fi installer setpoints (DP 124-145, issue #19) must NOT be
+    writable numbers. Hardware confirmed the reads match the unit's
+    code-locked installer menu, and that a write is silently declined —
+    the controller re-asserts its own value seconds later with no ack, no
+    fault and no log line. So they register as disabled-by-default
+    DIAGNOSTIC sensors, and the number platform keeps DP 2 only."""
     from unittest.mock import MagicMock, patch
 
     from homeassistant.const import CONF_HOST, CONF_PORT
@@ -277,9 +280,8 @@ async def test_nano_fi_config_numbers_register_disabled_with_correct_bounds(
         CONF_MODEL,
         DOMAIN,
     )
-    from custom_components.poolex_silverline.number import (
-        NANO_FI_CONFIG_NUMBERS,
-        SilverlineNumber,
+    from custom_components.poolex_silverline.sensor_descriptions import (
+        NANO_FI_CONFIG_SENSORS,
     )
 
     device_id = "bf11223344nanoficonf"
@@ -340,43 +342,51 @@ async def test_nano_fi_config_numbers_register_disabled_with_correct_bounds(
 
     registry = er.async_get(hass)
     number_keys = {
-        e.unique_id.removeprefix(f"{device_id}_"): e
+        e.unique_id.removeprefix(f"{device_id}_")
         for e in er.async_entries_for_config_entry(registry, entry.entry_id)
         if e.domain == "number"
     }
-    expected = {d.key: d for d in NANO_FI_CONFIG_NUMBERS}
-    assert expected.keys() <= number_keys.keys()
+    # Regression guard: no config setpoint may come back as a writable
+    # control, on this or any future model.
+    assert number_keys == {"target_temperature"}
+
+    sensor_keys = {
+        e.unique_id.removeprefix(f"{device_id}_"): e
+        for e in er.async_entries_for_config_entry(registry, entry.entry_id)
+        if e.domain == "sensor"
+    }
+    expected = {d.key: d for d in NANO_FI_CONFIG_SENSORS}
+    assert expected.keys() <= sensor_keys.keys()
     for key, desc in expected.items():
-        registry_entry = number_keys[key]
-        assert registry_entry.disabled_by is not None, (
+        assert sensor_keys[key].disabled_by is not None, (
             f"{key} must be disabled by default"
         )
+        assert sensor_keys[key].entity_category == EntityCategory.DIAGNOSTIC
         assert desc.value_fn(state) is not None
 
-    # Spot-check the range + value pulled from tuya-local's declared setpoints.
-    assert expected["heating_time"].native_min_value == 30
-    assert expected["heating_time"].native_max_value == 120
+    # Values come straight off the wire — no scaling, no derivation.
     assert expected["heating_time"].value_fn(state) == 45
-    assert expected["defrost_temperature"].native_min_value == -20
-    assert expected["defrost_temperature"].native_max_value == 20
+    assert expected["defrost_time_limit"].value_fn(state) == 8
     assert expected["defrost_temperature"].value_fn(state) == -5
     assert expected["maximum_temperature_limit"].value_fn(state) == 40
     assert expected["minimum_temperature_limit"].value_fn(state) == 7
+    # A temperature *difference* must not be typed as an absolute
+    # temperature or HA converts it with the wrong formula.
+    assert (
+        expected["heating_start_hysteresis"].device_class
+        == SensorDeviceClass.TEMPERATURE_DELTA
+    )
 
-    coordinator = entry.runtime_data
-    heating_time_entity = SilverlineNumber(coordinator, expected["heating_time"])
-    await heating_time_entity.async_set_native_value(60)
-    client.set_multiple.assert_awaited_with({124: 60})
 
-
-async def test_v34_wfzeiyn_model_does_not_get_nano_fi_config_numbers(
+async def test_v34_wfzeiyn_model_does_not_get_nano_fi_config_setpoints(
     hass: HomeAssistant,
 ) -> None:
     """DP 124/132/142 are legitimate condensing_temp/superheat/
     target_condensing telemetry on the v3.4 wfzeiyn firmware — a raw
-    dp_keys gate would otherwise attach the Nano Fi 3kW's "Heating time"
-    config entity to this firmware's condensing-temp DP. numbers_for_model
-    must keep the config-setpoint block Nano Fi 3kW-only."""
+    dp_keys gate would otherwise attach the Nano Fi's "Heating time"
+    entity to this firmware's condensing-temp DP. The per-model catalog
+    must keep the config-setpoint block Nano Fi-only, on the sensor
+    platform just as it did on the number platform."""
     from unittest.mock import MagicMock, patch
 
     from homeassistant.const import CONF_HOST, CONF_PORT
@@ -388,6 +398,9 @@ async def test_v34_wfzeiyn_model_does_not_get_nano_fi_config_numbers(
         CONF_LOCAL_KEY,
         CONF_MODEL,
         DOMAIN,
+    )
+    from custom_components.poolex_silverline.sensor_descriptions import (
+        NANO_FI_CONFIG_SENSORS,
     )
 
     device_id = "bf99001122v34collide"
@@ -445,7 +458,14 @@ async def test_v34_wfzeiyn_model_does_not_get_nano_fi_config_numbers(
         for e in er.async_entries_for_config_entry(registry, entry.entry_id)
         if e.domain == "number"
     }
-    # DP 2 registers target_temperature as normal; none of the Nano Fi
-    # config-setpoint keys should appear even though DP 124/132/142 are
-    # present in supported_dps.
     assert number_keys == {"target_temperature"}
+
+    sensor_keys = {
+        e.unique_id.removeprefix(f"{device_id}_")
+        for e in er.async_entries_for_config_entry(registry, entry.entry_id)
+        if e.domain == "sensor"
+    }
+    # DP 124/132/142 are in supported_dps here, and they do register — as
+    # this firmware's real telemetry, never as the Nano Fi's setpoints.
+    assert {"condensing_temperature", "superheat"} <= sensor_keys
+    assert not {d.key for d in NANO_FI_CONFIG_SENSORS} & sensor_keys

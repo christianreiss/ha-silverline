@@ -123,7 +123,17 @@
       "target_superheat": { "name": "Sobrecalentamiento objetivo" },
       "electrical_power": { "name": "Potencia eléctrica" },
       "energy_consumption": { "name": "Consumo de energía" },
-      "target_condensing_temperature": { "name": "Temperatura de condensación objetivo" }
+      "target_condensing_temperature": { "name": "Temperatura de condensación objetivo" },
+      "heating_time": { "name": "Tiempo de calefacción" },
+      "defrost_time_limit": { "name": "Límite de tiempo de descongelación" },
+      "defrost_cutout_temperature": { "name": "Temperatura de corte de descongelación" },
+      "heating_start_hysteresis": { "name": "Histéresis de inicio de calefacción" },
+      "heating_end_hysteresis": { "name": "Histéresis de fin de calefacción" },
+      "cooling_start_hysteresis": { "name": "Histéresis de inicio de refrigeración" },
+      "cooling_end_hysteresis": { "name": "Histéresis de fin de refrigeración" },
+      "defrost_temperature": { "name": "Temperatura de descongelación" },
+      "maximum_temperature_limit": { "name": "Límite máximo de temperatura" },
+      "minimum_temperature_limit": { "name": "Límite mínimo de temperatura" }
     },
     "binary_sensor": {
       "compressor_running": { "name": "Compresor" },
@@ -144,17 +154,7 @@
       "power": { "name": "Encendido" }
     },
     "number": {
-      "target_temperature": { "name": "Temperatura objetivo" },
-      "heating_time": { "name": "Tiempo de calefacción" },
-      "defrost_time_limit": { "name": "Límite de tiempo de descongelación" },
-      "defrost_cutout_temperature": { "name": "Temperatura de corte de descongelación" },
-      "heating_start_hysteresis": { "name": "Histéresis de inicio de calefacción" },
-      "heating_end_hysteresis": { "name": "Histéresis de fin de calefacción" },
-      "cooling_start_hysteresis": { "name": "Histéresis de inicio de refrigeración" },
-      "cooling_end_hysteresis": { "name": "Histéresis de fin de refrigeración" },
-      "defrost_temperature": { "name": "Temperatura de descongelación" },
-      "maximum_temperature_limit": { "name": "Límite máximo de temperatura" },
-      "minimum_temperature_limit": { "name": "Límite mínimo de temperatura" }
+      "target_temperature": { "name": "Temperatura objetivo" }
     },
     "select": {
       "preset_mode": {

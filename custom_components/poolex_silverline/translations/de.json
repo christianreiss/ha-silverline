@@ -123,7 +123,17 @@
       "target_superheat": { "name": "Soll-Überhitzung" },
       "electrical_power": { "name": "Elektrische Leistung" },
       "energy_consumption": { "name": "Energieverbrauch" },
-      "target_condensing_temperature": { "name": "Soll-Verflüssigungstemperatur" }
+      "target_condensing_temperature": { "name": "Soll-Verflüssigungstemperatur" },
+      "heating_time": { "name": "Heizzeit" },
+      "defrost_time_limit": { "name": "Abtau-Zeitlimit" },
+      "defrost_cutout_temperature": { "name": "Abtau-Grenztemperatur" },
+      "heating_start_hysteresis": { "name": "Heizen-Hysterese Start" },
+      "heating_end_hysteresis": { "name": "Heizen-Hysterese Ende" },
+      "cooling_start_hysteresis": { "name": "Kühlen-Hysterese Start" },
+      "cooling_end_hysteresis": { "name": "Kühlen-Hysterese Ende" },
+      "defrost_temperature": { "name": "Abtautemperatur" },
+      "maximum_temperature_limit": { "name": "Maximale Temperaturgrenze" },
+      "minimum_temperature_limit": { "name": "Minimale Temperaturgrenze" }
     },
     "binary_sensor": {
       "compressor_running": { "name": "Kompressor" },
@@ -144,17 +154,7 @@
       "power": { "name": "Strom" }
     },
     "number": {
-      "target_temperature": { "name": "Zieltemperatur" },
-      "heating_time": { "name": "Heizzeit" },
-      "defrost_time_limit": { "name": "Abtau-Zeitlimit" },
-      "defrost_cutout_temperature": { "name": "Abtau-Grenztemperatur" },
-      "heating_start_hysteresis": { "name": "Heizen-Hysterese Start" },
-      "heating_end_hysteresis": { "name": "Heizen-Hysterese Ende" },
-      "cooling_start_hysteresis": { "name": "Kühlen-Hysterese Start" },
-      "cooling_end_hysteresis": { "name": "Kühlen-Hysterese Ende" },
-      "defrost_temperature": { "name": "Abtautemperatur" },
-      "maximum_temperature_limit": { "name": "Maximale Temperaturgrenze" },
-      "minimum_temperature_limit": { "name": "Minimale Temperaturgrenze" }
+      "target_temperature": { "name": "Zieltemperatur" }
     },
     "select": {
       "preset_mode": {

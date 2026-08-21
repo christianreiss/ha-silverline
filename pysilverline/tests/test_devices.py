@@ -109,7 +109,13 @@ def test_nano_fi_3kw_dp_mapping() -> None:
     assert layout.ambient_temp == 106
     assert layout.indoor_coil_temp == 108
     assert layout.actual_frequency == 110
-    assert layout.water_pump == 111
+    # DP 111 is the main EEV opening in steps, hardware-labeled by a Fi 5kW
+    # owner against the unit's own "1F Main EEV opening" parameter (issue
+    # #19). It was routed through water_pump/water_pump_rpm until 0.5.7 and
+    # published as "Circulation pump speed" in RPM — wrong quantity, wrong
+    # unit. This firmware exposes no circulation-pump DP at all.
+    assert layout.eev_steps == 111
+    assert layout.water_pump is None
     assert layout.suction_temp == 117
     # Confirmed on a Nano Fi 5kW (same pid, larger sibling) via issue #19.
     assert layout.target_frequency == 109
@@ -130,10 +136,11 @@ def test_nano_fi_3kw_dp_mapping() -> None:
     assert layout.temp_current_divisor == 1
     assert layout.ac_voltage == 120
     assert layout.ac_current == 121
-    # Installer-menu config setpoints (issue #19 follow-up, richardc1983) —
-    # tuya-local models the whole 124-145 block as writable `number`
-    # entities; wired onto dedicated fields distinct from the reverted
-    # condensing_temp/superheat/target_condensing above.
+    # Installer-menu setpoints (issue #19, richardc1983) — wired onto
+    # dedicated fields distinct from the reverted condensing_temp/superheat/
+    # target_condensing above. Hardware-confirmed on read (they match the
+    # code-locked installer menu) and hardware-confirmed to reject writes,
+    # so the integration publishes them read-only.
     assert layout.heating_time == 124
     assert layout.defrost_time_limit == 125
     assert layout.defrost_cutout_temp == 126

@@ -123,7 +123,17 @@
       "target_superheat": { "name": "Przegrzanie zadane" },
       "electrical_power": { "name": "Moc elektryczna" },
       "energy_consumption": { "name": "Zużycie energii" },
-      "target_condensing_temperature": { "name": "Zadana temperatura skraplania" }
+      "target_condensing_temperature": { "name": "Zadana temperatura skraplania" },
+      "heating_time": { "name": "Czas grzania" },
+      "defrost_time_limit": { "name": "Limit czasu rozmrażania" },
+      "defrost_cutout_temperature": { "name": "Temperatura odcięcia rozmrażania" },
+      "heating_start_hysteresis": { "name": "Histereza startu grzania" },
+      "heating_end_hysteresis": { "name": "Histereza końca grzania" },
+      "cooling_start_hysteresis": { "name": "Histereza startu chłodzenia" },
+      "cooling_end_hysteresis": { "name": "Histereza końca chłodzenia" },
+      "defrost_temperature": { "name": "Temperatura rozmrażania" },
+      "maximum_temperature_limit": { "name": "Maksymalny limit temperatury" },
+      "minimum_temperature_limit": { "name": "Minimalny limit temperatury" }
     },
     "binary_sensor": {
       "compressor_running": { "name": "Sprężarka" },
@@ -144,17 +154,7 @@
       "power": { "name": "Zasilanie" }
     },
     "number": {
-      "target_temperature": { "name": "Temperatura zadana" },
-      "heating_time": { "name": "Czas grzania" },
-      "defrost_time_limit": { "name": "Limit czasu rozmrażania" },
-      "defrost_cutout_temperature": { "name": "Temperatura odcięcia rozmrażania" },
-      "heating_start_hysteresis": { "name": "Histereza startu grzania" },
-      "heating_end_hysteresis": { "name": "Histereza końca grzania" },
-      "cooling_start_hysteresis": { "name": "Histereza startu chłodzenia" },
-      "cooling_end_hysteresis": { "name": "Histereza końca chłodzenia" },
-      "defrost_temperature": { "name": "Temperatura rozmrażania" },
-      "maximum_temperature_limit": { "name": "Maksymalny limit temperatury" },
-      "minimum_temperature_limit": { "name": "Minimalny limit temperatury" }
+      "target_temperature": { "name": "Temperatura zadana" }
     },
     "select": {
       "preset_mode": {

@@ -122,11 +122,16 @@ BINARY_SENSORS: tuple[SilverlineBinarySensorDescription, ...] = (
         dp_keys=(),
     ),
     SilverlineBinarySensorDescription(
+        # Gated through the layout, not the raw DP, for the same reason as
+        # compressor_running above: DP 111 is the circulation pump on the
+        # standard/v3.4 families but the main EEV opening on the Nano Fi
+        # (issue #19), where `water_pump` is unmapped. A raw "111" gate would
+        # register a "Water pump" that is really "EEV is open".
         key="water_pump",
         translation_key="water_pump",
         device_class=BinarySensorDeviceClass.RUNNING,
         value_fn=lambda d: d.water_pump,
-        dp_keys=("111",),
+        dp_keys=(),
     ),
     SilverlineBinarySensorDescription(
         key="defrosting",
@@ -161,9 +166,13 @@ async def async_setup_entry(
     # indicator as telemetry (see the description's comment).
     freq_dp = coordinator.client.dp_layout.actual_frequency
 
+    pump_dp = coordinator.client.dp_layout.water_pump
+
     def _is_supported(description: SilverlineBinarySensorDescription) -> bool:
         if description.key == "compressor_running":
             return freq_dp is not None and str(freq_dp) in supported
+        if description.key == "water_pump":
+            return pump_dp is not None and str(pump_dp) in supported
         if description.required_fault_dp is not None:
             return (
                 coordinator.client.dp_layout.fault == description.required_fault_dp

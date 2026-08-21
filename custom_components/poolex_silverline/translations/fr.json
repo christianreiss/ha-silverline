@@ -123,7 +123,17 @@
       "target_superheat": { "name": "Surchauffe cible" },
       "electrical_power": { "name": "Puissance électrique" },
       "energy_consumption": { "name": "Consommation d'énergie" },
-      "target_condensing_temperature": { "name": "Température de condensation cible" }
+      "target_condensing_temperature": { "name": "Température de condensation cible" },
+      "heating_time": { "name": "Durée de chauffe" },
+      "defrost_time_limit": { "name": "Limite de temps de dégivrage" },
+      "defrost_cutout_temperature": { "name": "Température de coupure du dégivrage" },
+      "heating_start_hysteresis": { "name": "Hystérésis de démarrage chauffage" },
+      "heating_end_hysteresis": { "name": "Hystérésis de fin chauffage" },
+      "cooling_start_hysteresis": { "name": "Hystérésis de démarrage refroidissement" },
+      "cooling_end_hysteresis": { "name": "Hystérésis de fin refroidissement" },
+      "defrost_temperature": { "name": "Température de dégivrage" },
+      "maximum_temperature_limit": { "name": "Limite de température maximale" },
+      "minimum_temperature_limit": { "name": "Limite de température minimale" }
     },
     "binary_sensor": {
       "compressor_running": { "name": "Compresseur" },
@@ -144,17 +154,7 @@
       "power": { "name": "Alimentation" }
     },
     "number": {
-      "target_temperature": { "name": "Température cible" },
-      "heating_time": { "name": "Durée de chauffe" },
-      "defrost_time_limit": { "name": "Limite de temps de dégivrage" },
-      "defrost_cutout_temperature": { "name": "Température de coupure du dégivrage" },
-      "heating_start_hysteresis": { "name": "Hystérésis de démarrage chauffage" },
-      "heating_end_hysteresis": { "name": "Hystérésis de fin chauffage" },
-      "cooling_start_hysteresis": { "name": "Hystérésis de démarrage refroidissement" },
-      "cooling_end_hysteresis": { "name": "Hystérésis de fin refroidissement" },
-      "defrost_temperature": { "name": "Température de dégivrage" },
-      "maximum_temperature_limit": { "name": "Limite de température maximale" },
-      "minimum_temperature_limit": { "name": "Limite de température minimale" }
+      "target_temperature": { "name": "Température cible" }
     },
     "select": {
       "preset_mode": {
