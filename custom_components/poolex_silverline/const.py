@@ -396,6 +396,16 @@ AUTO_TEMP_MAX: Final = 40
 # Entering a non-OFF mode triggers a device-side per-mode setpoint
 # restore push ~430-500 ms later, so callers that chain set_temperature
 # after a mode change block briefly to avoid racing the restore.
+#
+# The same value spaces the power-on write from the mode write in
+# SilverlineEntity._write_mode. That reuse started as a borrowed guess, but
+# it now has a measurement behind it: in the issue #19 field log
+# (@patrickpetos, Nano Fi 5kW, v3.5, 2026-08-22) the device acknowledged
+# {"1": true} 349 ms after it went out and {"4": "Cool"} 349 ms after that,
+# and with the two frames 750 ms apart the mode stuck and the unit stayed
+# on — where a single bundled frame had been reverting to off within
+# seconds. So 0.7 s clears the observed ack by roughly 2x. Anything that
+# lowers it needs a fresh capture, not an argument.
 MODE_TRANSITION_SETTLE: Final = 0.7
 
 # DP 13 bit 0 (E03 water flow) self-trips for a few seconds during

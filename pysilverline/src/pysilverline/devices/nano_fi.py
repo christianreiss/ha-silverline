@@ -30,10 +30,44 @@ itself can display, photographed from the Nano Fi manual page 52-53 in issue
 Every DP decoded below has an entry there, independently of tuya-local and
 of the Tuya cloud schema: T2 for DP 117, 1F for DP 111 (which is how that
 one was settled), 2F for DP 112, Pr for DP 114, dF for DP 115, T1 for DP
-116, Pu for DP 102, AcU/AcC for DP 120/121. The menu is also the cheapest
-oracle left for the open questions — it prints AcC as a number the reporter
-can read against our Current sensor (which settles ``ac_current_divisor``),
-and HE1-HE4 hold the unit's own fault-code history.
+116, Pu for DP 102, AcU/AcC for DP 120/121. HE1-HE4 hold the unit's own
+fault-code history and are still the cheapest unread oracle here.
+
+**DP 121 is whole amps.** ``ac_current_divisor`` stays 1, and that is no
+longer an open question. A 9-minute field log of a running Nano Fi 5kW
+(issue #19, @patrickpetos, 2026-08-22) pins it three ways:
+
+    17:48  compressor 65 Hz (DP 110)   DP 121 = 4     DP 120 = 231 V
+    17:52  compressor 55 Hz            DP 121 = 3     DP 120 = 234 V
+    17:52  compressor 32 Hz            DP 121 = 2     DP 120 = 236 V
+    17:53  compressor  0 Hz            DP 121 = 0     DP 120 = 239 V
+    17:56  compressor 17 Hz            DP 121 = 1     DP 120 = 240 V
+
+First, the range. Across idle to full compressor frequency the DP took the
+values 0, 1, 2, 3, 4 and nothing else — five single-digit integers spanning
+the entire operating envelope. A tenths-of-an-amp field on a load this size
+reports tens (40 dA at 4 A), not 4, and would have no way to express the
+whole envelope in five steps. Second, it tracks DP 110 monotonically, which
+is what a compressor's line current does and what a mislabelled DP would
+not. Third, mains voltage moves the opposite way, 231 V under load to 240 V
+at 0 Hz: a ~9 V sag implies roughly 2 ohm of supply impedance at 4 A, which
+is an ordinary long run to a pool plant room, where 0.4 A would demand an
+impossible 20 ohm. The third is corroboration rather than proof — other
+household load could move that voltage — but the first argument stands
+alone. 4 A x 231 V is ~920 W, a credible boost-mode input for this machine;
+92 W is not a running compressor.
+
+**DP 102 is not the pump's running state.** The same log settles this the
+other way, which is worth recording because the obvious reading is wrong.
+The panel calls its DP-102 line "Pu Water pump state", the schema calls it
+``pump_manual``, and a "Water pump" binary sensor is the tempting mapping.
+But in the 17:48 query DP 102 reads ``false`` while DP 110 shows the
+compressor turning at 65 Hz — and a pool heat pump cannot run without
+circulation. So ``false`` here cannot mean "pump stopped"; the DP is the
+manual-override switch (off = the controller runs the pump on its own
+schedule), exactly as the schema name says. Left unmapped deliberately.
+Publishing it as pump state would have been this profile's original bug in
+a new place: a plausible-looking value wired to the wrong quantity.
 
 DP 112 (aux_valve_opening), 114 (fan_speed) and 116 (discharge_temp) are
 mapped but have never been observed on the wire from either unit in issue
@@ -123,8 +157,11 @@ Cross-referenced field meanings (official Tuya schema for this pid):
 
     DP 101  aux_manual         (bool, electric-aux-heater manual switch — NOT a temp probe)
     DP 102  pump_manual        (bool, water-pump manual switch — NOT ambient
-                                temp). Seen on the wire reading false on one
-                                Fi 5kW; unmapped, so no entity yet.
+                                temp, and NOT pump running state: it reads
+                                false while the compressor turns at 65 Hz,
+                                which is impossible without circulation.
+                                See the DP 102 note above. Unmapped
+                                deliberately, not merely unmapped yet.)
     DP 103  inlet_temp         real water inlet temperature
     DP 104  outlet_temp        real water outlet temperature
     DP 105  outdoor_coil_temp  outdoor coil (evaporator) temperature
@@ -185,9 +222,10 @@ Cross-referenced field meanings (official Tuya schema for this pid):
                                 total_hours) misreads this as total operating
                                 hours; this device has no exposed lifetime
                                 runtime counter at all.
-    DP 121  ac_current         AC line current — mapped below via
-                                ``ac_current``; see ``ac_current_divisor``
-                                for the open whole-amps-vs-tenths question
+    DP 121  ac_current         AC line current, in whole amps — mapped below
+                                via ``ac_current``. The whole-amps-vs-tenths
+                                question is CLOSED; see the DP 121 note above
+                                for the three-way evidence.
     DP 124  heating_time       installer setpoint, minutes — read-only
     DP 125  defrost_time_limit installer setpoint, minutes — read-only
     DP 126  defrost_cutout_temp installer setpoint, °C — read-only
@@ -240,10 +278,13 @@ LAYOUT_NANO_FI_3KW = DpLayout(
     target_condensing=None,
     ac_voltage=120,
     ac_current=121,
-    # UNCONFIRMED, same open question as LAYOUT_V34_WFZEIYN: the Tuya schema
-    # declares DP 121 with scale=1 (tenths of an amp), but no one has checked
-    # this firmware against a clamp meter. Kept at 1 so both AC layouts behave
-    # alike; set to 10 here if a reporter confirms tenths on this unit.
+    # CONFIRMED on hardware, not a default any more: DP 121 reports whole
+    # amps. A field log of this unit under load walks 0/1/2/3/4 in lockstep
+    # with compressor frequency while mains voltage sags the other way — a
+    # tenths field would read in the tens. Full evidence in the module
+    # docstring ("DP 121 is whole amps"). Do not "fix" this to 10 because
+    # tuya-local says scale: 10 for a sibling product; that is the schema
+    # this device disagrees with.
     ac_current_divisor=1,
     # DP 13 like the classic family, but neither the bit layout nor the
     # printed service codes carry over: bit 8 is water flow (panel code E25,

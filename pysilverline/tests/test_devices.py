@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import fields
+
 from pysilverline.devices import get_layout
 from pysilverline.layouts import (
     LAYOUT_BY_NAME,
@@ -72,14 +74,41 @@ def test_v34_wfzeiyn_dp_mapping() -> None:
 
 
 def test_ac_current_divisor_defaults_to_whole_amps() -> None:
-    """Every AC-capable layout currently reads DP 121 as whole amps. The
-    scale is unconfirmed (see DpLayout) — this pins the current choice so
-    flipping one variant to tenths is a deliberate, visible change rather
-    than a silent 10x shift in everyone's derived power and energy."""
+    """Every AC-capable layout reads DP 121 as whole amps.
+
+    On the Nano Fi this is hardware-confirmed rather than a default: a field
+    log of the unit under load (issue #19, 2026-08-22) walks DP 121 through
+    0/1/2/3/4 in lockstep with compressor frequency, which is a whole-amp
+    field — tenths would read in the tens across that same envelope. The
+    other two layouts remain unconfirmed and are pinned only so that
+    flipping one to tenths is a deliberate, visible change rather than a
+    silent 10x shift in everyone's derived power and energy.
+
+    tuya-local declares scale: 10 for a sibling product, so this constant
+    invites a well-meaning "fix". It is not one.
+    """
     assert LAYOUT_STANDARD.ac_current_divisor == 1
     for layout in (LAYOUT_V34_WFZEIYN, LAYOUT_NANO_FI_3KW):
         assert layout.ac_current == 121
         assert layout.ac_current_divisor == 1
+
+
+def test_nano_fi_leaves_dp_102_unmapped() -> None:
+    """DP 102 is a manual-override switch, not the pump's running state.
+
+    The tempting mapping — panel line "Pu Water pump state", schema name
+    ``pump_manual`` — is refuted by the wire: DP 102 reads false in the same
+    query frame that shows the compressor turning at 65 Hz (issue #19 field
+    log, 2026-08-22), and a pool heat pump cannot run without circulation.
+    Anything that maps DP 102 to a "Water pump" sensor is repeating this
+    profile's founding mistake with a different DP, so pin the absence.
+    """
+    assert LAYOUT_NANO_FI_3KW.water_pump is None
+    assert 102 not in [
+        getattr(LAYOUT_NANO_FI_3KW, f.name)
+        for f in fields(LAYOUT_NANO_FI_3KW)
+        if isinstance(getattr(LAYOUT_NANO_FI_3KW, f.name), int)
+    ]
 
 
 def test_ac_current_divisor_scales_tenths_of_an_amp() -> None:
