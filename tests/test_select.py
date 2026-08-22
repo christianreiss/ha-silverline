@@ -458,3 +458,73 @@ async def test_pc_inv_120_model_threads_profile_to_dp4_writes(
         blocking=True,
     )
     mock_client_factory.set_multiple.assert_awaited_with({1: True, 4: "auto"})
+
+
+@pytest.mark.parametrize(
+    ("wire_mode", "option", "expected"),
+    [
+        # Silent/boost survive a heat↔cool change, and survive re-selecting
+        # the direction the unit is already in.
+        ("SilentCool", "cool", "SilentCool"),
+        ("SilentCool", "heat", "SilentHeat"),
+        ("BoostCool", "heat", "BoostHeat"),
+        ("BoostHeat", "cool", "BoostCool"),
+        ("SilentHeat", "heat", "SilentHeat"),
+        # No preset active → plain direction, unchanged behaviour.
+        ("Heat", "cool", "Cool"),
+        ("Cool", "heat", "Heat"),
+    ],
+)
+async def test_operating_mode_select_preserves_preset(
+    hass: HomeAssistant,
+    mock_client_factory,
+    init_integration,
+    wire_mode: str,
+    option: str,
+    expected: str,
+) -> None:
+    """The operating-mode select must carry the active preset across a
+    direction change, exactly as climate.async_set_hvac_mode does with its
+    remembered _last_preset (issue #19).
+
+    It used to hard-code PRESET_NONE, so a unit running SilentCool was
+    silently downgraded to plain Cool the moment anyone touched this
+    dropdown — the boost/silent dimension just vanished while the device
+    kept running. This entity is deliberately stateless, so the preset is
+    read back off the live wire state rather than remembered.
+    """
+    coordinator = init_integration.runtime_data
+    coordinator.async_set_updated_data(
+        DeviceState.from_dps({"1": True, "4": wire_mode, "3": 26, "13": 0})
+    )
+    await hass.async_block_till_done()
+
+    await hass.services.async_call(
+        SELECT_DOMAIN,
+        SERVICE_SELECT_OPTION,
+        {ATTR_ENTITY_ID: OPMODE_ENTITY, ATTR_OPTION: option},
+        blocking=True,
+    )
+    mock_client_factory.set_multiple.assert_awaited_with({1: True, 4: expected})
+
+
+async def test_operating_mode_select_heat_cool_drops_preset(
+    hass: HomeAssistant, mock_client_factory, init_integration
+) -> None:
+    """Auto is the one direction with no preset dimension — the device
+    treats presets as meaningless there (derive_preset collapses Auto to
+    none), so selecting heat_cool from SilentCool writes a bare Auto rather
+    than trying to carry Silent into a mode that has no such string."""
+    coordinator = init_integration.runtime_data
+    coordinator.async_set_updated_data(
+        DeviceState.from_dps({"1": True, "4": "SilentCool", "3": 26, "13": 0})
+    )
+    await hass.async_block_till_done()
+
+    await hass.services.async_call(
+        SELECT_DOMAIN,
+        SERVICE_SELECT_OPTION,
+        {ATTR_ENTITY_ID: OPMODE_ENTITY, ATTR_OPTION: "heat_cool"},
+        blocking=True,
+    )
+    mock_client_factory.set_multiple.assert_awaited_with({1: True, 4: "Auto"})

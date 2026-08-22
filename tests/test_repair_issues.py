@@ -330,3 +330,50 @@ async def test_nano_5kw_fault_does_not_create_dp13_repair_issue(
         issue_id[0] == DOMAIN and issue_id[1].startswith("fault_")
         for issue_id in all_issues
     )
+
+
+async def test_nano_fi_water_flow_raises_e03_not_p1(hass: HomeAssistant) -> None:
+    """On Full Inverter firmware DP 13 = 256 is a water-flow fault, so the
+    Repair card must be E03 water flow — never P1 defrost sensor (issue #19).
+
+    Both families report on DP 13, so the reconciler is driven by the
+    model's own DpLayout.fault_table rather than by the DP number. This also
+    pins the debounce to the bit *named* water_flow: on FI firmware that is
+    bit 8, and hard-coding bit 0 would both skip the debounce this fault
+    needs (the unit self-trips on startup before the filter pump primes) and
+    debounce whatever bit 0 turns out to mean here.
+    """
+    from pysilverline.const import NANO_FI_FAULT_TABLE
+    from pysilverline.layouts import LAYOUT_NANO_FI_3KW
+
+    from custom_components.poolex_silverline._faults import FaultReconciler
+
+    reconciler = FaultReconciler()
+    state = DeviceState.from_dps(
+        {"1": True, "2": 28, "3": 21, "4": "BoostHeat", "13": 256},
+        layout=LAYOUT_NANO_FI_3KW,
+    )
+
+    # Inside the debounce window: water flow is held back, nothing raised.
+    reconciler.reconcile(hass, state, now=0.0, table=NANO_FI_FAULT_TABLE)
+    assert _issue(hass, "fault_E03") is None
+    assert _issue(hass, "fault_P1") is None
+
+    # Past it: E03, and P1 must never appear.
+    reconciler.reconcile(
+        hass, state, now=E03_DEBOUNCE_SECONDS + 1, table=NANO_FI_FAULT_TABLE
+    )
+    issue = _issue(hass, "fault_E03")
+    assert issue is not None
+    assert issue.translation_key == "fault_E03"
+    assert _issue(hass, "fault_P1") is None, "bit 8 is water flow on FI firmware"
+
+    # Flow restored → the card clears itself, same as every other fault.
+    cleared = DeviceState.from_dps(
+        {"1": True, "2": 28, "3": 21, "4": "BoostHeat", "13": 0},
+        layout=LAYOUT_NANO_FI_3KW,
+    )
+    reconciler.reconcile(
+        hass, cleared, now=E03_DEBOUNCE_SECONDS + 2, table=NANO_FI_FAULT_TABLE
+    )
+    assert _issue(hass, "fault_E03") is None

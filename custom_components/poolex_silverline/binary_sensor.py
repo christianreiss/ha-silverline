@@ -16,7 +16,6 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from pysilverline import DeviceState
-from pysilverline import const as tuya_const
 
 from .coordinator import SilverlineConfigEntry, SilverlineCoordinator
 from .entity import SilverlineEntity
@@ -58,15 +57,6 @@ class SilverlineBinarySensorDescription(BinarySensorEntityDescription):
     value_fn: Callable[[DeviceState], bool | None]
     # See SilverlineSensorDescription.dp_keys — same firmware-capability gate.
     dp_keys: tuple[str, ...]
-    # Fault-bit descriptions only: the wire DP their bit table assumes
-    # (13 for FAULT_BIT_NAMES, 21 for NANO_5KW_FAULT_BIT_NAMES). None for
-    # non-fault descriptions. Gated in async_setup_entry against the
-    # model's actual dp_layout.fault so two models that both happen to
-    # expose a DP numerically equal to this one (e.g. a future firmware
-    # with an unrelated DP 21) can never mis-instantiate each other's bit
-    # table — dp_keys alone can't tell "has this DP" from "this DP means
-    # what I think it means".
-    required_fault_dp: int | None = None
 
 
 def _fault_binary_sensor(
@@ -74,9 +64,12 @@ def _fault_binary_sensor(
 ) -> SilverlineBinarySensorDescription:
     """Build one fault-bit binary sensor description for fault DP ``dp``.
 
-    Keeping this as a helper keeps the BINARY_SENSORS tuple in lock-step
-    with the bit-name tables — adding a new bit to either mapping
-    automatically registers a corresponding entity.
+    Called per-model from async_setup_entry against that model's own
+    ``DpLayout.fault_table``, so the entity set follows the firmware's bit
+    layout rather than a module-level default. It cannot be a static tuple:
+    the classic family and Full Inverter firmware both report on DP 13 and
+    disagree about what bit 8 means, so selecting a table by DP number
+    registers both and collides on unique_id (issue #19).
     """
 
     def _value_fn(state: DeviceState) -> bool | None:
@@ -95,10 +88,11 @@ def _fault_binary_sensor(
         entity_registry_enabled_default=name in _DEFAULT_ENABLED_FAULT_NAMES,
         value_fn=_value_fn,
         dp_keys=(str(dp),),
-        required_fault_dp=dp,
     )
 
 
+#: Model-independent binary sensors. The fault-bit entities are NOT here —
+#: they are built per-model in async_setup_entry from the layout's fault table.
 BINARY_SENSORS: tuple[SilverlineBinarySensorDescription, ...] = (
     SilverlineBinarySensorDescription(
         key="compressor_running",
@@ -142,14 +136,6 @@ BINARY_SENSORS: tuple[SilverlineBinarySensorDescription, ...] = (
         # this field yet, so dp_keys alone is a safe gate.
         dp_keys=("115",),
     ),
-    *(
-        _fault_binary_sensor(bit, name, dp=tuya_const.DP_FAULT)
-        for bit, name in sorted(tuya_const.FAULT_BIT_NAMES.items())
-    ),
-    *(
-        _fault_binary_sensor(bit, name, dp=21)
-        for bit, name in sorted(tuya_const.NANO_5KW_FAULT_BIT_NAMES.items())
-    ),
 )
 
 
@@ -173,16 +159,22 @@ async def async_setup_entry(
             return freq_dp is not None and str(freq_dp) in supported
         if description.key == "water_pump":
             return pump_dp is not None and str(pump_dp) in supported
-        if description.required_fault_dp is not None:
-            return (
-                coordinator.client.dp_layout.fault == description.required_fault_dp
-                and set(description.dp_keys) <= supported
-            )
         return set(description.dp_keys) <= supported
+
+    # One fault-bit entity per bit this firmware's own table names. The table
+    # travels with the layout because the fault DP number does not identify it
+    # — see _fault_binary_sensor.
+    layout = coordinator.client.dp_layout
+    fault_descriptions: tuple[SilverlineBinarySensorDescription, ...] = ()
+    if layout.fault is not None:
+        fault_descriptions = tuple(
+            _fault_binary_sensor(bit, name, dp=layout.fault)
+            for bit, name in sorted(layout.fault_table.names.items())
+        )
 
     async_add_entities(
         SilverlineBinarySensor(coordinator, description)
-        for description in BINARY_SENSORS
+        for description in (*BINARY_SENSORS, *fault_descriptions)
         if _is_supported(description)
     )
 

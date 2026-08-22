@@ -11,6 +11,7 @@ from typing import Final
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import issue_registry as ir
+from pysilverline.const import FaultTable
 
 from pysilverline import DeviceState
 from pysilverline import const as tuya_const
@@ -53,10 +54,13 @@ def _decode_fault(
       for so a new fault on a new firmware variant still surfaces instead
       of being silently dropped.
 
-    ``names`` defaults to FAULT_BIT_NAMES (the DP 13 bitmap shared by the
-    standard Poolstar family). Callers decoding a different firmware's
-    fault DP — e.g. the Nano 5kW family's DP 21 — must pass that DP's own
-    bit-name table; the tables are not interchangeable (see DpLayout.fault).
+    ``names`` defaults to FAULT_BIT_NAMES (the DP 13 bitmap used by the
+    classic PC-SLP090N / JetLine family). Callers decoding any other
+    firmware must pass that family's own table, taken from
+    ``DpLayout.fault_table``. The tables are not interchangeable and the DP
+    number does not identify them: Full Inverter firmware also reports on
+    DP 13 but puts water flow on bit 8, where the classic family puts the
+    defrost sensor (issue #19).
     """
     if raw is None or raw == 0:
         return None
@@ -89,7 +93,14 @@ class FaultReconciler:
         """Read-only view of the OEM codes with an open Repair issue."""
         return frozenset(self._active_issues)
 
-    def reconcile(self, hass: HomeAssistant, state: DeviceState, *, now: float) -> None:
+    def reconcile(
+        self,
+        hass: HomeAssistant,
+        state: DeviceState,
+        *,
+        now: float,
+        table: FaultTable = tuya_const.STANDARD_FAULT_TABLE,
+    ) -> None:
         """Create / delete HA Repair issues to match the fault bitmap.
 
         Fault DP 13 is a 30-bit field; each set bit maps to an OEM service
@@ -98,7 +109,7 @@ class FaultReconciler:
         device clears the bit — the user gets a transient, self-clearing
         notification stream without having to dismiss each one manually.
 
-        Bit 0 (E03 water flow) is debounced by ``E03_DEBOUNCE_SECONDS``:
+        The water-flow bit is debounced by ``E03_DEBOUNCE_SECONDS``:
         the spec only wants the Repair card to surface once flow has been
         absent persistently, because the unit briefly self-trips E03 on
         startup before the filter pump primes — raising a card in that
@@ -111,7 +122,7 @@ class FaultReconciler:
         active_bits: set[int] = set()
         fault = state.fault
         if isinstance(fault, int) and fault != 0:
-            for bit in tuya_const.FAULT_BIT_CODES:
+            for bit in table.codes:
                 if fault & (1 << bit):
                     active_bits.add(bit)
 
@@ -127,10 +138,16 @@ class FaultReconciler:
         # should currently be open. Bit 0 only counts after the debounce
         # window has elapsed; everything else counts immediately.
         eligible_codes: set[str] = set()
+        debounced_bit = next(
+            (bit for bit, name in table.names.items() if name == "water_flow"), None
+        )
         for bit in active_bits:
-            if bit == 0 and now - self._first_seen[bit] < E03_DEBOUNCE_SECONDS:
+            if (
+                bit == debounced_bit
+                and now - self._first_seen[bit] < E03_DEBOUNCE_SECONDS
+            ):
                 continue
-            eligible_codes.add(tuya_const.FAULT_BIT_CODES[bit])
+            eligible_codes.add(table.codes[bit])
 
         for cleared in self._active_issues - eligible_codes:
             ir.async_delete_issue(hass, DOMAIN, f"fault_{cleared}")

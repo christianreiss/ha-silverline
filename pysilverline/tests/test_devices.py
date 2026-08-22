@@ -194,3 +194,44 @@ def test_default_layouts_still_map_fault_to_dp13() -> None:
         LAYOUT_NANO_FI_3KW,
     ):
         assert layout.fault == 13
+
+
+def test_fault_table_travels_with_the_layout_not_the_dp_number() -> None:
+    """The fault DP number does not identify the bit layout.
+
+    Full Inverter firmware (Nano Fi 3kW/5kW) reports on DP 13 like the
+    classic PC-SLP090N family but carries water flow on bit 8, where the
+    classic family carries the defrost sensor — hardware-confirmed in issue
+    #19 by inducing the fault (filter pump cut, app said "Fault of Water
+    Flow Switch", DP 13 read 256). Selecting a table by DP number therefore
+    cannot work, and decoding an FI unit with the classic table raised
+    "Defrost sensor fault (P1)" for a stopped filter pump.
+    """
+    from pysilverline.const import (
+        NANO_5KW_FAULT_TABLE,
+        NANO_FI_FAULT_TABLE,
+        STANDARD_FAULT_TABLE,
+    )
+
+    # Two layouts, same fault DP, different meaning for bit 8.
+    assert LAYOUT_NANO_FI_3KW.fault == LAYOUT_STANDARD.fault == 13
+    assert LAYOUT_STANDARD.fault_table.names[8] == "defrost_sensor"
+    assert LAYOUT_NANO_FI_3KW.fault_table.names[8] == "water_flow"
+    assert LAYOUT_STANDARD.fault_table.codes[8] == "P1"
+    assert LAYOUT_NANO_FI_3KW.fault_table.codes[8] == "E03"
+
+    assert LAYOUT_NANO_FI_3KW.fault_table is NANO_FI_FAULT_TABLE
+    assert LAYOUT_NANO_5KW.fault_table is NANO_5KW_FAULT_TABLE
+    for layout in (LAYOUT_STANDARD, LAYOUT_V34_WFZEIYN, LAYOUT_PC_INV_120):
+        assert layout.fault_table is STANDARD_FAULT_TABLE
+
+    # Names and codes must stay in lock-step: a bit named but uncoded (or
+    # vice versa) is how a decoder reads a position out of one table and a
+    # service code out of the other.
+    for table in (STANDARD_FAULT_TABLE, NANO_5KW_FAULT_TABLE, NANO_FI_FAULT_TABLE):
+        assert set(table.names) == set(table.codes)
+
+    # The FI table is deliberately sparse — only bit 8 is confirmed on this
+    # firmware. The classic family's other assignments were never verified
+    # here and must not be carried over just because the DP number matches.
+    assert set(NANO_FI_FAULT_TABLE.names) == {8}

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Final
 
 DEFAULT_PORT: Final = 6668
@@ -147,3 +149,81 @@ FAULT_BIT_CODES: Final = {
 NANO_5KW_FAULT_BIT_NAMES: Final = {
     8: "water_flow",
 }
+
+#: OEM service codes for ``NANO_5KW_FAULT_BIT_NAMES``. Only bit 8 is decoded
+#: on this family, and the physical controller prints E6 for it (issue #16).
+NANO_5KW_FAULT_BIT_CODES: Final = {
+    8: "E6",
+}
+
+#: Symbolic bit names for DP 13 on **Full Inverter (FI) firmware** — the
+#: Poolex Nano Fi 3kW/5kW line, Tuya pid ``am4nomaadnhwvekq`` (issue #19).
+#:
+#: Same DP as FAULT_BIT_NAMES, DIFFERENT bit layout. The FI firmware puts the
+#: water-flow fault on bit 8, where the classic PC-SLP090N firmware puts the
+#: defrost-sensor fault. Wiring an FI unit to FAULT_BIT_NAMES told users to
+#: check a defrost probe when their filter pump was off.
+#:
+#: Hardware-confirmed: a reporter cut the filtration pump under BoostHeat, the
+#: Poolex app displayed "Fault of Water Flow Switch", and DP 13 read 256 — bit
+#: 8 alone (issue #19, @patrickpetos, 2026-08-22). ``silverline-fe-specs.md``
+#: already carried this with a source, annotating bit 8 as "flow protection
+#: (vendor reuses on FI firmware)" per tuya-local #2402, the JetLine Selection
+#: FI schema; the implementation had followed that file's other, unsourced
+#: table instead. Corroborated family-wide by the Nano 5kW, whose DP 21 bitmap
+#: also carries water flow on bit 8.
+#:
+#: Deliberately sparse, like NANO_5KW_FAULT_BIT_NAMES. Bit 8 is the only bit
+#: confirmed on FI firmware; the classic table's other assignments were never
+#: verified here and are not carried over on the strength of the DP number
+#: matching. One reporter reads 524288 (bit 19) as "ambient temperature out of
+#: range", but that is a single uncorroborated sighting and tuya-local does not
+#: decode DP 13's bits for this pid at all — it stays undecoded and surfaces as
+#: "bit19" via _decode_fault's fallback, which keeps every unknown bit visible.
+NANO_FI_FAULT_BIT_NAMES: Final = {
+    8: "water_flow",
+}
+
+#: OEM service codes for ``NANO_FI_FAULT_BIT_NAMES``.
+#:
+#: UNVERIFIED against the FI wired controller's own display — no one has read
+#: the printed code off the panel during a water-flow fault yet. E03 is the
+#: code the classic Poolstar manual prints for this fault and the FI manual is
+#: expected to match, but if a reporter reads something else off the panel this
+#: is the one line to change (it drives the Repair issue's translation key and
+#: severity).
+NANO_FI_FAULT_BIT_CODES: Final = {
+    8: "E03",
+}
+
+
+@dataclass(frozen=True, slots=True)
+class FaultTable:
+    """One firmware family's fault-bitmap decode: bit -> name, bit -> OEM code.
+
+    Names and codes are paired in a single object because they must stay in
+    lock-step — a decoder that reads a bit position out of one table and an
+    OEM service code out of the other is how issue #19's "Defrost sensor
+    fault (P1)" got raised for a water-flow fault. Consumers take the table
+    off ``DpLayout.fault_table`` rather than importing a module-level default,
+    so a firmware family cannot be silently decoded with another's layout.
+
+    ``names`` may be sparse: an unnamed bit surfaces as ``bit<n>`` rather than
+    being dropped, so a fault we have not characterised still reaches the user.
+    """
+
+    names: Mapping[int, str]
+    codes: Mapping[int, str]
+
+
+#: The classic PC-SLP090N / JetLine family bitmap on DP 13.
+STANDARD_FAULT_TABLE: Final = FaultTable(names=FAULT_BIT_NAMES, codes=FAULT_BIT_CODES)
+#: Nano 5kW WiFi family — same concept, DP 21, its own sparse layout (issue #16).
+NANO_5KW_FAULT_TABLE: Final = FaultTable(
+    names=NANO_5KW_FAULT_BIT_NAMES, codes=NANO_5KW_FAULT_BIT_CODES
+)
+#: Full Inverter firmware — DP 13 like the classic family, but bit 8 is water
+#: flow, not the defrost sensor (issue #19).
+NANO_FI_FAULT_TABLE: Final = FaultTable(
+    names=NANO_FI_FAULT_BIT_NAMES, codes=NANO_FI_FAULT_BIT_CODES
+)

@@ -202,15 +202,22 @@ class SilverlineCoordinator(DataUpdateCoordinator[DeviceState]):
         # debounce clock stays patchable as
         # coordinator.time.monotonic in tests.
         #
-        # Repair-issue reconciliation decodes DP 13's bitmap specifically
-        # (FAULT_BIT_CODES / the E03 debounce are DP-13 semantics) — gate it
-        # to models whose fault DP actually is 13. The Nano 5kW family
-        # (issue #16) reports its fault bitmap on DP 21 instead, with a
-        # different bit layout; running it through this reconciler would
-        # mislabel bit 8 (water flow) as bit 8's DP-13 meaning (defrost
-        # sensor / P1) and raise a wrong Repair card.
+        # Repair-issue reconciliation is driven by the model's own fault
+        # table, so a firmware can never be decoded with another family's bit
+        # layout — that mismatch is what raised "Defrost sensor fault (P1)"
+        # on a Nano Fi whose filter pump had stopped (issue #19).
+        #
+        # Still gated to DP 13. The Nano 5kW family (issue #16) reports its
+        # bitmap on DP 21 and has never had Repair cards; the table now
+        # exists to give it correct ones, but turning them on for those users
+        # is a separate, deliberate change rather than a side effect here.
         if self.client.dp_layout.fault == tuya_const.DP_FAULT:
-            self._faults.reconcile(self.hass, state, now=time.monotonic())
+            self._faults.reconcile(
+                self.hass,
+                state,
+                now=time.monotonic(),
+                table=self.client.dp_layout.fault_table,
+            )
         self._tick_runtime(state)
         self._tick_energy(state)
 

@@ -6,7 +6,9 @@ firmware variant; ``None`` marks a field that firmware does not expose.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+from ..const import STANDARD_FAULT_TABLE, FaultTable
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,12 +27,18 @@ class DpLayout:
     dumps stay byte-for-byte unchanged.
 
     ``fault`` is the wire DP carrying this firmware's status/fault bitmap.
-    Every model confirmed so far uses DP 13 (the default) except the Nano
-    5kW family, which reports it on DP 21 instead (issue #16) — a distinct
-    bitmap with its own bit layout, not the same bitmap relocated. Callers
-    that decode ``DeviceState.fault`` must pair it with the matching bit-name
-    table for this DP (``FAULT_BIT_NAMES`` for 13, ``NANO_5KW_FAULT_BIT_NAMES``
-    for 21) rather than assuming one universal table.
+    Most models use DP 13 (the default); the Nano 5kW family reports it on
+    DP 21 instead (issue #16) — a distinct bitmap with its own bit layout,
+    not the same bitmap relocated.
+
+    ``fault_table`` is that bitmap's decode, and it travels *with the layout*
+    rather than being selected by the DP number. The DP number is not a
+    sufficient discriminator: Full Inverter firmware uses DP 13 like the
+    classic family but puts water flow on bit 8 where the classic family puts
+    the defrost sensor (issue #19), so two families share a DP and disagree on
+    its meaning. Anything decoding ``DeviceState.fault`` — bit names, OEM
+    service codes, Repair issues — must read this field rather than reaching
+    for a module-level default table.
     """
 
     temp_current_divisor: int = 1
@@ -59,6 +67,7 @@ class DpLayout:
     ac_current: int | None = None
     ac_current_divisor: int = 1
     fault: int | None = 13
+    fault_table: FaultTable = field(default=STANDARD_FAULT_TABLE)
     defrosting: int | None = None
     # Installer-menu config setpoints (Nano Fi 3kW, issue #19 follow-up).
     # None on every other firmware — no device confirmed so far exposes

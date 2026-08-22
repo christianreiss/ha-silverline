@@ -151,6 +151,18 @@ _FAULT_CODE_NANO_5KW = SilverlineSensorDescription(
     dp_keys=("21",),
 )
 
+# Full Inverter firmware (Nano Fi 3kW/5kW, issue #19): DP 13 like the classic
+# family, but bit 8 is water flow rather than the defrost sensor. Decoding it
+# with the default table told users to check a defrost probe when their filter
+# pump was off.
+_FAULT_CODE_NANO_FI = SilverlineSensorDescription(
+    key="fault_code",
+    translation_key="fault_code",
+    entity_category=EntityCategory.DIAGNOSTIC,
+    value_fn=lambda d: _decode_fault(d.fault, names=tuya_const.NANO_FI_FAULT_BIT_NAMES),
+    dp_keys=("13",),
+)
+
 _CONDENSING_TEMPERATURE = SilverlineSensorDescription(
     key="condensing_temperature",
     translation_key="condensing_temperature",
@@ -703,7 +715,7 @@ NANO_FI_SENSORS: tuple[SilverlineSensorDescription, ...] = (
     # "1F Main EEV opening" (issue #19). Until 0.11.7 it was published as
     # "Circulation pump speed" in RPM — wrong quantity, wrong unit.
     replace(_MAIN_VALVE_OPENING, dp_keys=("111",)),
-    _FAULT_CODE,
+    _FAULT_CODE_NANO_FI,
     _RUNTIME_TODAY,
     _AC_VOLTAGE,
     _AC_CURRENT,

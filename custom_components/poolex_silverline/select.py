@@ -138,9 +138,12 @@ class SilverlinePresetSelect(SilverlineEntity, SelectEntity):
 class SilverlineOperatingModeSelect(SilverlineEntity, SelectEntity):
     """Flat dropdown for the HVAC mode (off / heat / cool / heat_cool).
 
-    Mirrors climate.SilverlineClimate.async_set_hvac_mode, including the
-    0.7s post-write settle so chained service calls don't race the
-    device's per-mode setpoint restore push.
+    Mirrors climate.SilverlineClimate.async_set_hvac_mode: the active preset
+    is carried across a heat↔cool change, and the 0.7s post-write settle
+    keeps chained service calls from racing the device's per-mode setpoint
+    restore push. It does not mirror climate's post-transition setpoint
+    clamp — the device's own per-mode memory supplies a valid setpoint here,
+    since this entity never writes DP 2.
     """
 
     _attr_translation_key = "operating_mode"
@@ -165,10 +168,21 @@ class SilverlineOperatingModeSelect(SilverlineEntity, SelectEntity):
             await self._write_dps({tuya_const.DP_POWER: False})
             return
 
+        # Carry the preset across the direction change, exactly as
+        # climate.async_set_hvac_mode does with its remembered _last_preset.
+        # This entity is deliberately stateless, so the preset comes off the
+        # live wire state instead. Hard-coding PRESET_NONE here silently
+        # downgraded SilentCool to Cool whenever anyone touched this dropdown
+        # (issue #19): the device kept running, the boost/silent dimension
+        # just vanished, which is what "the conversion seems erratic" was.
+        state = self.coordinator.data
+        preset = derive_preset(state) if state is not None else PRESET_NONE
         if option == OPMODE_HEAT:
-            mode_string = resolve_heat_map(self.coordinator.profile)[PRESET_NONE]
+            table = resolve_heat_map(self.coordinator.profile)
+            mode_string = table.get(preset, table[PRESET_NONE])
         elif option == OPMODE_COOL:
-            mode_string = resolve_cool_map(self.coordinator.profile)[PRESET_NONE]
+            table = resolve_cool_map(self.coordinator.profile)
+            mode_string = table.get(preset, table[PRESET_NONE])
         elif option == OPMODE_HEAT_COOL:
             mode_string = resolve_auto_dp(self.coordinator.profile)
         else:

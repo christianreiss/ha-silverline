@@ -45,7 +45,8 @@ from pysilverline.const import (  # noqa: E402
     DP_MODE,
     DP_POWER,
     DP_TEMP_SET,
-    FAULT_BIT_NAMES,
+    FaultTable,
+    STANDARD_FAULT_TABLE,
 )
 
 DEFAULT_HOST = "poolheatpump.eulie.de"
@@ -68,13 +69,17 @@ def _load_access(path: Path) -> tuple[str, str]:
     return str(entry["id"]), str(entry["key"])
 
 
-def _decode_fault(value: Any) -> list[str]:
+def _decode_fault(value: Any, table: FaultTable = STANDARD_FAULT_TABLE) -> list[str]:
+    # Bit names are per-firmware-family, not per-DP: Full Inverter firmware
+    # reports on DP 13 like the classic family but carries water flow on bit
+    # 8, where the classic family carries the defrost sensor (issue #19).
+    # Probing an FI unit means passing that model's DpLayout.fault_table.
     if not isinstance(value, int) or value == 0:
         return []
     bits: list[str] = []
     for bit in range(30):
         if value & (1 << bit):
-            bits.append(FAULT_BIT_NAMES.get(bit, f"bit{bit}"))
+            bits.append(table.names.get(bit, f"bit{bit}"))
     return bits
 
 
@@ -190,9 +195,7 @@ async def probe(
     dwell: float,
     out_path: Path | None,
 ) -> int:
-    client = SilverlineClient(
-        host=host, device_id=device_id, local_key=local_key
-    )
+    client = SilverlineClient(host=host, device_id=device_id, local_key=local_key)
     observer = Observer()
     client.add_listener(observer)
 
@@ -285,19 +288,33 @@ def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--host", default=DEFAULT_HOST)
     p.add_argument(
-        "--access", type=Path, default=ACCESS_PATH,
+        "--access",
+        type=Path,
+        default=ACCESS_PATH,
         help="Path to access.yaml (default: repo-root)",
     )
-    p.add_argument("--seconds", type=float, default=60.0,
-                   help="Listen window for push frames (default 60s)")
-    p.add_argument("--dwell", type=float, default=3.0,
-                   help="Wait between writes (default 3s)")
-    p.add_argument("--out", type=Path, default=None,
-                   help="Write full report as JSON to this path")
-    p.add_argument("--exercise-modes", action="store_true",
-                   help="Cycle DP 4 through the seven enum strings")
-    p.add_argument("--no-restore", action="store_true",
-                   help="Skip restoring original power+mode after --exercise-modes")
+    p.add_argument(
+        "--seconds",
+        type=float,
+        default=60.0,
+        help="Listen window for push frames (default 60s)",
+    )
+    p.add_argument(
+        "--dwell", type=float, default=3.0, help="Wait between writes (default 3s)"
+    )
+    p.add_argument(
+        "--out", type=Path, default=None, help="Write full report as JSON to this path"
+    )
+    p.add_argument(
+        "--exercise-modes",
+        action="store_true",
+        help="Cycle DP 4 through the seven enum strings",
+    )
+    p.add_argument(
+        "--no-restore",
+        action="store_true",
+        help="Skip restoring original power+mode after --exercise-modes",
+    )
     p.add_argument("-v", "--verbose", action="store_true")
     return p
 

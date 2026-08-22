@@ -91,7 +91,9 @@ defrosting half is uncorroborated. Wired in below as ``defrosting``.
 Cross-referenced field meanings (official Tuya schema for this pid):
 
     DP 101  aux_manual         (bool, electric-aux-heater manual switch — NOT a temp probe)
-    DP 102  pump_manual        (bool, water-pump manual switch — NOT ambient temp)
+    DP 102  pump_manual        (bool, water-pump manual switch — NOT ambient
+                                temp). Seen on the wire reading false on one
+                                Fi 5kW; unmapped, so no entity yet.
     DP 103  inlet_temp         real water inlet temperature
     DP 104  outlet_temp        real water outlet temperature
     DP 105  outdoor_coil_temp  outdoor coil (evaporator) temperature
@@ -121,12 +123,19 @@ Cross-referenced field meanings (official Tuya schema for this pid):
                                 all, so ``water_pump`` is now unmapped and
                                 the "Water pump" binary sensor is gone here.
     DP 112  aux_valve          (not observed on the wire on this unit)
-    DP 115  defrosting         hvac_action enum, 1 = defrosting (tuya-local
-                                schema; DP present on the wire reading 0,
-                                the 1 ⇒ defrosting decode still unconfirmed
-                                — issue #19)
-    DP 116  exhaust_temp       always reports -30 on this unit (no working
-                                sensor wired to this DP) — left unmapped
+    DP 115  defrosting         hvac_action enum, 1 = defrosting —
+                                hardware-confirmed against a real defrost
+                                cycle with frost visible on the coil (issue
+                                #19, 2026-08-21). Optional: absent from the
+                                wire entirely on some units/states.
+    DP 116  exhaust_temp       compressor discharge temperature. Declared in
+                                the pid's schema (tuya-local "Exhaust
+                                temperature", optional) but has never
+                                appeared on the wire in any dump from either
+                                Fi unit in issue #19 — left unmapped. An
+                                early note here claimed it "always reports
+                                -30"; that traces to the initial spec upload,
+                                not to any observation on this hardware.
     DP 117  return_temp        compressor return/suction gas temperature
     DP 120  ac_voltage         AC line voltage — **not** a runtime-hours
                                 counter. The generic "other" fallback profile
@@ -158,6 +167,7 @@ telemetry.
 
 from __future__ import annotations
 
+from ..const import NANO_FI_FAULT_TABLE
 from .base import DpLayout
 
 #: Poolex Nano Fi 3kW / PC-NANO-B3N, Tuya pid am4nomaadnhwvekq.
@@ -177,7 +187,8 @@ LAYOUT_NANO_FI_3KW = DpLayout(
     eev_steps=111,  # main EEV opening, in steps — see DP 111 above
     fan_speed=None,
     aux_valve_opening=None,
-    water_pump=None,  # this firmware has no circulation-pump DP
+    water_pump=None,  # no pump *telemetry* DP on this firmware (DP 102 is a
+    # manual pump switch — a control, not a running/speed reading)
     condensing_temp=None,
     evaporating_temp=None,
     superheat=None,
@@ -192,6 +203,9 @@ LAYOUT_NANO_FI_3KW = DpLayout(
     # this firmware against a clamp meter. Kept at 1 so both AC layouts behave
     # alike; set to 10 here if a reporter confirms tenths on this unit.
     ac_current_divisor=1,
+    # DP 13 like the classic family, but bit 8 is water flow, not the
+    # defrost sensor — hardware-confirmed, see NANO_FI_FAULT_BIT_NAMES.
+    fault_table=NANO_FI_FAULT_TABLE,
     defrosting=115,
     heating_time=124,
     defrost_time_limit=125,

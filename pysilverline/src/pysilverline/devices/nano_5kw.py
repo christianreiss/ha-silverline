@@ -29,11 +29,13 @@ guessed; the integration must not register a temperature sensor against it.
 
 from __future__ import annotations
 
+from ..const import NANO_5KW_FAULT_TABLE
 from .base import DpLayout
 
 #: Poolex Nano 5kW WiFi / OEM siblings, Tuya pid yk3bytlujz2xshuy.
 LAYOUT_NANO_5KW = DpLayout(
     fault=21,
+    fault_table=NANO_5KW_FAULT_TABLE,
     outlet_temp=None,
     ambient_temp=None,
     pool_temp=None,
