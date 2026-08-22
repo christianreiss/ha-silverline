@@ -66,19 +66,37 @@ def derive_hvac_mode(state: DeviceState) -> HVACMode | None:
     return None
 
 
-def derive_preset(state: DeviceState) -> str:
-    """Map DP 4 onto the inverter preset (``none`` / ``boost`` / ``eco``).
+def retained_preset(state: DeviceState) -> str:
+    """The preset encoded in DP 4, whether or not the unit is running.
 
-    Collapses to ``none`` whenever the device is off, the mode string is
-    missing, or the mode is ``Auto`` (where presets are device-meaningless).
+    DP 4 keeps its full ``SilentHeat`` / ``BoostCool`` spelling while the
+    device is off — that is the mode it resumes in — so the qualifier is
+    still readable when ``derive_preset`` has collapsed the *reported*
+    preset to ``none``. Write paths want this one: a caller changing
+    direction from OFF should carry the user's boost/silent choice over
+    rather than silently downgrade it to the plain mode.
     """
-    if state.power is None or not state.power or not state.mode:
+    if not state.mode:
         return PRESET_NONE
     if state.mode in HEAT_PREFIX_TO_PRESET:
         return HEAT_PREFIX_TO_PRESET[state.mode]
     if state.mode in COOL_PREFIX_TO_PRESET:
         return COOL_PREFIX_TO_PRESET[state.mode]
     return PRESET_NONE
+
+
+def derive_preset(state: DeviceState) -> str:
+    """Map DP 4 onto the reported inverter preset (``none``/``boost``/``eco``).
+
+    Collapses to ``none`` whenever the device is off, the mode string is
+    missing, or the mode is ``Auto`` (where presets are device-meaningless).
+    Reporting ``none`` while off is deliberate — a preset describes how the
+    machine is running, and it is not running — so this is the *display*
+    answer only. Anything about to write DP 4 wants ``retained_preset``.
+    """
+    if state.power is None or not state.power:
+        return PRESET_NONE
+    return retained_preset(state)
 
 
 def resolve_heat_map(profile: DeviceProfile | None) -> dict[str, str]:

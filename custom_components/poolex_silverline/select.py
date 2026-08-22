@@ -39,6 +39,7 @@ from .util import (
     resolve_auto_dp,
     resolve_cool_map,
     resolve_heat_map,
+    retained_preset,
 )
 
 PARALLEL_UPDATES = 1
@@ -176,8 +177,14 @@ class SilverlineOperatingModeSelect(SilverlineEntity, SelectEntity):
         # downgraded SilentCool to Cool whenever anyone touched this dropdown
         # (issue #19): the device kept running, the boost/silent dimension
         # just vanished, which is what "the conversion seems erratic" was.
+        #
+        # retained_preset, not derive_preset: the latter reports none while
+        # the unit is off, which left the same downgrade in place for the
+        # OFF -> heating/cooling direction — the half of that bug the first
+        # fix missed. DP 4 keeps its full SilentHeat/BoostCool spelling while
+        # off, so the choice is right there to carry over.
         state = self.coordinator.data
-        preset = derive_preset(state) if state is not None else PRESET_NONE
+        preset = retained_preset(state) if state is not None else PRESET_NONE
         if option == OPMODE_HEAT:
             table = resolve_heat_map(self.coordinator.profile)
             mode_string = table.get(preset, table[PRESET_NONE])

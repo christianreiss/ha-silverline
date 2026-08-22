@@ -577,14 +577,52 @@ async def test_operating_mode_select_from_off_writes_power_then_mode(
         {ATTR_ENTITY_ID: OPMODE_ENTITY, ATTR_OPTION: "cool"},
         blocking=True,
     )
-    # Plain "Cool", not "BoostCool": derive_preset collapses to none while the
-    # unit is off, by design — a preset is device-meaningless there, and this
-    # entity is stateless. Carrying a preset across an OFF→ON transition is
-    # the climate entity's job, via its remembered _last_preset.
+    # "BoostCool": the device was left in BoostHeat, and DP 4 keeps that
+    # spelling while off, so the qualifier survives the direction change.
+    # This assertion used to read plain "Cool" and call it deliberate — the
+    # reported preset collapses to none while off, and the write path was
+    # reading the reported preset. See the sibling test below.
     calls = [c.args[0] for c in mock_client_factory.set_multiple.await_args_list]
-    assert calls == [{1: True}, {4: "Cool"}], (
+    assert calls == [{1: True}, {4: "BoostCool"}], (
         "power and mode must be separate frames, power first"
     )
     assert not any(1 in dps and 4 in dps for dps in calls), (
         "a bundled power+mode frame is what the firmware reverts on"
+    )
+
+
+async def test_operating_mode_select_from_off_keeps_the_retained_preset(
+    hass: HomeAssistant, mock_client_factory, init_integration
+) -> None:
+    """Choosing a direction from OFF must not downgrade Silent/Boost.
+
+    The device keeps DP 4 spelled in full while it is off — SilentHeat is
+    the mode it will resume in — so the qualifier is knowable even though
+    the reported preset has collapsed to none. Reading the reported preset
+    here (rather than the retained one) wrote plain Cool and silently threw
+    the user's choice away, which is the OFF half of the downgrade fixed in
+    0.11.8 for the running case (issue #19).
+    """
+    from unittest.mock import AsyncMock
+
+    coordinator = init_integration.runtime_data
+    calls: list[dict[int, object]] = []
+    mock_client_factory.set_multiple = AsyncMock(
+        side_effect=lambda dps: calls.append(dps)
+    )
+
+    coordinator.async_set_updated_data(
+        DeviceState.from_dps({"1": False, "4": "SilentHeat", "13": 0})
+    )
+    await hass.async_block_till_done()
+
+    await hass.services.async_call(
+        SELECT_DOMAIN,
+        SERVICE_SELECT_OPTION,
+        {ATTR_ENTITY_ID: OPMODE_ENTITY, ATTR_OPTION: "cool"},
+        blocking=True,
+    )
+
+    assert calls == [{1: True}, {4: "SilentCool"}], (
+        "the retained Silent qualifier was dropped on the way out of OFF"
     )
