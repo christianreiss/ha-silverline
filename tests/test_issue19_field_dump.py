@@ -213,3 +213,77 @@ async def test_issue19_ambient_range_bit_is_named_but_raises_no_card(
     assert issues.issues == {}, (
         "an ambient-range protection must not raise a Repair card"
     )
+
+
+async def test_issue19_config_sensors_survive_a_first_poll_without_them(
+    hass: HomeAssistant,
+) -> None:
+    """The installer-parameter sensors must not depend on poll timing.
+
+    Full Inverter firmware does not send a stable DP set. The same unit, one
+    day apart, reported 142/145 without 124-132 and then the reverse (issue
+    #19, @richardc1983) — so latching supported_dps on whichever poll landed
+    first meant the reporter got eight of the ten config sensors, and a
+    different eight after each reload. The model profile now pins the set as
+    a floor. Replay a first poll that carries none of the block and require
+    all ten entities anyway.
+    """
+    device_id = "bf9988776655lottery01"
+    raw = {k: v for k, v in RAW.items() if int(k) < 124}
+    state = DeviceState.from_dps(raw, layout=LAYOUT_NANO_FI_3KW)
+
+    client = MagicMock()
+    client.host, client.port, client.device_id = "10.0.0.66", 6668, device_id
+    client.connected, client.state = True, state
+    client.detected_version = "3.5"
+    client.dp_layout = LAYOUT_NANO_FI_3KW
+    for m in ("connect", "disconnect", "set_dp", "set_multiple"):
+        setattr(client, m, AsyncMock(return_value=None))
+    client.get_status = AsyncMock(return_value=state)
+    client.add_listener = MagicMock(return_value=lambda: None)
+    client.add_connection_listener = MagicMock(return_value=lambda: None)
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=device_id,
+        data={
+            CONF_HOST: "10.0.0.66",
+            CONF_PORT: 6668,
+            CONF_DEVICE_ID: device_id,
+            CONF_LOCAL_KEY: "0123456789abcdef",
+            CONF_MODEL: "nano_fi_3kw",
+        },
+        version=1,
+        minor_version=1,
+    )
+    entry.add_to_hass(hass)
+    with patch(
+        "custom_components.poolex_silverline.SilverlineClient", return_value=client
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    uids = {
+        e.unique_id
+        for e in er.async_get(hass).entities.values()
+        if e.config_entry_id == entry.entry_id
+    }
+    for key in (
+        "heating_time",
+        "defrost_time_limit",
+        "defrost_cutout_temperature",
+        "heating_start_hysteresis",
+        "heating_end_hysteresis",
+        "cooling_start_hysteresis",
+        "cooling_end_hysteresis",
+        "defrost_temperature",
+        "maximum_temperature_limit",
+        "minimum_temperature_limit",
+    ):
+        assert f"{device_id}_{key}" in uids, f"{key} lost to first-poll timing"
+
+    # The floor must not manufacture entities for DPs no Nano Fi has ever
+    # sent: 112/114/116 are mapped but unpinned, so they stay gated on the
+    # wire and register nothing here.
+    for key in ("aux_valve_opening", "fan_speed", "ambient_temperature"):
+        assert f"{device_id}_{key}" not in uids, f"{key} must stay wire-gated"

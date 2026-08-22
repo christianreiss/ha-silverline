@@ -9,9 +9,40 @@ Confirmed live on real hardware (protocol v3.5, local port 6668):
 
     supported_dps: {1, 2, 3, 4, 13, 103, 104, 105, 106, 108, 110, 111, 117, 120, 121}
 
-DP 114 (fan_speed) is declared in the generic Tuya product schema for this
-pid but has never been observed on the wire — left unmapped (``None``)
-rather than guessed.
+**The OEM manual settles most of the DP map.** Its section 4.9 "Status
+query" (hold ▲ for 3 s on the wired controller) lists every value the unit
+itself can display, photographed from the Nano Fi manual page 52-53 in issue
+#19 (@richardc1983, 2026-08-22):
+
+    T1  Exhaust temperature      T8  Cooling coil temperature   dcU DC bus voltage
+    T2  Suction temperature      Ft  Target frequency           dcC Compressor current (A)
+    T3  Water inlet temperature  Fr  Actual frequency           AcU Input voltage
+    T4  Water outlet temperature 1F  Main EEV opening           AcC Input current
+    T5  Heating coil temperature 2F  Auxiliary EEV opening      HE1-4 Failure code history
+    T6  Ambient temperature      od  Operation mode             Pr  Protocol version
+    T7  IPM temperature          Pr  Fan speed                  Sr  Software version
+                                 dF  Defrosting state
+                                 OIL Oil recovery state
+                                 r2  Chassis electric heater state
+                                 STF Four-way valve switch
+                                 Pu  Water pump state
+
+Every DP decoded below has an entry there, independently of tuya-local and
+of the Tuya cloud schema: T2 for DP 117, 1F for DP 111 (which is how that
+one was settled), 2F for DP 112, Pr for DP 114, dF for DP 115, T1 for DP
+116, Pu for DP 102, AcU/AcC for DP 120/121. The menu is also the cheapest
+oracle left for the open questions — it prints AcC as a number the reporter
+can read against our Current sensor (which settles ``ac_current_divisor``),
+and HE1-HE4 hold the unit's own fault-code history.
+
+DP 112 (aux_valve_opening), 114 (fan_speed) and 116 (discharge_temp) are
+mapped but have never been observed on the wire from either unit in issue
+#19. Mapping them is free — every entity is gated on the DP appearing in
+``supported_dps``, so a DP the firmware never sends registers nothing — and
+it means an owner whose unit does push them gets the sensor without a
+release. Their *units* are still schema-derived: tuya-local declares DP 114
+in rpm, but the panel labels it "Pr Fan speed", which on inverter units is
+often a level rather than a speed. Treat the first real reading as the test.
 
 DP 109 was confirmed live on a Poolex Nano Fi 5kW (PC-NANO-B5N) — the same
 pid, a larger sibling in this line — via a diagnostics dump in issue #19
@@ -122,20 +153,31 @@ Cross-referenced field meanings (official Tuya schema for this pid):
                                 unit. This firmware exposes no pump DP at
                                 all, so ``water_pump`` is now unmapped and
                                 the "Water pump" binary sensor is gone here.
-    DP 112  aux_valve          (not observed on the wire on this unit)
+    DP 112  aux_valve          auxiliary EEV opening, in steps — the panel's
+                                "2F Auxiliary EEV opening". Mapped, never yet
+                                observed on the wire.
+    DP 114  fan_speed          the panel's "Pr Fan speed". Mapped, never yet
+                                observed; unit taken from tuya-local (rpm)
+                                and unverified against the panel.
     DP 115  defrosting         hvac_action enum, 1 = defrosting —
                                 hardware-confirmed against a real defrost
                                 cycle with frost visible on the coil (issue
                                 #19, 2026-08-21). Optional: absent from the
                                 wire entirely on some units/states.
-    DP 116  exhaust_temp       compressor discharge temperature. Declared in
-                                the pid's schema (tuya-local "Exhaust
-                                temperature", optional) but has never
-                                appeared on the wire in any dump from either
-                                Fi unit in issue #19 — left unmapped. An
-                                early note here claimed it "always reports
-                                -30"; that traces to the initial spec upload,
-                                not to any observation on this hardware.
+    DP 116  exhaust_temp       compressor discharge temperature — the panel's
+                                "T1 Exhaust temperature", so the probe
+                                physically exists and the wired controller
+                                displays it. Declared in the pid's schema
+                                (tuya-local "Exhaust temperature", optional)
+                                but has never appeared on the wire in any dump
+                                from either Fi unit in issue #19. Mapped to
+                                ``discharge_temp`` anyway: the sensor is gated
+                                on DP 116 arriving, so it costs nothing on a
+                                unit that stays silent and appears by itself
+                                on one that does not. An early note here
+                                claimed it "always reports -30"; that traces
+                                to the initial spec upload, not to any
+                                observation on this hardware.
     DP 117  return_temp        compressor return/suction gas temperature
     DP 120  ac_voltage         AC line voltage — **not** a runtime-hours
                                 counter. The generic "other" fallback profile
@@ -177,7 +219,7 @@ LAYOUT_NANO_FI_3KW = DpLayout(
     pool_temp=3,  # No distinct probe on this firmware — DP 3 is the same
     # value already used for temp_current, aliased here so this dedicated
     # sensor entity stays populated instead of going unavailable.
-    discharge_temp=None,
+    discharge_temp=116,  # T1 exhaust — declared + on the panel, never pushed
     inlet_temp=103,
     suction_temp=117,
     outdoor_coil_temp=105,
@@ -185,8 +227,8 @@ LAYOUT_NANO_FI_3KW = DpLayout(
     target_frequency=109,
     actual_frequency=110,
     eev_steps=111,  # main EEV opening, in steps — see DP 111 above
-    fan_speed=None,
-    aux_valve_opening=None,
+    fan_speed=114,  # "Pr Fan speed"; unit unverified, see DP 114 above
+    aux_valve_opening=112,  # "2F Auxiliary EEV opening", steps
     water_pump=None,  # no pump *telemetry* DP on this firmware (DP 102 is a
     # manual pump switch — a control, not a running/speed reading)
     condensing_temp=None,

@@ -172,11 +172,20 @@ class SilverlineCoordinator(DataUpdateCoordinator[DeviceState]):
             # other reason — surface as UpdateFailed so HA keeps the entry
             # loaded and retries on the next tick.
             raise UpdateFailed(f"poll rejected: {err}") from err
-        # Snapshot the DPs the firmware actually emits, once. Platforms
-        # read this in their async_setup_entry to skip entities that would
-        # otherwise spend their whole lifetime `unavailable`.
-        if not self.supported_dps:
-            self.supported_dps = frozenset(state.raw.keys())
+        # Accumulate the DPs the firmware actually emits. Platforms read this
+        # in their async_setup_entry to skip entities that would otherwise
+        # spend their whole lifetime `unavailable`.
+        #
+        # Union, not a one-shot latch. Full Inverter firmware does not send
+        # the same DP set on every connection: the same Nano Fi reported
+        # 142/145 without 124-132 one day and the reverse the next (issue
+        # #19), so latching on whichever poll happened to be first made
+        # config-sensor creation a lottery. Unioning also turns a profile's
+        # `known_dps` from a replacement into a floor — a model can guarantee
+        # its core entities exist without that guarantee suppressing an
+        # optional DP the unit does send. Growth after setup is inert
+        # (platforms have already registered) but keeps diagnostics honest.
+        self.supported_dps |= frozenset(state.raw.keys())
         # The DataUpdateCoordinator base assigns the return value to
         # self.data directly without going through async_set_updated_data,
         # so the poll path needs to invoke the side effects itself.

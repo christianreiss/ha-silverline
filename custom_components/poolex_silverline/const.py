@@ -213,15 +213,60 @@ DEVICE_PROFILES: Final[dict[str, DeviceProfile]] = {
         # xtend_tuya integration's diagnostics) — see LAYOUT_NANO_FI_3KW for
         # the full per-DP notes. DP-4 mode vocabulary matches the standard
         # family (Heat/Cool/Auto/BoostHeat/SilentHeat/BoostCool/SilentCool),
-        # so no preset/auto DP overrides are needed. Live-detect the DP set:
-        # confirmed present {1,2,3,4,13,103,104,105,106,108,110,111,117,120,121}
-        # on one unit, but DP 109/112/114 are declared in the generic product
-        # schema and may exist on other units in this line. Per-mode setpoint
-        # clamp bounds are unverified on this specific firmware (only the raw
-        # DP 2 range 0-40°C is confirmed) — left as None to fall back to the
-        # global defaults rather than assume.
+        # so no preset/auto DP overrides are needed. Per-mode setpoint clamp
+        # bounds are unverified on this specific firmware (only the raw DP 2
+        # range 0-40°C is confirmed) — left as None to fall back to the global
+        # defaults rather than assume.
+        #
+        # known_dps is a FIXED FLOOR here, and this firmware is why. It does
+        # not report a stable DP set: the same unit, one day apart, sent
+        # 142/145 without 124-132 and then 124-132 without 142/145 (issue #19,
+        # @richardc1983). Live-detect snapshots one poll, so which of the ten
+        # installer-parameter sensors got created was down to what happened to
+        # arrive in the first second after setup — the reporter was seeing
+        # eight of ten and a different eight after each reload. Every DP below
+        # has been read off real hardware on this pid; the set is the union
+        # across both issue #19 units because the variation is per-connection,
+        # not per-unit. A floor, not a replacement: coordinator.py unions the
+        # live DP set on top, so anything else the firmware sends still counts
+        # (DP 112/114/116 are mapped but unobserved and deliberately absent
+        # here — pinning an unobserved DP is what manufactures a permanently
+        # unavailable entity).
         display_name="Poolex Nano Fi 3kW / 5kW (PC-NANO-B3N / B5N)",
-        known_dps=None,
+        known_dps=frozenset(
+            {
+                # control + fault
+                1,
+                2,
+                3,
+                4,
+                13,
+                # live telemetry
+                103,
+                104,
+                105,
+                106,
+                108,
+                109,
+                110,
+                111,
+                115,
+                117,
+                120,
+                121,
+                # installer-parameter block (read-only diagnostics)
+                124,
+                125,
+                126,
+                127,
+                128,
+                130,
+                131,
+                132,
+                142,
+                145,
+            }
+        ),
     ),
     MODEL_NANO_5KW: DeviceProfile(
         # Poolex Nano 5kW WiFi, Tuya pid yk3bytlujz2xshuy, protocol v3.4/v3.5

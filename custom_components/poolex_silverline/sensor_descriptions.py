@@ -715,6 +715,14 @@ NANO_FI_SENSORS: tuple[SilverlineSensorDescription, ...] = (
     # "1F Main EEV opening" (issue #19). Until 0.11.7 it was published as
     # "Circulation pump speed" in RPM — wrong quantity, wrong unit.
     replace(_MAIN_VALVE_OPENING, dp_keys=("111",)),
+    # Declared in this pid's schema and present on the unit's own status-query
+    # menu (T1 exhaust, 2F auxiliary EEV, Pr fan speed — see LAYOUT_NANO_FI_3KW)
+    # but never yet seen on the wire. dp_keys gates each one on the DP actually
+    # arriving, so a silent firmware registers nothing and an owner whose unit
+    # does push them gets the sensor without waiting for a release.
+    replace(_AMBIENT_TEMPERATURE, dp_keys=("116",)),  # reads d.discharge_temp
+    replace(_AUX_VALVE_OPENING, dp_keys=("112",)),
+    replace(_FAN_SPEED, dp_keys=("114",)),
     _FAULT_CODE_NANO_FI,
     _RUNTIME_TODAY,
     _AC_VOLTAGE,

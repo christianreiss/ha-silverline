@@ -157,6 +157,10 @@ async def test_known_model_pre_populates_supported_dps(
 ) -> None:
     """A config entry with CONF_MODEL='pc_slp090n' should pre-populate
     supported_dps with the 5 known DPs so entities register before first poll.
+
+    known_dps is a floor, not a replacement: the first poll's DP set is
+    unioned on top of it (issue #19), so the profile guarantees its core
+    entities exist without suppressing an optional DP the unit does send.
     """
     from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -185,7 +189,9 @@ async def test_known_model_pre_populates_supported_dps(
         str(dp)
         for dp in DEVICE_PROFILES["pc_slp090n"].known_dps  # type: ignore[arg-type]
     )
-    assert coordinator.supported_dps == expected
+    assert expected <= coordinator.supported_dps, "the profile floor must hold"
+    # ...and the live set is unioned on top rather than discarded.
+    assert coordinator.supported_dps >= frozenset(coordinator.data.raw)
 
 
 async def test_unknown_model_leaves_supported_dps_empty(
