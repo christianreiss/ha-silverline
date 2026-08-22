@@ -38,6 +38,7 @@ from .util import (
     resolve_auto_dp,
     resolve_cool_map,
     resolve_heat_map,
+    retained_preset,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -186,7 +187,27 @@ class SilverlineClimate(SilverlineEntity, ClimateEntity, RestoreEntity):
             return
 
         if hvac_mode in (HVACMode.HEAT, HVACMode.COOL):
-            mode_string = self._mode_string_for(hvac_mode, self._last_preset)
+            # _last_preset only learns a preset while the unit is running,
+            # so it is still PRESET_NONE on an entity that has never seen it
+            # run — a fresh install, or a restart with no restored attribute,
+            # with the unit sitting off. DP 4 keeps its full BoostHeat
+            # spelling while off, so ask the device rather than defaulting to
+            # plain Heat and discarding the qualifier (issue #19; the same
+            # defect the operating-mode dropdown had).
+            #
+            # This cannot override a deliberate "none": setting that while
+            # running writes plain Heat/Cool to DP 4, so retained_preset then
+            # answers none as well and the two agree. The one overlap is a
+            # user who sets preset to none while the unit is OFF, where
+            # nothing is written to DP 4 and the device still holds Boost —
+            # they get BoostCool once, and the next preset write settles it.
+            # Distinguishing that from "never observed" would cost a second
+            # remembered flag in recorder-visible state, which is not worth
+            # it for that case.
+            preset = self._last_preset
+            if preset == PRESET_NONE and (state := self.coordinator.data) is not None:
+                preset = retained_preset(state)
+            mode_string = self._mode_string_for(hvac_mode, preset)
             self._last_direction = hvac_mode
         elif hvac_mode == HVACMode.HEAT_COOL:
             mode_string = resolve_auto_dp(self.coordinator.profile)

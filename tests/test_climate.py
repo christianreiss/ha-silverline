@@ -954,3 +954,96 @@ async def test_set_hvac_mode_from_off_writes_power_then_mode(
     assert not any(1 in dps and 4 in dps for dps in calls), (
         "a bundled power+mode frame is what the firmware reverts on"
     )
+
+
+async def test_a_poll_landing_mid_write_cannot_change_the_mode_written(
+    hass: HomeAssistant, mock_client_factory, init_integration, monkeypatch
+) -> None:
+    """A refresh during the power-on settle gap must not alter the outcome.
+
+    Before 0.11.11 the poll was starved by pushes and effectively never ran
+    on this firmware, so nothing landed in that gap. Now it does. The state
+    visible there is genuine — powered on, still in the mode the device
+    retained — but a caller that recomputed its target from it would write
+    the old mode back over the user's choice.
+    """
+    from unittest.mock import AsyncMock
+
+    import custom_components.poolex_silverline.entity as entity_mod
+
+    coordinator = init_integration.runtime_data
+    # Seen running first, so _last_preset is legitimately "boost" and this
+    # test turns on the poll interaction alone rather than on the fallback
+    # exercised by the sibling test below.
+    coordinator.async_set_updated_data(
+        DeviceState.from_dps({"1": True, "4": "BoostHeat", "3": 26, "13": 0})
+    )
+    await hass.async_block_till_done()
+    coordinator.async_set_updated_data(
+        DeviceState.from_dps({"1": False, "4": "BoostHeat", "3": 26, "13": 0})
+    )
+    await hass.async_block_till_done()
+
+    calls: list[dict[int, object]] = []
+    mock_client_factory.set_multiple = AsyncMock(
+        side_effect=lambda dps: calls.append(dps)
+    )
+
+    async def poll_during_the_gap(_delay: float) -> None:
+        # Exactly what the device reports between the two frames.
+        coordinator.async_set_updated_data(
+            DeviceState.from_dps({"1": True, "4": "BoostHeat", "3": 26, "13": 0})
+        )
+
+    monkeypatch.setattr(entity_mod.asyncio, "sleep", poll_during_the_gap)
+
+    await hass.services.async_call(
+        "climate",
+        "set_hvac_mode",
+        {"entity_id": ENTITY_ID, "hvac_mode": "cool"},
+        blocking=True,
+    )
+
+    assert calls == [{1: True}, {4: "BoostCool"}], (
+        "the interim state leaked into the mode that was written"
+    )
+
+
+async def test_direction_change_from_off_falls_back_to_the_retained_preset(
+    hass: HomeAssistant, mock_client_factory, init_integration, monkeypatch
+) -> None:
+    """An entity that never saw the unit run still keeps Boost/Silent.
+
+    _last_preset only learns a preset while the unit is running, so on a
+    fresh install — or a restart with no restored attribute — it is
+    PRESET_NONE while the device is sitting off in BoostHeat. Writing plain
+    Cool there discards a qualifier the device is still holding, which is
+    the climate-side twin of the dropdown bug in issue #19.
+    """
+    from unittest.mock import AsyncMock
+
+    import custom_components.poolex_silverline.entity as entity_mod
+
+    monkeypatch.setattr(entity_mod.asyncio, "sleep", AsyncMock())
+    coordinator = init_integration.runtime_data
+    # Never observed running: straight to off, in BoostHeat.
+    coordinator.async_set_updated_data(
+        DeviceState.from_dps({"1": False, "4": "BoostHeat", "3": 26, "13": 0})
+    )
+    await hass.async_block_till_done()
+
+    calls: list[dict[int, object]] = []
+    mock_client_factory.set_multiple = AsyncMock(
+        side_effect=lambda dps: calls.append(dps)
+    )
+
+    await hass.services.async_call(
+        "climate",
+        "set_hvac_mode",
+        {"entity_id": ENTITY_ID, "hvac_mode": "cool"},
+        blocking=True,
+    )
+
+    assert calls == [{1: True}, {4: "BoostCool"}], (
+        "the retained Boost qualifier was dropped on the way out of OFF"
+    )

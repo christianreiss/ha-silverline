@@ -95,6 +95,15 @@ class SilverlineEntity(CoordinatorEntity[SilverlineCoordinator]):
         write that succeeds followed by a mode write that fails now leaves
         the unit ON in its previous mode, where a rejected bundle left it
         OFF. Both surface the same HomeAssistantError.
+
+        The settle gap is also a window a poll can land in, which became a
+        real possibility only once pushes stopped starving the poll. The
+        state it publishes there — powered on, still in the previous mode —
+        is true rather than torn, and it cannot affect this write: callers
+        resolve ``mode_string`` before calling, and each ``_write_dps``
+        awaits its own acknowledgement. climate's ``_last_preset`` may latch
+        the retained preset from that interim state, which is the same value
+        both write paths deliberately carry forward anyway.
         """
         state = self.coordinator.data
         if state is None or not state.power:
