@@ -306,3 +306,83 @@ async def test_nano_5kw_pre_populates_supported_dps_even_when_device_off(
         if e.domain == "sensor"
     }
     assert sensor_keys == {"temperature_delta", "fault_code", "runtime_today"}
+
+
+async def test_union_does_not_resurrect_a_deliberately_excluded_dp(
+    hass: HomeAssistant,
+    mock_client_factory,
+) -> None:
+    """supported_dps unions the live set, so a pin can no longer suppress a DP.
+
+    MODEL_NANO_5KW pins {1,2,3,4,21} and its comment excludes DP 101 on
+    purpose: one unit reports a boolean there whose meaning is unconfirmed.
+    Since the pin became a floor (issue #19), that exclusion is no longer
+    enforced by the pin — it holds only because nothing in this model's
+    catalog reads DP 101. Pin that, so wiring an entity to DP 101 later
+    fails here rather than shipping an unexplained sensor to Nano 5kW owners.
+    """
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from homeassistant.const import CONF_HOST, CONF_PORT
+    from homeassistant.helpers import entity_registry as er
+    from pysilverline.layouts import LAYOUT_NANO_5KW
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    from custom_components.poolex_silverline.const import (
+        CONF_DEVICE_ID,
+        CONF_LOCAL_KEY,
+        CONF_MODEL,
+        DOMAIN,
+    )
+    from custom_components.poolex_silverline.sensor_descriptions import (
+        descriptions_for_model,
+    )
+
+    device_id = "bf9988776655nano5kw01"
+    raw = {"1": True, "2": 28, "3": 26, "4": "Heat", "21": 0, "101": False}
+    state = DeviceState.from_dps(raw, layout=LAYOUT_NANO_5KW)
+
+    client = MagicMock()
+    client.host, client.port, client.device_id = "10.0.0.67", 6668, device_id
+    client.connected, client.state = True, state
+    client.detected_version = "3.4"
+    client.dp_layout = LAYOUT_NANO_5KW
+    for name in ("connect", "disconnect", "set_dp", "set_multiple"):
+        setattr(client, name, AsyncMock(return_value=None))
+    client.get_status = AsyncMock(return_value=state)
+    client.add_listener = MagicMock(return_value=lambda: None)
+    client.add_connection_listener = MagicMock(return_value=lambda: None)
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=device_id,
+        data={
+            CONF_HOST: "10.0.0.67",
+            CONF_PORT: 6668,
+            CONF_DEVICE_ID: device_id,
+            CONF_LOCAL_KEY: "0123456789abcdef",
+            CONF_MODEL: "nano_5kw",
+        },
+        version=1,
+        minor_version=1,
+    )
+    entry.add_to_hass(hass)
+    with patch(
+        "custom_components.poolex_silverline.SilverlineClient", return_value=client
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    coordinator = entry.runtime_data
+    assert "101" in coordinator.supported_dps, "the union must see the live DP"
+
+    entities = [
+        e
+        for e in er.async_get(hass).entities.values()
+        if e.config_entry_id == entry.entry_id
+    ]
+    for description in descriptions_for_model("nano_5kw"):
+        assert "101" not in description.dp_keys, (
+            f"{description.key} would now register against the unexplained DP 101"
+        )
+    assert entities, "sanity: the entry did create its normal entities"

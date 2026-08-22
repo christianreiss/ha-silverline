@@ -311,7 +311,10 @@ DEVICE_PROFILES: Final[dict[str, DeviceProfile]] = {
         # across both issue #16 and #18 reporters whenever the unit was on —
         # sidesteps that race entirely, matching the same pattern already
         # used for pc_slp090n above. DP 101 is deliberately excluded: its
-        # meaning is unconfirmed and no entity reads it.
+        # meaning is unconfirmed and no entity reads it. Note that since
+        # supported_dps became a union (issue #19) the pin no longer *enforces*
+        # that exclusion — it holds because this model's catalog has no
+        # description keyed on DP 101, which tests/test_coordinator.py pins.
         display_name="Poolex Nano 5kW WiFi",
         known_dps=frozenset({1, 2, 3, 4, 21}),
         preset_to_heat_dp={"none": "Heat"},
