@@ -173,27 +173,40 @@ NANO_5KW_FAULT_BIT_CODES: Final = {
 #: table instead. Corroborated family-wide by the Nano 5kW, whose DP 21 bitmap
 #: also carries water flow on bit 8.
 #:
-#: Deliberately sparse, like NANO_5KW_FAULT_BIT_NAMES. Bit 8 is the only bit
-#: confirmed on FI firmware; the classic table's other assignments were never
-#: verified here and are not carried over on the strength of the DP number
-#: matching. One reporter reads 524288 (bit 19) as "ambient temperature out of
-#: range", but that is a single uncorroborated sighting and tuya-local does not
-#: decode DP 13's bits for this pid at all — it stays undecoded and surfaces as
-#: "bit19" via _decode_fault's fallback, which keeps every unknown bit visible.
+#: Deliberately sparse, like NANO_5KW_FAULT_BIT_NAMES. The classic table's
+#: other assignments were never verified here and are not carried over on the
+#: strength of the DP number matching; an unnamed bit stays visible as
+#: "bit<n>" through _decode_fault's fallback.
+#:
+#: Bit 19 is named but has NO entry in NANO_FI_FAULT_BIT_CODES, and that
+#: asymmetry is deliberate rather than an oversight. The same reporter read
+#: 524288 off a unit whose panel displayed "P25 Ambient temperature too
+#: high/low" while the app said "ambient temperature out of range" (issue #19,
+#: @patrickpetos, 2026-08-22) — two independent readouts agreeing on the
+#: meaning, so the name is earned. What it does not earn is a Repair card: an
+#: ambient-range protection is weather-driven and self-clearing, so a card
+#: would appear and vanish with the forecast. Bits present in ``names`` but
+#: absent from ``codes`` yield a binary sensor and a fault_code string and
+#: nothing else — see FaultReconciler.reconcile, which enumerates ``codes``.
 NANO_FI_FAULT_BIT_NAMES: Final = {
     8: "water_flow",
+    19: "ambient_range",
 }
 
 #: OEM service codes for ``NANO_FI_FAULT_BIT_NAMES``.
 #:
-#: UNVERIFIED against the FI wired controller's own display — no one has read
-#: the printed code off the panel during a water-flow fault yet. E03 is the
-#: code the classic Poolstar manual prints for this fault and the FI manual is
-#: expected to match, but if a reporter reads something else off the panel this
-#: is the one line to change (it drives the Repair issue's translation key and
-#: severity).
+#: Hardware-confirmed against the FI wired controller's own display: during the
+#: deliberate pump-cut test above the panel printed **E25 "Water Flow switch
+#: failure"** (issue #19, @patrickpetos, 2026-08-22). An earlier revision
+#: assumed E03 here — the code the classic Poolstar manual prints for this
+#: fault — on the expectation that the FI manual would match. It does not. The
+#: two families disagree about the printed code exactly as they disagree about
+#: the bit position, which is why the code table travels with the layout.
+#:
+#: Sparser than ``names`` on purpose: bit 19 is deliberately absent so the
+#: ambient-range protection raises no Repair card. See NANO_FI_FAULT_BIT_NAMES.
 NANO_FI_FAULT_BIT_CODES: Final = {
-    8: "E03",
+    8: "E25",
 }
 
 
@@ -210,6 +223,11 @@ class FaultTable:
 
     ``names`` may be sparse: an unnamed bit surfaces as ``bit<n>`` rather than
     being dropped, so a fault we have not characterised still reaches the user.
+
+    ``codes`` may be sparser still. A bit in ``names`` but not in ``codes`` is
+    a fault we can name but deliberately do not want to raise a Repair card
+    for — it gets a binary sensor and a fault_code string only. The reverse
+    (a code with no name) is not meaningful and no table does it.
     """
 
     names: Mapping[int, str]

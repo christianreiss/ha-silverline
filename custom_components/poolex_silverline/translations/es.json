@@ -140,6 +140,7 @@
       "water_pump": { "name": "Bomba de agua" },
       "defrosting": { "name": "Descongelación" },
       "fault_water_flow": { "name": "Fallo de flujo de agua" },
+      "fault_ambient_range": { "name": "Temperatura ambiente fuera de rango" },
       "fault_antifreeze": { "name": "Fallo de protección antihielo" },
       "fault_high_pressure": { "name": "Fallo de alta presión" },
       "fault_low_pressure": { "name": "Fallo de baja presión" },
@@ -179,6 +180,10 @@
   "issues": {
     "fault_E03": {
       "title": "Fallo de flujo de agua (E03)",
+      "description": "La bomba de calor no detecta flujo de agua. Comprueba que la bomba de filtración funciona y que el filtro está limpio. La calefacción se detiene hasta que se restablezca el flujo. Esta tarjeta desaparece automáticamente cuando el dispositivo borra el fallo."
+    },
+    "fault_E25": {
+      "title": "Fallo de flujo de agua (E25)",
       "description": "La bomba de calor no detecta flujo de agua. Comprueba que la bomba de filtración funciona y que el filtro está limpio. La calefacción se detiene hasta que se restablezca el flujo. Esta tarjeta desaparece automáticamente cuando el dispositivo borra el fallo."
     },
     "fault_E04": {

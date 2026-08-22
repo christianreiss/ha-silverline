@@ -11,6 +11,10 @@ Provenance: issue #19 comment 22 (2026-08-22). The reporter cut the
 filtration pump under BoostHeat; the Poolex app displayed "Fault of Water
 Flow Switch" and DP 13 read 256. Before the fix this produced a "Defrost
 sensor fault" entity and a "Defrost sensor fault (P1)" Repair card.
+
+The same reporter later read the codes off the unit's own wired controller
+(2026-08-22): E25 for the water-flow fault, and P25 "ambient temperature too
+high/low" for DP 13 = 524288. Both readings are replayed here.
 """
 
 from __future__ import annotations
@@ -122,14 +126,90 @@ async def test_issue19_live_water_flow_fault_dump(hass: HomeAssistant) -> None:
         m.return_value = base + 10.0
         coord.async_set_updated_data(state)
         await hass.async_block_till_done()
-        assert ir.async_get(hass).async_get_issue(DOMAIN, "fault_E03") is None
+        assert ir.async_get(hass).async_get_issue(DOMAIN, "fault_E25") is None
         m.return_value = base + E03_DEBOUNCE_SECONDS + 1.0
         coord.async_set_updated_data(state)
         await hass.async_block_till_done()
     issues = ir.async_get(hass)
-    e03 = issues.async_get_issue(DOMAIN, "fault_E03")
-    assert e03 is not None, "water flow must raise E03 once the debounce elapses"
-    assert e03.severity is ir.IssueSeverity.ERROR
+    e25 = issues.async_get_issue(DOMAIN, "fault_E25")
+    assert e25 is not None, "water flow must raise E25 once the debounce elapses"
+    assert e25.severity is ir.IssueSeverity.ERROR
     assert issues.async_get_issue(DOMAIN, "fault_P1") is None, (
         "bit 8 is water flow on FI firmware, not the defrost sensor"
+    )
+    assert issues.async_get_issue(DOMAIN, "fault_E03") is None, (
+        "E03 is the classic family's water-flow code; the FI panel prints E25"
+    )
+
+
+async def test_issue19_ambient_range_bit_is_named_but_raises_no_card(
+    hass: HomeAssistant,
+) -> None:
+    """DP 13 = 524288 must read as ambient_range and open no Repair issue.
+
+    Bit 19 is the named-but-uncoded case. The reporter's panel printed "P25
+    ambient temperature too high/low" while the app said "ambient temperature
+    out of range", so the name is hardware-backed — but the protection is
+    weather-driven and self-clearing, so a Repair card would appear and vanish
+    with the forecast. It gets a binary sensor and a fault_code string only.
+    """
+    device_id = "bf9988776655ambient01"
+    raw = {**RAW, "13": 524288}
+    state = DeviceState.from_dps(raw, layout=LAYOUT_NANO_FI_3KW)
+
+    client = MagicMock()
+    client.host, client.port, client.device_id = "10.0.0.65", 6668, device_id
+    client.connected, client.state = True, state
+    client.detected_version = "3.5"
+    client.dp_layout = LAYOUT_NANO_FI_3KW
+    for m in ("connect", "disconnect", "set_dp", "set_multiple"):
+        setattr(client, m, AsyncMock(return_value=None))
+    client.get_status = AsyncMock(return_value=state)
+    client.add_listener = MagicMock(return_value=lambda: None)
+    client.add_connection_listener = MagicMock(return_value=lambda: None)
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=device_id,
+        data={
+            CONF_HOST: "10.0.0.65",
+            CONF_PORT: 6668,
+            CONF_DEVICE_ID: device_id,
+            CONF_LOCAL_KEY: "0123456789abcdef",
+            CONF_MODEL: "nano_fi_3kw",
+        },
+        version=1,
+        minor_version=1,
+    )
+    entry.add_to_hass(hass)
+    with patch(
+        "custom_components.poolex_silverline.SilverlineClient", return_value=client
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    reg = er.async_get(hass)
+    by_uid = {
+        e.unique_id: e
+        for e in reg.entities.values()
+        if e.config_entry_id == entry.entry_id
+    }
+    amb = by_uid.get(f"{device_id}_fault_ambient_range")
+    assert amb is not None, "bit 19 must get its own binary sensor"
+    assert hass.states.get(amb.entity_id).state == STATE_ON
+
+    fc = by_uid.get(f"{device_id}_fault_code")
+    assert hass.states.get(fc.entity_id).state == "ambient_range", (
+        "an uncoded bit must still be named in fault_code, not left as bit19"
+    )
+
+    # Let any debounce window elapse — an uncoded bit must never open a card.
+    coord = entry.runtime_data
+    with patch("custom_components.poolex_silverline.coordinator.time.monotonic") as m:
+        m.return_value = 2_000_000.0 + E03_DEBOUNCE_SECONDS * 4
+        coord.async_set_updated_data(state)
+        await hass.async_block_till_done()
+    issues = ir.async_get(hass)
+    assert issues.issues == {}, (
+        "an ambient-range protection must not raise a Repair card"
     )

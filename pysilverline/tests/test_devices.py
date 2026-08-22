@@ -218,20 +218,30 @@ def test_fault_table_travels_with_the_layout_not_the_dp_number() -> None:
     assert LAYOUT_STANDARD.fault_table.names[8] == "defrost_sensor"
     assert LAYOUT_NANO_FI_3KW.fault_table.names[8] == "water_flow"
     assert LAYOUT_STANDARD.fault_table.codes[8] == "P1"
-    assert LAYOUT_NANO_FI_3KW.fault_table.codes[8] == "E03"
+    # ...and print a different service code for it, too: the FI wired
+    # controller displays E25 where the classic panel displays P1 (issue #19,
+    # panel photograph 2026-08-22). An earlier revision assumed E03 here, the
+    # classic manual's water-flow code — wrong for the same reason the bit was.
+    assert LAYOUT_NANO_FI_3KW.fault_table.codes[8] == "E25"
 
     assert LAYOUT_NANO_FI_3KW.fault_table is NANO_FI_FAULT_TABLE
     assert LAYOUT_NANO_5KW.fault_table is NANO_5KW_FAULT_TABLE
     for layout in (LAYOUT_STANDARD, LAYOUT_V34_WFZEIYN, LAYOUT_PC_INV_120):
         assert layout.fault_table is STANDARD_FAULT_TABLE
 
-    # Names and codes must stay in lock-step: a bit named but uncoded (or
-    # vice versa) is how a decoder reads a position out of one table and a
-    # service code out of the other.
+    # Every coded bit must be named. The reverse is allowed and used: a bit
+    # we can name but do not want to raise a Repair card for is named-only.
+    # A code with no name would be the dangerous direction — that is what
+    # lets a decoder read a position out of one table and a service code out
+    # of the other.
     for table in (STANDARD_FAULT_TABLE, NANO_5KW_FAULT_TABLE, NANO_FI_FAULT_TABLE):
-        assert set(table.names) == set(table.codes)
+        assert set(table.codes) <= set(table.names)
 
-    # The FI table is deliberately sparse — only bit 8 is confirmed on this
-    # firmware. The classic family's other assignments were never verified
-    # here and must not be carried over just because the DP number matches.
-    assert set(NANO_FI_FAULT_TABLE.names) == {8}
+    # The FI table is deliberately sparse — the classic family's assignments
+    # were never verified here and must not be carried over just because the
+    # DP number matches. Bit 19 is the named-but-uncoded case: an
+    # ambient-range protection, confirmed by panel and app, that is
+    # weather-driven and self-clearing, so it gets a name and no Repair card.
+    assert set(NANO_FI_FAULT_TABLE.names) == {8, 19}
+    assert set(NANO_FI_FAULT_TABLE.codes) == {8}
+    assert NANO_FI_FAULT_TABLE.names[19] == "ambient_range"

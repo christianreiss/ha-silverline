@@ -203,8 +203,10 @@ LAYOUT_NANO_FI_3KW = DpLayout(
     # this firmware against a clamp meter. Kept at 1 so both AC layouts behave
     # alike; set to 10 here if a reporter confirms tenths on this unit.
     ac_current_divisor=1,
-    # DP 13 like the classic family, but bit 8 is water flow, not the
-    # defrost sensor — hardware-confirmed, see NANO_FI_FAULT_BIT_NAMES.
+    # DP 13 like the classic family, but neither the bit layout nor the
+    # printed service codes carry over: bit 8 is water flow (panel code E25,
+    # not the classic E03) and bit 19 is the ambient-range protection. Both
+    # hardware-confirmed — see NANO_FI_FAULT_BIT_NAMES / _CODES.
     fault_table=NANO_FI_FAULT_TABLE,
     defrosting=115,
     heating_time=124,

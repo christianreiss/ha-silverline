@@ -140,6 +140,7 @@
       "water_pump": { "name": "Pompa wody" },
       "defrosting": { "name": "Rozmrażanie" },
       "fault_water_flow": { "name": "Błąd przepływu wody" },
+      "fault_ambient_range": { "name": "Temperatura otoczenia poza zakresem" },
       "fault_antifreeze": { "name": "Błąd ochrony przeciwzamrożeniowej" },
       "fault_high_pressure": { "name": "Błąd wysokiego ciśnienia" },
       "fault_low_pressure": { "name": "Błąd niskiego ciśnienia" },
@@ -179,6 +180,10 @@
   "issues": {
     "fault_E03": {
       "title": "Błąd przepływu wody (E03)",
+      "description": "Pompa ciepła nie wykrywa przepływu wody. Sprawdź, czy pompa filtrująca działa i czy filtr jest czysty. Grzanie jest wstrzymane do czasu przywrócenia przepływu. Ta karta zniknie automatycznie, gdy urządzenie skasuje błąd."
+    },
+    "fault_E25": {
+      "title": "Błąd przepływu wody (E25)",
       "description": "Pompa ciepła nie wykrywa przepływu wody. Sprawdź, czy pompa filtrująca działa i czy filtr jest czysty. Grzanie jest wstrzymane do czasu przywrócenia przepływu. Ta karta zniknie automatycznie, gdy urządzenie skasuje błąd."
     },
     "fault_E04": {

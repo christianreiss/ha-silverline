@@ -140,6 +140,7 @@
       "water_pump": { "name": "Water pump" },
       "defrosting": { "name": "Defrosting" },
       "fault_water_flow": { "name": "Water flow fault" },
+      "fault_ambient_range": { "name": "Ambient temperature out of range" },
       "fault_antifreeze": { "name": "Antifreeze fault" },
       "fault_high_pressure": { "name": "High pressure fault" },
       "fault_low_pressure": { "name": "Low pressure fault" },
@@ -179,6 +180,10 @@
   "issues": {
     "fault_E03": {
       "title": "Water flow fault (E03)",
+      "description": "The heat pump can't detect water flow. Check that the filter pump is running and the filter is clean. The heat pump halts heating until flow is restored. This card disappears automatically once the device clears the fault."
+    },
+    "fault_E25": {
+      "title": "Water flow fault (E25)",
       "description": "The heat pump can't detect water flow. Check that the filter pump is running and the filter is clean. The heat pump halts heating until flow is restored. This card disappears automatically once the device clears the fault."
     },
     "fault_E04": {

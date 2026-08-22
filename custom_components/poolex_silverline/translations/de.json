@@ -140,6 +140,7 @@
       "water_pump": { "name": "Wasserpumpe" },
       "defrosting": { "name": "Abtauen" },
       "fault_water_flow": { "name": "Wasserdurchfluss-Fehler" },
+      "fault_ambient_range": { "name": "Umgebungstemperatur außerhalb des Bereichs" },
       "fault_antifreeze": { "name": "Frostschutz-Fehler" },
       "fault_high_pressure": { "name": "Hochdruck-Fehler" },
       "fault_low_pressure": { "name": "Niederdruck-Fehler" },
@@ -179,6 +180,10 @@
   "issues": {
     "fault_E03": {
       "title": "Wasserdurchfluss-Fehler (E03)",
+      "description": "Die Wärmepumpe erkennt keinen Wasserdurchfluss. Filterpumpe und Filter prüfen. Heizen ist gesperrt, bis der Durchfluss wieder vorhanden ist. Die Karte verschwindet automatisch, sobald das Gerät den Fehler zurücksetzt."
+    },
+    "fault_E25": {
+      "title": "Wasserdurchfluss-Fehler (E25)",
       "description": "Die Wärmepumpe erkennt keinen Wasserdurchfluss. Filterpumpe und Filter prüfen. Heizen ist gesperrt, bis der Durchfluss wieder vorhanden ist. Die Karte verschwindet automatisch, sobald das Gerät den Fehler zurücksetzt."
     },
     "fault_E04": {

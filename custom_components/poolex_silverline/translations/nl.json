@@ -140,6 +140,7 @@
       "water_pump": { "name": "Waterpomp" },
       "defrosting": { "name": "Ontdooien" },
       "fault_water_flow": { "name": "Waterdoorstromingsfout" },
+      "fault_ambient_range": { "name": "Omgevingstemperatuur buiten bereik" },
       "fault_antifreeze": { "name": "Antivriesfout" },
       "fault_high_pressure": { "name": "Hogedrukfout" },
       "fault_low_pressure": { "name": "Lagedrukfout" },
@@ -179,6 +180,10 @@
   "issues": {
     "fault_E03": {
       "title": "Waterdoorstromingsfout (E03)",
+      "description": "De warmtepomp detecteert geen waterdoorstroming. Controleer of de filterpomp draait en het filter schoon is. Het verwarmen wordt onderbroken totdat de doorstroming is hersteld. Deze kaart verdwijnt automatisch zodra het apparaat de fout wist."
+    },
+    "fault_E25": {
+      "title": "Waterdoorstromingsfout (E25)",
       "description": "De warmtepomp detecteert geen waterdoorstroming. Controleer of de filterpomp draait en het filter schoon is. Het verwarmen wordt onderbroken totdat de doorstroming is hersteld. Deze kaart verdwijnt automatisch zodra het apparaat de fout wist."
     },
     "fault_E04": {

@@ -332,9 +332,15 @@ async def test_nano_5kw_fault_does_not_create_dp13_repair_issue(
     )
 
 
-async def test_nano_fi_water_flow_raises_e03_not_p1(hass: HomeAssistant) -> None:
+async def test_nano_fi_water_flow_raises_e25_not_p1(hass: HomeAssistant) -> None:
     """On Full Inverter firmware DP 13 = 256 is a water-flow fault, so the
-    Repair card must be E03 water flow — never P1 defrost sensor (issue #19).
+    Repair card must be the FI panel's water-flow code — never P1 defrost
+    sensor (issue #19).
+
+    The code is E25, not the classic family's E03: the reporter photographed
+    his wired controller during the fault. Two families, one DP, different
+    bit *and* different printed code — which is why both travel together on
+    the layout's fault table.
 
     Both families report on DP 13, so the reconciler is driven by the
     model's own DpLayout.fault_table rather than by the DP number. This also
@@ -356,17 +362,18 @@ async def test_nano_fi_water_flow_raises_e03_not_p1(hass: HomeAssistant) -> None
 
     # Inside the debounce window: water flow is held back, nothing raised.
     reconciler.reconcile(hass, state, now=0.0, table=NANO_FI_FAULT_TABLE)
-    assert _issue(hass, "fault_E03") is None
+    assert _issue(hass, "fault_E25") is None
     assert _issue(hass, "fault_P1") is None
 
-    # Past it: E03, and P1 must never appear.
+    # Past it: E25, and neither P1 nor the classic family's E03 may appear.
     reconciler.reconcile(
         hass, state, now=E03_DEBOUNCE_SECONDS + 1, table=NANO_FI_FAULT_TABLE
     )
-    issue = _issue(hass, "fault_E03")
+    issue = _issue(hass, "fault_E25")
     assert issue is not None
-    assert issue.translation_key == "fault_E03"
+    assert issue.translation_key == "fault_E25"
     assert _issue(hass, "fault_P1") is None, "bit 8 is water flow on FI firmware"
+    assert _issue(hass, "fault_E03") is None, "E03 is the classic family's code"
 
     # Flow restored → the card clears itself, same as every other fault.
     cleared = DeviceState.from_dps(
@@ -376,4 +383,4 @@ async def test_nano_fi_water_flow_raises_e03_not_p1(hass: HomeAssistant) -> None
     reconciler.reconcile(
         hass, cleared, now=E03_DEBOUNCE_SECONDS + 2, table=NANO_FI_FAULT_TABLE
     )
-    assert _issue(hass, "fault_E03") is None
+    assert _issue(hass, "fault_E25") is None

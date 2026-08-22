@@ -30,7 +30,19 @@ PARALLEL_UPDATES = 0
 # The remaining names become disabled-by-default entities the user can turn
 # on if they care about that specific fault.
 _DEFAULT_ENABLED_FAULT_NAMES: frozenset[str] = frozenset(
-    {"water_flow", "antifreeze", "high_pressure", "low_pressure", "communication"}
+    {
+        "water_flow",
+        "antifreeze",
+        "high_pressure",
+        "low_pressure",
+        "communication",
+        # Operational, not a sensor diagnosis: an FI unit that has stopped
+        # because the air is too cold or too hot looks identical to one that
+        # is simply idle, and this is the only entity that tells them apart.
+        # It raises no Repair card (issue #19) — this sensor is where the
+        # ambient-range protection surfaces at all.
+        "ambient_range",
+    }
 )
 
 

@@ -140,6 +140,7 @@
       "water_pump": { "name": "Pompa dell'acqua" },
       "defrosting": { "name": "Sbrinamento" },
       "fault_water_flow": { "name": "Guasto flusso d'acqua" },
+      "fault_ambient_range": { "name": "Temperatura ambiente fuori intervallo" },
       "fault_antifreeze": { "name": "Guasto protezione antigelo" },
       "fault_high_pressure": { "name": "Guasto alta pressione" },
       "fault_low_pressure": { "name": "Guasto bassa pressione" },
@@ -179,6 +180,10 @@
   "issues": {
     "fault_E03": {
       "title": "Guasto flusso d'acqua (E03)",
+      "description": "La pompa di calore non rileva flusso d'acqua. Controlla che la pompa di filtrazione sia in funzione e che il filtro sia pulito. Il riscaldamento resta sospeso finché il flusso non viene ripristinato. Questa scheda scompare automaticamente quando il dispositivo azzera il guasto."
+    },
+    "fault_E25": {
+      "title": "Guasto flusso d'acqua (E25)",
       "description": "La pompa di calore non rileva flusso d'acqua. Controlla che la pompa di filtrazione sia in funzione e che il filtro sia pulito. Il riscaldamento resta sospeso finché il flusso non viene ripristinato. Questa scheda scompare automaticamente quando il dispositivo azzera il guasto."
     },
     "fault_E04": {

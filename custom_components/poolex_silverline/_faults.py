@@ -23,6 +23,9 @@ from .const import DOMAIN, E03_DEBOUNCE_SECONDS
 # are warnings — annoying but the unit usually recovers on its own.
 _FAULT_SEVERITY: Final[dict[str, ir.IssueSeverity]] = {
     "E03": ir.IssueSeverity.ERROR,
+    # Full Inverter firmware prints E25 for the water-flow fault the classic
+    # family prints E03 for (issue #19) — same severity, different vocabulary.
+    "E25": ir.IssueSeverity.ERROR,
     "E04": ir.IssueSeverity.ERROR,
     "E05": ir.IssueSeverity.ERROR,
     "E06": ir.IssueSeverity.ERROR,
@@ -119,6 +122,11 @@ class FaultReconciler:
         ``now`` is a monotonic timestamp supplied by the caller so the
         debounce clock stays patchable from the coordinator under test.
         """
+        # Iterating ``table.codes`` (not ``table.names``) is what makes a
+        # named-but-uncoded bit card-free: it never enters active_bits, so it
+        # reaches the user through the binary sensor and the fault_code string
+        # without opening a Repair issue. The FI table uses that for its
+        # weather-driven ambient-range protection — see NANO_FI_FAULT_BIT_NAMES.
         active_bits: set[int] = set()
         fault = state.fault
         if isinstance(fault, int) and fault != 0:

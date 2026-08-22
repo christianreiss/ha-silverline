@@ -140,6 +140,7 @@
       "water_pump": { "name": "Pompe à eau" },
       "defrosting": { "name": "Dégivrage" },
       "fault_water_flow": { "name": "Défaut de débit d'eau" },
+      "fault_ambient_range": { "name": "Température ambiante hors plage" },
       "fault_antifreeze": { "name": "Défaut antigel" },
       "fault_high_pressure": { "name": "Défaut haute pression" },
       "fault_low_pressure": { "name": "Défaut basse pression" },
@@ -179,6 +180,10 @@
   "issues": {
     "fault_E03": {
       "title": "Défaut de débit d'eau (E03)",
+      "description": "La pompe à chaleur ne détecte pas de débit d'eau. Vérifiez que la pompe de filtration fonctionne et que le filtre est propre. Le chauffage est suspendu jusqu'au rétablissement du débit. Cette carte disparaît automatiquement dès que l'appareil efface le défaut."
+    },
+    "fault_E25": {
+      "title": "Défaut de débit d'eau (E25)",
       "description": "La pompe à chaleur ne détecte pas de débit d'eau. Vérifiez que la pompe de filtration fonctionne et que le filtre est propre. Le chauffage est suspendu jusqu'au rétablissement du débit. Cette carte disparaît automatiquement dès que l'appareil efface le défaut."
     },
     "fault_E04": {
