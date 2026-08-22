@@ -134,6 +134,20 @@ class FakeTuya35Server:
         self._writer.write(wire)
         await self._writer.drain()
 
+    async def push_response(self, cmd: int, body: dict[str, Any]) -> None:
+        """Send an unrequested *response*-shaped frame (retcode + body).
+
+        Models firmware that answers one DP_QUERY with more than one frame,
+        or answers a request the client already gave up on: the payload is
+        response-shaped (leading retcode), but nothing is awaiting it.
+        """
+        if self._writer is None or self.session_key is None:
+            raise RuntimeError("push before handshake complete")
+        payload = struct.pack(">I", 0) + json.dumps(body).encode()
+        wire = _encode_35(0xABCE, cmd, payload, self.session_key)
+        self._writer.write(wire)
+        await self._writer.drain()
+
     async def push_malformed(self) -> None:
         """Send a session-key frame with a corrupted v3.5 suffix.
 
@@ -730,3 +744,50 @@ async def test_pinned_v35_against_v33_server_raises() -> None:
         with pytest.raises(CannotConnect):
             await client.connect()
         await client.disconnect()
+
+
+async def test_v35_unrequested_query_response_is_merged_not_dropped() -> None:
+    """A DP_QUERY response nobody awaits carries state; keep it.
+
+    Until this test, ``_dispatch`` matched such a frame against the pending
+    requests, found none, and then fell through the STATUS branch too — the
+    frame vanished without so much as a log line. Two real shapes land here:
+    a firmware that splits one query answer across several frames, and a late
+    answer to a request that already timed out. Both are full-state
+    snapshots, so dropping them loses DPs that may never be offered again —
+    the open half of issue #19, where the Nano Fi's 124-145 config block
+    shows up on some connections and not others.
+    """
+    async with FakeTuya35Server() as server:
+        server.handlers[const.CMD_DP_QUERY_NEW] = _dp_query_handler({"1": True})
+        client = SilverlineClient(
+            host="127.0.0.1",
+            port=server.port,
+            device_id=DEVICE_ID,
+            local_key=KEY,
+            protocol_version="3.5",
+            request_timeout=2.0,
+        )
+        seen: list[Any] = []
+        client.add_listener(lambda state: seen.append(state))
+        await client.connect()
+        try:
+            state = await client.get_status()
+            assert "142" not in state.raw
+
+            await server.push_response(
+                const.CMD_DP_QUERY_NEW,
+                {"devId": DEVICE_ID, "dps": {"142": 40, "145": 7}},
+            )
+            for _ in range(50):
+                if seen:
+                    break
+                await asyncio.sleep(0.02)
+
+            assert seen, "the unrequested query response never reached a listener"
+            # Merged, not replaced: the DP from the original query survives.
+            assert client.state.raw["142"] == 40
+            assert client.state.raw["145"] == 7
+            assert client.state.raw["1"] is True
+        finally:
+            await client.disconnect()

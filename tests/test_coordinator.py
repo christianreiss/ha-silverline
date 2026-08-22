@@ -386,3 +386,73 @@ async def test_union_does_not_resurrect_a_deliberately_excluded_dp(
             f"{description.key} would now register against the unexplained DP 101"
         )
     assert entities, "sanity: the entry did create its normal entities"
+
+
+async def test_a_push_storm_does_not_starve_the_periodic_poll(
+    hass: HomeAssistant,
+    mock_client_factory,
+    init_integration,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Single-DP pushes must not keep rescheduling the full-state poll.
+
+    Regression test for the mechanism behind issue #19's config-sensor
+    lottery. ``DataUpdateCoordinator.async_set_updated_data`` resets the
+    refresh timer by design — right for firmware whose push carries the
+    whole state, fatal here, where a Nano Fi pushes one DP at a time every
+    ~2.4 s against a 30 s interval. The real field log (2026-08-22) holds
+    215 pushes and exactly one DP_QUERY across 8.6 minutes: the startup read
+    was the only full-state read of the session, so anything the firmware
+    left out of it never arrived at all.
+
+    The coordinator schedules with ``loop.call_at`` on the event loop's
+    monotonic clock, not ``utcnow()``, so the loop clock is what has to
+    advance for a rescheduling bug to be visible — freezing ``dt_util`` alone
+    leaves the target where it was and the test passes either way. Each tick
+    therefore advances the fake loop clock and then asks only whether
+    anything is due within the *next* step, which is what makes a timer that
+    keeps sliding forward distinguishable from one that does not.
+    """
+    coordinator = init_integration.runtime_data
+    interval = coordinator.update_interval
+    assert interval is not None
+    listeners = mock_client_factory.listeners
+    mock_client_factory.get_status.reset_mock()
+
+    step = interval / 6
+    clock = {"now": hass.loop.time()}
+    monkeypatch.setattr(hass.loop, "time", lambda: clock["now"])
+
+    # Push one DP at a time, faster than the poll interval, across two full
+    # intervals of wall clock — the shape the field log shows.
+    for tick in range(1, 13):
+        clock["now"] += step.total_seconds()
+        listeners[0](DeviceState.from_dps({"1": True, "120": 230 + tick % 5}))
+        async_fire_time_changed(hass, dt_util.utcnow() + step)
+        await hass.async_block_till_done()
+
+    assert mock_client_factory.get_status.call_count >= 1, (
+        "the periodic poll never ran: every push reset its timer, so the "
+        "startup query is the only full-state read the device ever gets"
+    )
+
+
+async def test_a_push_only_dp_still_reaches_supported_dps(
+    hass: HomeAssistant, mock_client_factory, init_integration
+) -> None:
+    """A DP first seen in a push counts as supported, not just a polled one.
+
+    The accumulator used to live in the poll path alone, which assumed every
+    DP eventually shows up in a DP_QUERY response. This firmware disproves
+    that: DP 115 (defrosting) rides ordinary status pushes while the 124-145
+    config block does not ride pushes at all.
+    """
+    coordinator = init_integration.runtime_data
+    assert "115" not in coordinator.supported_dps
+
+    mock_client_factory.listeners[0](
+        DeviceState.from_dps({"1": True, "13": 0, "115": 1})
+    )
+    await hass.async_block_till_done()
+
+    assert "115" in coordinator.supported_dps

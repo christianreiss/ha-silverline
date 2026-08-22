@@ -172,6 +172,48 @@ class SilverlineCoordinator(DataUpdateCoordinator[DeviceState]):
             # other reason — surface as UpdateFailed so HA keeps the entry
             # loaded and retries on the next tick.
             raise UpdateFailed(f"poll rejected: {err}") from err
+        # The DataUpdateCoordinator base assigns the return value to
+        # self.data directly without going through async_set_updated_data,
+        # so the poll path needs to invoke the side effects itself.
+        self._process_state(state)
+        return state
+
+    @callback
+    def _handle_push(self, state: DeviceState) -> None:
+        # Deliberately NOT async_set_updated_data. That helper resets the
+        # poll timer — "reset refresh interval" is its own docstring — which
+        # is correct for firmware whose push carries the complete state, and
+        # wrong for this one, where every push carries exactly one DP.
+        #
+        # Measured on a Nano Fi 5kW with the compressor running (issue #19
+        # field log, 2026-08-22): 215 pushes in 8.6 minutes, every one of
+        # them a single DP, longest gap between them 23.6 s. Against the 30 s
+        # default interval that timer never survived to fire even once, so
+        # the DP_QUERY issued at startup was the only full-state read of the
+        # entire session. A DP the firmware omits from that one response
+        # then stays missing until Home Assistant restarts — and the busier
+        # the unit, the harder the poll is starved, so the outage is worst
+        # exactly when the data matters most.
+        #
+        # Publish the push, leave the refresh schedule alone.
+        self._process_state(state)
+        self.data = state
+        # A push proves the socket is alive. async_set_updated_data would
+        # have restored availability after a failed poll; keep that.
+        self.last_update_success = True
+        self.async_update_listeners()
+
+    @callback
+    def async_set_updated_data(self, data: DeviceState) -> None:
+        self._process_state(data)
+        super().async_set_updated_data(data)
+
+    @callback
+    def _process_state(self, state: DeviceState) -> None:
+        # Single chokepoint for every fresh state, push or poll. Keeps the
+        # issue registry and runtime accumulator consistent regardless of
+        # which path delivered the state.
+        #
         # Accumulate the DPs the firmware actually emits. Platforms read this
         # in their async_setup_entry to skip entities that would otherwise
         # spend their whole lifetime `unavailable`.
@@ -185,27 +227,11 @@ class SilverlineCoordinator(DataUpdateCoordinator[DeviceState]):
         # its core entities exist without that guarantee suppressing an
         # optional DP the unit does send. Growth after setup is inert
         # (platforms have already registered) but keeps diagnostics honest.
+        #
+        # Lives here rather than in the poll path because the poll is not the
+        # only way a DP is first seen: `state` is the client's accumulated
+        # snapshot, so a DP that only ever arrives in a push counts too.
         self.supported_dps |= frozenset(state.raw.keys())
-        # The DataUpdateCoordinator base assigns the return value to
-        # self.data directly without going through async_set_updated_data,
-        # so the poll path needs to invoke the side effects itself.
-        self._process_state(state)
-        return state
-
-    @callback
-    def _handle_push(self, state: DeviceState) -> None:
-        self.async_set_updated_data(state)
-
-    @callback
-    def async_set_updated_data(self, data: DeviceState) -> None:
-        self._process_state(data)
-        super().async_set_updated_data(data)
-
-    @callback
-    def _process_state(self, state: DeviceState) -> None:
-        # Single chokepoint for every fresh state, push or poll. Keeps the
-        # issue registry and runtime accumulator consistent regardless of
-        # which path delivered the state.
         #
         # monotonic() is read HERE (not inside the reconciler) so the E03
         # debounce clock stays patchable as

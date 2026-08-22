@@ -670,6 +670,19 @@ class SilverlineClient:
                 if not fut.done():
                     fut.set_result(frame)
                 return
+            if frame.cmd in _QUERY_CMDS:
+                # A query response nobody is waiting for. Until now this fell
+                # through both branches and was dropped without a trace, which
+                # made it invisible: a firmware that answers one DP_QUERY with
+                # more than one frame, or answers late after a timeout, had
+                # every frame past the first silently discarded. Either way the
+                # payload is a full-state snapshot, so merging it is strictly
+                # better than binning it — and the log line means the next
+                # field capture says whether this actually happens (issue #19,
+                # where the 124-145 config block arrives on some connections
+                # and not others, still unexplained).
+                self._merge_unsolicited_query(frame)
+                return
 
         if frame.cmd in (const.CMD_STATUS, const.CMD_DP_REFRESH):
             ciphertext = self._codec.split_request_payload(frame.payload)
@@ -721,6 +734,40 @@ class SilverlineClient:
                     listener(self._state)
                 except Exception:
                     _LOGGER.exception("push listener raised")
+
+    def _merge_unsolicited_query(self, frame: Frame) -> None:
+        """Merge a DP_QUERY(_NEW) response that no request was awaiting."""
+        try:
+            retcode, ciphertext = self._codec.split_response_payload(
+                frame.cmd, frame.payload
+            )
+            if retcode not in (None, 0):
+                _LOGGER.debug(
+                    "ignoring unsolicited %s response retcode=0x%08x",
+                    _query_cmd_name(frame.cmd),
+                    retcode,
+                )
+                return
+            decoded = self._codec.decrypt_body(ciphertext)
+        except (InvalidAuth, ProtocolError):
+            # Same treatment as an undecryptable push: drop it. A wrong key
+            # is caught by the next poll, corruption by the next frame.
+            _LOGGER.debug(
+                "ignoring undecryptable unsolicited %s response (%d bytes)",
+                _query_cmd_name(frame.cmd),
+                len(frame.payload),
+            )
+            return
+        dps = _unwrap_dps(decoded)
+        if not dps:
+            return
+        _LOGGER.debug("unsolicited %s response dps=%s", _query_cmd_name(frame.cmd), dps)
+        self._state = self._state.merge(dps, layout=self._dp_layout)
+        for listener in list(self._listeners):
+            try:
+                listener(self._state)
+            except Exception:
+                _LOGGER.exception("push listener raised")
 
     async def _heartbeat_loop(self) -> None:
         # The observed v3.4 WBR3 pool firmware closes the TCP session shortly
