@@ -207,9 +207,11 @@ class SilverlineClimate(SilverlineEntity, ClimateEntity, RestoreEntity):
         if (state := self.coordinator.data) is not None and state.temp_set is not None:
             current_set = int(round(float(state.temp_set)))
 
-        await self._write_dps(
-            {tuya_const.DP_POWER: True, tuya_const.DP_MODE: mode_string}
-        )
+        # Power and mode go out as separate frames — see
+        # SilverlineEntity._write_mode. Bundling them is what made a mode
+        # change on a powered-off Full Inverter unit revert to off (issues
+        # #7 and #19), and this was the last path still doing it.
+        await self._write_mode(mode_string)
         # Device has per-mode setpoint memory: entering a mode triggers a
         # restore-push for that mode's last temp ~430-500 ms later, which
         # would overwrite any setpoint a chained service call writes too soon.

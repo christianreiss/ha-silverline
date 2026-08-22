@@ -120,12 +120,16 @@ async def test_operating_mode_select_off_writes_dp1_false(
     mock_client_factory.set_multiple.assert_awaited_with({1: False})
 
 
-async def test_operating_mode_select_heat_writes_dp1_true_and_mode_and_sleeps(
+async def test_operating_mode_select_heat_writes_mode_and_sleeps(
     hass: HomeAssistant, mock_client_factory, init_integration, monkeypatch
 ) -> None:
-    """async_select_option('heat') writes {1:True, 4:'Heat'} and then
-    awaits the _MODE_TRANSITION_SETTLE sleep so a chained call doesn't
-    race the device's per-mode-memory restore push."""
+    """async_select_option('heat') writes {4:'Heat'} and then awaits the
+    _MODE_TRANSITION_SETTLE sleep so a chained call doesn't race the
+    device's per-mode-memory restore push.
+
+    The unit is already running here, so no DP-1 write goes out at all —
+    the Tuya app doesn't send one either, and a redundant power write is one
+    more chance for the firmware to take exception (issue #19)."""
     import custom_components.poolex_silverline.select as select_mod
 
     recorded: list[float] = []
@@ -143,11 +147,11 @@ async def test_operating_mode_select_heat_writes_dp1_true_and_mode_and_sleeps(
         {ATTR_ENTITY_ID: OPMODE_ENTITY, ATTR_OPTION: "heat"},
         blocking=True,
     )
-    mock_client_factory.set_multiple.assert_awaited_with({1: True, 4: "Heat"})
+    mock_client_factory.set_multiple.assert_awaited_with({4: "Heat"})
     assert select_mod.MODE_TRANSITION_SETTLE in recorded
 
 
-async def test_operating_mode_select_cool_writes_dp1_true_and_cool(
+async def test_operating_mode_select_cool_writes_cool(
     hass: HomeAssistant, mock_client_factory, init_integration
 ) -> None:
     await hass.services.async_call(
@@ -156,7 +160,7 @@ async def test_operating_mode_select_cool_writes_dp1_true_and_cool(
         {ATTR_ENTITY_ID: OPMODE_ENTITY, ATTR_OPTION: "cool"},
         blocking=True,
     )
-    mock_client_factory.set_multiple.assert_awaited_with({1: True, 4: "Cool"})
+    mock_client_factory.set_multiple.assert_awaited_with({4: "Cool"})
 
 
 async def test_operating_mode_select_heat_cool_writes_auto(
@@ -168,7 +172,7 @@ async def test_operating_mode_select_heat_cool_writes_auto(
         {ATTR_ENTITY_ID: OPMODE_ENTITY, ATTR_OPTION: "heat_cool"},
         blocking=True,
     )
-    mock_client_factory.set_multiple.assert_awaited_with({1: True, 4: "Auto"})
+    mock_client_factory.set_multiple.assert_awaited_with({4: "Auto"})
 
 
 async def test_operating_mode_select_off_does_not_sleep(
@@ -457,7 +461,7 @@ async def test_pc_inv_120_model_threads_profile_to_dp4_writes(
         {ATTR_ENTITY_ID: OPMODE_ENTITY, ATTR_OPTION: "heat_cool"},
         blocking=True,
     )
-    mock_client_factory.set_multiple.assert_awaited_with({1: True, 4: "auto"})
+    mock_client_factory.set_multiple.assert_awaited_with({4: "auto"})
 
 
 @pytest.mark.parametrize(
@@ -505,7 +509,7 @@ async def test_operating_mode_select_preserves_preset(
         {ATTR_ENTITY_ID: OPMODE_ENTITY, ATTR_OPTION: option},
         blocking=True,
     )
-    mock_client_factory.set_multiple.assert_awaited_with({1: True, 4: expected})
+    mock_client_factory.set_multiple.assert_awaited_with({4: expected})
 
 
 async def test_operating_mode_select_heat_cool_drops_preset(
@@ -527,4 +531,60 @@ async def test_operating_mode_select_heat_cool_drops_preset(
         {ATTR_ENTITY_ID: OPMODE_ENTITY, ATTR_OPTION: "heat_cool"},
         blocking=True,
     )
-    mock_client_factory.set_multiple.assert_awaited_with({1: True, 4: "Auto"})
+    mock_client_factory.set_multiple.assert_awaited_with({4: "Auto"})
+
+
+async def test_operating_mode_select_from_off_writes_power_then_mode(
+    hass: HomeAssistant, mock_client_factory, init_integration, monkeypatch
+) -> None:
+    """Issue #19's reproduction, step for step.
+
+    The reporter set the operating mode to "stopped", then to "cooling", and
+    the unit never came back on: HA showed ON, the vendor app stayed OFF, and
+    a few minutes later the unit reverted to off on its own. That is the same
+    signature climate.async_turn_on has carried a workaround for since issue
+    #7 — Full Inverter firmware acknowledges a bundled {1: True, 4: mode}
+    frame and then powers itself back down. This dropdown was still bundling.
+
+    Power and mode must go out as two frames, power first, and the two must
+    never share a frame.
+    """
+    from unittest.mock import AsyncMock
+
+    import custom_components.poolex_silverline.entity as entity_mod
+
+    monkeypatch.setattr(entity_mod.asyncio, "sleep", AsyncMock())
+    coordinator = init_integration.runtime_data
+
+    await hass.services.async_call(
+        SELECT_DOMAIN,
+        SERVICE_SELECT_OPTION,
+        {ATTR_ENTITY_ID: OPMODE_ENTITY, ATTR_OPTION: "off"},
+        blocking=True,
+    )
+    mock_client_factory.set_multiple.assert_awaited_with({1: False})
+
+    # The device confirms the power-off, exactly as the reporter's did.
+    coordinator.async_set_updated_data(
+        DeviceState.from_dps({"1": False, "4": "BoostHeat", "3": 26, "13": 0})
+    )
+    await hass.async_block_till_done()
+    mock_client_factory.set_multiple.reset_mock()
+
+    await hass.services.async_call(
+        SELECT_DOMAIN,
+        SERVICE_SELECT_OPTION,
+        {ATTR_ENTITY_ID: OPMODE_ENTITY, ATTR_OPTION: "cool"},
+        blocking=True,
+    )
+    # Plain "Cool", not "BoostCool": derive_preset collapses to none while the
+    # unit is off, by design — a preset is device-meaningless there, and this
+    # entity is stateless. Carrying a preset across an OFF→ON transition is
+    # the climate entity's job, via its remembered _last_preset.
+    calls = [c.args[0] for c in mock_client_factory.set_multiple.await_args_list]
+    assert calls == [{1: True}, {4: "Cool"}], (
+        "power and mode must be separate frames, power first"
+    )
+    assert not any(1 in dps and 4 in dps for dps in calls), (
+        "a bundled power+mode frame is what the firmware reverts on"
+    )

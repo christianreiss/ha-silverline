@@ -139,11 +139,12 @@ class SilverlineOperatingModeSelect(SilverlineEntity, SelectEntity):
     """Flat dropdown for the HVAC mode (off / heat / cool / heat_cool).
 
     Mirrors climate.SilverlineClimate.async_set_hvac_mode: the active preset
-    is carried across a heat↔cool change, and the 0.7s post-write settle
-    keeps chained service calls from racing the device's per-mode setpoint
-    restore push. It does not mirror climate's post-transition setpoint
-    clamp — the device's own per-mode memory supplies a valid setpoint here,
-    since this entity never writes DP 2.
+    is carried across a heat↔cool change, power and mode are written as
+    separate frames, and the 0.7s post-write settle keeps chained service
+    calls from racing the device's per-mode setpoint restore push. It does
+    not mirror climate's post-transition setpoint clamp — the device's own
+    per-mode memory supplies a valid setpoint here, since this entity never
+    writes DP 2.
     """
 
     _attr_translation_key = "operating_mode"
@@ -191,9 +192,11 @@ class SilverlineOperatingModeSelect(SilverlineEntity, SelectEntity):
                 translation_key="unsupported_hvac_mode",
                 translation_placeholders={"mode": option},
             )
-        await self._write_dps(
-            {tuya_const.DP_POWER: True, tuya_const.DP_MODE: mode_string}
-        )
+        # Power and mode go out as separate frames — see
+        # SilverlineEntity._write_mode. This dropdown is the path issue #19's
+        # reporter used to reproduce the revert-to-off: mode → stopped, then
+        # mode → cooling, and the unit never came back on.
+        await self._write_mode(mode_string)
         # See climate.py: the device pushes its per-mode-memory setpoint
         # ~430-500 ms after a mode change. Without this sleep, a chained
         # service call's set_temperature can be clobbered by that push.

@@ -67,7 +67,7 @@ async def test_set_hvac_off_writes_dp1_false(
     mock_client_factory.set_multiple.assert_awaited_with({1: False})
 
 
-async def test_set_hvac_heat_writes_dp1_true_and_mode(
+async def test_set_hvac_heat_writes_mode_without_bundling_power(
     hass: HomeAssistant, mock_client_factory, init_integration
 ) -> None:
     await hass.services.async_call(
@@ -76,7 +76,7 @@ async def test_set_hvac_heat_writes_dp1_true_and_mode(
         {ATTR_ENTITY_ID: ENTITY_ID, ATTR_HVAC_MODE: HVACMode.HEAT},
         blocking=True,
     )
-    mock_client_factory.set_multiple.assert_awaited_with({1: True, 4: "Heat"})
+    mock_client_factory.set_multiple.assert_awaited_with({4: "Heat"})
 
 
 async def test_set_hvac_heat_cool_writes_auto(
@@ -88,7 +88,7 @@ async def test_set_hvac_heat_cool_writes_auto(
         {ATTR_ENTITY_ID: ENTITY_ID, ATTR_HVAC_MODE: HVACMode.HEAT_COOL},
         blocking=True,
     )
-    mock_client_factory.set_multiple.assert_awaited_with({1: True, 4: "Auto"})
+    mock_client_factory.set_multiple.assert_awaited_with({4: "Auto"})
 
 
 async def test_preset_boost_during_heat_writes_boostheat(
@@ -198,7 +198,7 @@ async def test_off_to_heat_preserves_last_preset(
         {ATTR_ENTITY_ID: ENTITY_ID, ATTR_HVAC_MODE: HVACMode.HEAT},
         blocking=True,
     )
-    mock_client_factory.set_multiple.assert_awaited_with({1: True, 4: "BoostHeat"})
+    mock_client_factory.set_multiple.assert_awaited_with({4: "BoostHeat"})
 
 
 # ---------------------------------------------------------------------------
@@ -376,7 +376,7 @@ async def test_set_temperature_with_hvac_mode_kwarg_switches_mode_first(
 
     calls = mock_client_factory.set_multiple.await_args_list
     assert len(calls) == 2
-    assert calls[0].args[0] == {1: True, 4: "Cool"}
+    assert calls[0].args[0] == {4: "Cool"}
     assert calls[1].args[0] == {2: 25}
     assert climate_mod.MODE_TRANSITION_SETTLE in recorded_sleeps
 
@@ -568,7 +568,10 @@ async def test_async_turn_on_falls_back_to_mode_when_dp4_absent(
         blocking=True,
     )
     # _last_direction starts at HVACMode.HEAT, so the fallback restores Heat.
-    mock_client_factory.set_multiple.assert_awaited_with({1: True, 4: "Heat"})
+    # The unit is off, so power and mode go out as two frames, power first —
+    # never bundled, which is the shape issue #7's firmware reverts on.
+    calls = [c.args[0] for c in mock_client_factory.set_multiple.await_args_list]
+    assert calls == [{1: True}, {4: "Heat"}]
 
 
 async def test_write_surfaces_cannot_connect_as_homeassistant_error(
@@ -655,7 +658,7 @@ async def test_restore_state_recovers_last_direction_and_preset(
         {ATTR_ENTITY_ID: ENTITY_ID},
         blocking=True,
     )
-    mock_client_factory.set_multiple.assert_awaited_with({1: True, 4: "BoostCool"})
+    mock_client_factory.set_multiple.assert_awaited_with({4: "BoostCool"})
 
 
 async def test_unknown_dp4_string_maps_to_hvac_none(
@@ -768,7 +771,7 @@ async def test_mode_switch_clamps_setpoint_above_cool_max(
 
     calls = mock_client_factory.set_multiple.await_args_list
     assert len(calls) == 2
-    assert calls[0].args[0] == {1: True, 4: "Cool"}
+    assert calls[0].args[0] == {4: "Cool"}
     assert calls[1].args[0] == {2: 28}  # clamped to Cool max
 
 
@@ -798,7 +801,7 @@ async def test_mode_switch_clamps_setpoint_below_heat_min(
 
     calls = mock_client_factory.set_multiple.await_args_list
     assert len(calls) == 2
-    assert calls[0].args[0] == {1: True, 4: "Heat"}
+    assert calls[0].args[0] == {4: "Heat"}
     assert calls[1].args[0] == {2: 15}  # clamped to Heat min
 
 
@@ -829,7 +832,7 @@ async def test_mode_switch_no_clamp_when_temp_in_new_range(
 
     calls = mock_client_factory.set_multiple.await_args_list
     assert len(calls) == 1  # only mode write, no clamp
-    assert calls[0].args[0] == {1: True, 4: "Cool"}
+    assert calls[0].args[0] == {4: "Cool"}
 
 
 # ---------------------------------------------------------------------------
@@ -910,4 +913,44 @@ async def test_pc_inv_120_model_threads_profile_to_dp4_writes(
         {ATTR_ENTITY_ID: ENTITY_ID, ATTR_HVAC_MODE: HVACMode.HEAT_COOL},
         blocking=True,
     )
-    mock_client_factory.set_multiple.assert_awaited_with({1: True, 4: "auto"})
+    mock_client_factory.set_multiple.assert_awaited_with({4: "auto"})
+
+
+async def test_set_hvac_mode_from_off_writes_power_then_mode(
+    hass: HomeAssistant, mock_client_factory, init_integration, monkeypatch
+) -> None:
+    """Climate's mode change must not bundle power with the mode either.
+
+    async_turn_on has sent power alone since issue #7, where Full Inverter
+    firmware acknowledged a bundled {1: True, 4: mode} frame and then pushed
+    1=false ~7 s later with no HA write in between. async_set_hvac_mode kept
+    bundling, so anyone who changed mode while the unit was off hit the same
+    revert — reproduced step by step in issue #19.
+    """
+    from unittest.mock import AsyncMock
+
+    import custom_components.poolex_silverline.climate as climate_mod
+    import custom_components.poolex_silverline.entity as entity_mod
+
+    monkeypatch.setattr(entity_mod.asyncio, "sleep", AsyncMock())
+    monkeypatch.setattr(climate_mod.asyncio, "sleep", AsyncMock())
+
+    coordinator = init_integration.runtime_data
+    coordinator.async_set_updated_data(
+        DeviceState.from_dps({"1": False, "4": "Heat", "3": 26, "13": 0})
+    )
+    await hass.async_block_till_done()
+    mock_client_factory.set_multiple.reset_mock()
+
+    await hass.services.async_call(
+        CLIMATE_DOMAIN,
+        SERVICE_SET_HVAC_MODE,
+        {ATTR_ENTITY_ID: ENTITY_ID, ATTR_HVAC_MODE: HVACMode.COOL},
+        blocking=True,
+    )
+    calls = [c.args[0] for c in mock_client_factory.set_multiple.await_args_list]
+    assert calls[0] == {1: True}
+    assert calls[1] == {4: "Cool"}
+    assert not any(1 in dps and 4 in dps for dps in calls), (
+        "a bundled power+mode frame is what the firmware reverts on"
+    )

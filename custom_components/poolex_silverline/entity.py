@@ -2,13 +2,23 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from pysilverline import InvalidAuth, SilverlineError
+from pysilverline import const as tuya_const
 
-from .const import CONF_MODEL, DEVICE_PROFILES, DOMAIN, MANUFACTURER, MODEL
+from .const import (
+    CONF_MODEL,
+    DEVICE_PROFILES,
+    DOMAIN,
+    MANUFACTURER,
+    MODE_TRANSITION_SETTLE,
+    MODEL,
+)
 from .coordinator import SilverlineCoordinator
 
 
@@ -63,3 +73,33 @@ class SilverlineEntity(CoordinatorEntity[SilverlineCoordinator]):
                 layout=self.coordinator.client.dp_layout,
             )
             self.coordinator.async_set_updated_data(merged)
+
+    async def _write_mode(self, mode_string: str) -> None:
+        """Write the DP-4 operating mode, powering the unit on first if off.
+
+        Never bundles DP 1 and DP 4 into one frame. Full Inverter firmware
+        acknowledges such a frame and then reverts to off with no HA write
+        in between — first seen in issue #7 (device confirms 1=true, pushes
+        1=false ~7 s later) and reproduced step by step in issue #19, where
+        selecting a mode on a powered-off unit left HA showing ON, the
+        vendor app showing OFF, and the unit switching itself back off a few
+        minutes later. ``climate.async_turn_on`` has sent power alone since
+        issue #7 for exactly this reason; the two mode-change paths kept
+        bundling, which is why the bug survived there.
+
+        When the unit is already running, DP 1 is not written at all — the
+        Tuya app doesn't either, and a redundant power write is one more
+        chance for the firmware to take exception.
+
+        The cost of splitting: two writes are two failure points. A power
+        write that succeeds followed by a mode write that fails now leaves
+        the unit ON in its previous mode, where a rejected bundle left it
+        OFF. Both surface the same HomeAssistantError.
+        """
+        state = self.coordinator.data
+        if state is None or not state.power:
+            await self._write_dps({tuya_const.DP_POWER: True})
+            # Let the power-on settle before the mode frame, rather than
+            # racing the device's own startup state push.
+            await asyncio.sleep(MODE_TRANSITION_SETTLE)
+        await self._write_dps({tuya_const.DP_MODE: mode_string})
