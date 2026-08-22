@@ -26,4 +26,4 @@ __all__ = [
     "discover_once",
 ]
 
-__version__ = "0.5.9"
+__version__ = "0.5.10"
