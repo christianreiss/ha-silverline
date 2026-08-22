@@ -47,11 +47,9 @@ def _decode_fault(
     """Return every active fault bit as a comma-joined name list.
 
     - ``None`` when the backing fault DP hasn't been observed yet.
-    - ``None`` when the fault bitmap is zero — no state, which matches the
-      OEM controller's blank display when nothing is wrong. Note what this
-      looks like in HA: ``SilverlineSensor.available`` treats a ``None``
-      value as unavailable, so a healthy device shows ``fault_code`` as
-      *unavailable*, not "unknown" (issue #18 asked about exactly this).
+    - ``"ok"`` when the device explicitly reports a zero bitmap. A healthy
+      reading must stay distinct from missing telemetry: Home Assistant uses
+      ``unavailable`` to mean the state cannot currently be read.
     - Otherwise a comma-joined list of ``names`` values in bit order, plus
       ``"bit<n>"`` placeholders for any bits we don't have a symbolic name
       for so a new fault on a new firmware variant still surfaces instead
@@ -65,8 +63,10 @@ def _decode_fault(
     DP 13 but puts water flow on bit 8, where the classic family puts the
     defrost sensor (issue #19).
     """
-    if raw is None or raw == 0:
+    if raw is None:
         return None
+    if raw == 0:
+        return "ok"
     table = names if names is not None else tuya_const.FAULT_BIT_NAMES
     result: list[str] = []
     bit = 0

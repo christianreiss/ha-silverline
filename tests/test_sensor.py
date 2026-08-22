@@ -9,10 +9,19 @@ from homeassistant.const import STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
-from pysilverline.layouts import LAYOUT_V34_WFZEIYN
+from pysilverline.devices import MODEL_NANO_5KW, MODEL_NANO_FI_3KW, MODEL_STANDARD
+from pysilverline.layouts import (
+    LAYOUT_NANO_5KW,
+    LAYOUT_NANO_FI_3KW,
+    LAYOUT_STANDARD,
+    LAYOUT_V34_WFZEIYN,
+)
 from pytest_homeassistant_custom_component.common import async_fire_time_changed
 from syrupy.assertion import SnapshotAssertion
 
+from custom_components.poolex_silverline.sensor_descriptions import (
+    descriptions_for_model,
+)
 from pysilverline import DeviceState
 
 
@@ -32,16 +41,39 @@ async def test_diagnostic_sensors_populate(
     assert state.state == "63"
 
 
-async def test_fault_code_zero_mask_is_unavailable(
+async def test_fault_code_zero_mask_is_ok(
     hass: HomeAssistant, mock_client_factory, init_integration
 ) -> None:
-    """Zero mask returns None → the entity flips to `unavailable` (the
-    SENSOR availability rule pins on a non-None value_fn). Owners care
-    about *which* bit is set; "no fault" is the absence of a state."""
+    """An observed zero bitmap is a healthy reading, not lost telemetry."""
     coordinator = init_integration.runtime_data
     coordinator.async_set_updated_data(DeviceState.from_dps({"13": 0}))
     await hass.async_block_till_done()
+    assert hass.states.get("sensor.pool_heatpump_fault_code").state == "ok"
+
+
+async def test_fault_code_missing_mask_is_unavailable(
+    hass: HomeAssistant, mock_client_factory, init_integration
+) -> None:
+    """A missing bitmap still means the device supplied no fault state."""
+    coordinator = init_integration.runtime_data
+    coordinator.async_set_updated_data(DeviceState.from_dps({"1": True}))
+    await hass.async_block_till_done()
     assert hass.states.get("sensor.pool_heatpump_fault_code").state == STATE_UNAVAILABLE
+
+
+def test_fault_code_zero_mask_is_ok_for_every_fault_layout() -> None:
+    """Classic, Nano 5kW, and Nano Fi all share the healthy-state contract."""
+    cases = (
+        (MODEL_STANDARD, LAYOUT_STANDARD),
+        (MODEL_NANO_5KW, LAYOUT_NANO_5KW),
+        (MODEL_NANO_FI_3KW, LAYOUT_NANO_FI_3KW),
+    )
+    for model, layout in cases:
+        description = next(
+            item for item in descriptions_for_model(model) if item.key == "fault_code"
+        )
+        state = DeviceState.from_dps({str(layout.fault): 0}, layout=layout)
+        assert description.value_fn(state) == "ok", model
 
 
 async def test_fault_code_single_bit(

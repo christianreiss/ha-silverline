@@ -344,11 +344,13 @@ the mode change is applied first so your target lands under the new mode.
 - If the reading is present but implausible, check whether the filter pump
   has been off: the sensor sits in the heat exchanger, not the bulk pool.
 
-**The `fault_code` sensor shows `unavailable`**
-- That is the no-active-fault state, not a failure. The bitmap decodes to
-  no value when it reads zero, mirroring the blank display on the OEM
-  controller; the entity becomes available again the moment a fault bit
-  sets.
+**The `fault_code` sensor shows `ok` or `unavailable`**
+- `ok` means the device explicitly reported a zero fault bitmap: no active
+  fault.
+- `unavailable` means Home Assistant cannot currently read the fault bitmap,
+  either because that DP is missing from the latest device state or because
+  the connection is unavailable. A healthy reading is never reported as
+  unavailable.
 
 **Capturing a live DP dump for a bug report**
 - The repository ships `scripts/probe.py`, which reads credentials
