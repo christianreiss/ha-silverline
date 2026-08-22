@@ -211,6 +211,10 @@ class SilverlineCoordinator(DataUpdateCoordinator[DeviceState]):
         # bitmap on DP 21 and has never had Repair cards; the table now
         # exists to give it correct ones, but turning them on for those users
         # is a separate, deliberate change rather than a side effect here.
+        # Before lifting this gate: NANO_5KW_FAULT_TABLE's only code is "E6",
+        # which has no entry in _faults._FAULT_SEVERITY, so its card would
+        # silently come out WARNING. Water flow is ERROR on every other
+        # family — add the key at the same time as the gate.
         if self.client.dp_layout.fault == tuya_const.DP_FAULT:
             self._faults.reconcile(
                 self.hass,
