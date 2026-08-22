@@ -215,7 +215,12 @@ class SilverlineConfigFlow(ConfigFlow, domain=DOMAIN):
                 host,
                 product_key,
             )
-            _LOGGER.debug("Silverline discovery (full device_id): %s", device_id)
+            # No full device_id here, unlike the two sibling call sites. This
+            # branch fires for every *other* vendor's Tuya device on the LAN —
+            # bulbs, plugs, a neighbour's socket — and debug logs get attached
+            # to public issues (issue #19 came with one). The productKey is
+            # logged in full and is what decides this skip, so the id buys
+            # nothing diagnostically and is not ours to publish.
             return self.async_abort(reason="unsupported_product")
 
         await self.async_set_unique_id(device_id)
