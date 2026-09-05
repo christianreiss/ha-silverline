@@ -60,7 +60,7 @@ WiFi control board (issue #7).
 
 | Model | Protocol | Climate (off/heat/cool/auto) | Presets (boost/silent) | Diagnostics (DP 101–111) | Fault sensors | Status |
 |---|---|---|---|---|---|---|
-| Poolex PC-SLP090N (Silverline FI 90) | v3.3 | ✅ | ✅ | ❌ none (5-DP firmware) | ✅ | 🟢 live-verified |
+| Poolex PC-SLP090N (Silverline FI 90; also sold as "PoolStar OPool Premium 90") | v3.3 | ✅ | ✅ | ❌ none (5-DP firmware) | ✅ | 🟢 live-verified |
 | Poolex Silverline FI 120 / 180 / 200 | v3.3 | ✅ | ✅ | ❓ firmware-dependent | ✅ | 🔵 inferred |
 | Poolex Silverline FI 120 V2 / PC-INV-120V2 | v3.3 | ✅ | ✅ | ❌ none (5-DP, tenths °C) | ❌ (DP 9, not 13) | 🟢 user-verified |
 | Poolex JetLine Selection FI | v3.3 | ✅ | ✅ | ❓ firmware-dependent (some units 5-DP) | ✅ | 🟢 user-verified |
@@ -71,6 +71,7 @@ WiFi control board (issue #7).
 | Nulite | v3.3 / v3.5 | ✅ | ✅ | ✅ full | ✅ | 🔵 inferred |
 | Poolex Silverline (Tuya v3.4 firmware) | v3.4 | ✅ | ✅ | ✅ full (own DP map) | ✅ | 🟢 live-verified |
 | Poolex Nano Fi 3kW / 5kW (PC-NANO-B3N / B5N) | v3.5 | ✅ | ✅ | ✅ own DP map (own AC voltage/current sensors too) | ✅ | 🟢 live-verified |
+| Poolex F-Spa 7kW | auto | ✅ | ✅ | ✅ Nano Fi DP map — select the **Nano Fi 3kW / 5kW** profile (a community DP dump matches it DP-for-DP, [thread post 23](https://community.home-assistant.io/t/1011340/23); not yet run under this integration) | ✅ | 🔵 inferred |
 | Poolex Nano 5kW WiFi (also sold as "Spawler o'spa Flow 5kW", "Varpoolfaye Pool Mini") | v3.4 / v3.5 | ✅ | ❓ unconfirmed (falls back to plain heat/cool) | ❌ none (5-DP firmware) | ✅ (DP 21 water-flow bit only) | 🟢 live-verified |
 | Other Poolstar / Tuya WBR3 OEM | auto | ✅ | ✅ | live-detected | ✅ | ⚪ unknown |
 
