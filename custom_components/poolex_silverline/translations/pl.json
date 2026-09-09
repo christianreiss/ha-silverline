@@ -109,6 +109,7 @@
       "aux_valve_opening": { "name": "Otwarcie zaworu pomocniczego" },
       "outdoor_coil_temperature": { "name": "Temperatura wymiennika zewnętrznego" },
       "indoor_coil_temperature": { "name": "Temperatura wymiennika wewnętrznego" },
+      "ipm_temperature": { "name": "Temperatura modułu falownika" },
       "water_pump_rpm": { "name": "Prędkość pompy obiegowej" },
       "ac_voltage": { "name": "Napięcie sieciowe" },
       "ac_current": { "name": "Prąd sieciowy" },

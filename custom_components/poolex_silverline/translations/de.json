@@ -109,6 +109,7 @@
       "aux_valve_opening": { "name": "Hilfsventil-Öffnung" },
       "outdoor_coil_temperature": { "name": "Außenregister-Temperatur" },
       "indoor_coil_temperature": { "name": "Innenregister-Temperatur" },
+      "ipm_temperature": { "name": "Wechselrichtermodul-Temperatur" },
       "water_pump_rpm": { "name": "Umwälzpumpen-Drehzahl" },
       "ac_voltage": { "name": "Netzspannung" },
       "ac_current": { "name": "Netzstrom" },

@@ -109,6 +109,7 @@
       "aux_valve_opening": { "name": "Apertura de la válvula auxiliar" },
       "outdoor_coil_temperature": { "name": "Temperatura del serpentín exterior" },
       "indoor_coil_temperature": { "name": "Temperatura del serpentín interior" },
+      "ipm_temperature": { "name": "Temperatura del módulo inversor" },
       "water_pump_rpm": { "name": "Velocidad de la bomba de circulación" },
       "ac_voltage": { "name": "Tensión de red" },
       "ac_current": { "name": "Corriente de red" },

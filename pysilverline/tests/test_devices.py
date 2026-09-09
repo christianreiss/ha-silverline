@@ -10,6 +10,7 @@ from pysilverline.layouts import (
     LAYOUT_NANO_5KW,
     LAYOUT_NANO_FI_3KW,
     LAYOUT_PC_INV_120,
+    LAYOUT_SILVERLINE_FI_150,
     LAYOUT_STANDARD,
     LAYOUT_V34_WFZEIYN,
     layout_for_model,
@@ -213,6 +214,171 @@ def test_nano_5kw_dp_mapping() -> None:
     assert layout.ac_current is None
 
 
+def test_layout_for_model_fi_150_key() -> None:
+    assert layout_for_model("fi_150") is LAYOUT_SILVERLINE_FI_150
+
+
+def test_layout_by_name_fi_150_alias() -> None:
+    assert LAYOUT_BY_NAME["fi_150"] is LAYOUT_SILVERLINE_FI_150
+
+
+def test_fi_150_dp_mapping() -> None:
+    """Pin the Silverline FI 150 mapping from the issue #20 load-transition
+    test (pid b4zr9ugt1q8xn9af). Until 0.5.11 this model had no layout and
+    fell back to LAYOUT_STANDARD, which produced physically impossible
+    readings; every assertion below is one of those misreadings."""
+    layout = LAYOUT_SILVERLINE_FI_150
+
+    # Water temps: the standard layout read inlet/outlet off DP 105/106 and
+    # reported "inlet 10 °C / outlet 6 °C" on a pool sitting at 28 °C.
+    assert layout.outlet_temp == 101
+    assert layout.ambient_temp == 102
+    assert layout.pool_temp == 103
+    # No distinct inlet probe on this firmware (DP 3 == DP 103), so the field
+    # aliases the pool DP rather than being left unmapped.
+    assert layout.inlet_temp == 103
+    assert layout.discharge_temp == 104
+    assert layout.suction_temp == 105
+    assert layout.outdoor_coil_temp == 106
+
+    # DP 108 rose 35 -> 45 while the unit was stopped and the fan was off,
+    # then fell back once the fan restarted: the IPM heatsink, not a
+    # frequency. Under the standard layout it was actual_frequency and read
+    # 43 Hz with the compressor stopped and drawing 0 A.
+    assert layout.ipm_temp == 108
+    assert layout.indoor_coil_temp is None
+    assert layout.target_frequency == 109
+    assert layout.actual_frequency == 110
+
+    # DP 111 parks at 340 stopped and closes toward 208 under load — the main
+    # EEV opening, as on the Nano Fi. The standard layout published it as a
+    # boolean "water pump" fed from a 208-340 integer.
+    assert layout.eev_steps == 111
+    assert layout.water_pump is None
+    assert layout.fan_speed == 114
+    assert layout.defrosting == 115
+
+    # DP 120/121 are mains voltage and whole amps (218 V at full load ->
+    # 235 V unloaded, current 0 -> 10 in lockstep with frequency), not the
+    # standard layout's lifetime hour counter — which decreased.
+    assert layout.ac_voltage == 120
+    assert layout.ac_current == 121
+    assert layout.ac_current_divisor == 1
+    assert layout.total_hours is None
+
+    # DP 124-145 held every value across full load, shutdown and idle: the
+    # installer-config block, not refrigeration telemetry. The standard
+    # layout published six of them as circuit measurements.
+    assert layout.condensing_temp is None
+    assert layout.evaporating_temp is None
+    assert layout.superheat is None
+    assert layout.compressor_load is None
+    assert layout.target_superheat is None
+    assert layout.target_condensing is None
+    assert layout.heating_time == 124
+    assert layout.defrost_time_limit == 125
+    assert layout.defrost_cutout_temp == 126
+    assert layout.heating_start_hysteresis == 127
+    assert layout.heating_end_hysteresis == 128
+    assert layout.cooling_start_hysteresis == 130
+    assert layout.cooling_end_hysteresis == 131
+    assert layout.defrost_temp == 132
+    assert layout.max_temp_limit == 142
+    assert layout.min_temp_limit == 145
+
+    assert layout.temp_current_divisor == 1
+
+
+def test_fi_150_decodes_the_issue20_field_dump() -> None:
+    """Replay the DP_QUERY dump from issue #20 verbatim.
+
+    The per-field assertions above pin the map; this pins what an owner
+    actually sees, against the exact payload their unit sent while heating.
+    """
+    from pysilverline import DeviceState
+
+    raw = {
+        "1": True,
+        "2": 29,
+        "3": 28,
+        "4": "Heat",
+        "13": 0,
+        "101": 30,
+        "102": 21,
+        "103": 28,
+        "104": 69,
+        "105": 10,
+        "106": 6,
+        "108": 35,
+        "109": 80,
+        "110": 80,
+        "111": 305,
+        "114": 817,
+        "115": 0,
+        "120": 220,
+        "121": 10,
+        "124": 45,
+        "125": 12,
+        "126": 12,
+        "127": 0,
+        "128": 2,
+        "130": 0,
+        "131": 2,
+        "132": -1,
+        "133": -8,
+        "137": 10,
+        "138": 0,
+        "140": 80,
+        "141": 0,
+        "142": 40,
+        "145": 8,
+    }
+    state = DeviceState.from_dps(raw, layout=LAYOUT_SILVERLINE_FI_150)
+
+    # The four readings the bug report led with.
+    assert state.inlet_temp == 28  # was 10 under LAYOUT_STANDARD
+    assert state.outlet_temp == 30  # was 6
+    assert state.total_hours is None  # was 220 and decreasing
+    assert state.water_pump is None  # was True, from a DP reading 208-340
+
+    assert state.pool_temp == 28
+    assert state.ambient_temp == 21
+    assert state.discharge_temp == 69
+    assert state.suction_temp == 10
+    assert state.outdoor_coil_temp == 6
+    assert state.ipm_temp == 35
+    assert state.actual_frequency == 80
+    assert state.target_frequency == 80
+    assert state.eev_steps == 305
+    assert state.fan_speed == 817
+    assert state.defrosting is False
+    # 220 V x 10 A ~ 2.2 kW at 80 Hz, the right order for this unit.
+    assert state.ac_voltage == 220
+    assert state.ac_current == 10
+    # Installer setpoints, not circuit telemetry.
+    assert state.heating_time == 45
+    assert state.min_temp_limit == 8
+    assert state.condensing_temp is None
+    assert state.evaporating_temp is None
+    assert state.superheat is None
+    assert state.compressor_load is None
+
+
+def test_fi_150_uses_the_full_inverter_fault_table() -> None:
+    """DP 13 like the classic family, decoded with the FI bit layout.
+
+    Inferred from the family rather than confirmed on this unit (no fault
+    has occurred on it), and the asymmetry is why: with the FI table a
+    classic-layout water-flow fault surfaces as an unnamed bit and raises no
+    Repair card, while with the classic table an FI water-flow fault tells
+    the owner to check a defrost probe — issue #19's original complaint.
+    """
+    from pysilverline.const import NANO_FI_FAULT_TABLE
+
+    assert LAYOUT_SILVERLINE_FI_150.fault == 13
+    assert LAYOUT_SILVERLINE_FI_150.fault_table is NANO_FI_FAULT_TABLE
+
+
 def test_default_layouts_still_map_fault_to_dp13() -> None:
     """Every pre-existing layout must default to `fault=13` — the Nano 5kW
     override must not silently change what any other model reads."""
@@ -221,6 +387,7 @@ def test_default_layouts_still_map_fault_to_dp13() -> None:
         LAYOUT_V34_WFZEIYN,
         LAYOUT_PC_INV_120,
         LAYOUT_NANO_FI_3KW,
+        LAYOUT_SILVERLINE_FI_150,
     ):
         assert layout.fault == 13
 

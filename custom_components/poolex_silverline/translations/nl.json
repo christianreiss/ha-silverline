@@ -109,6 +109,7 @@
       "aux_valve_opening": { "name": "Opening hulpventiel" },
       "outdoor_coil_temperature": { "name": "Temperatuur buitenwarmtewisselaar" },
       "indoor_coil_temperature": { "name": "Temperatuur binnenwarmtewisselaar" },
+      "ipm_temperature": { "name": "Temperatuur omvormermodule" },
       "water_pump_rpm": { "name": "Toerental circulatiepomp" },
       "ac_voltage": { "name": "Netspanning" },
       "ac_current": { "name": "Netstroom" },

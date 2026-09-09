@@ -50,6 +50,12 @@ class DpLayout:
     suction_temp: int | None = 101
     outdoor_coil_temp: int | None = None
     indoor_coil_temp: int | None = None
+    # Inverter power-module (heatsink) temperature — "T7 IPM temperature" in
+    # the OEM status table. Silverline FI 150 only so far (DP 108, issue #20),
+    # where the standard layout used to read that DP as actual_frequency and
+    # reported 43 Hz with the compressor stopped. It is a distinct probe from
+    # indoor_coil_temp: on the Nano Fi, DP 108 really is the indoor coil.
+    ipm_temp: int | None = None
     target_frequency: int | None = 107
     actual_frequency: int | None = 108
     eev_steps: int | None = 109

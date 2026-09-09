@@ -109,6 +109,7 @@
       "aux_valve_opening": { "name": "Auxiliary valve opening" },
       "outdoor_coil_temperature": { "name": "Outdoor coil temperature" },
       "indoor_coil_temperature": { "name": "Indoor coil temperature" },
+      "ipm_temperature": { "name": "Inverter module temperature" },
       "water_pump_rpm": { "name": "Circulation pump speed" },
       "ac_voltage": { "name": "AC voltage" },
       "ac_current": { "name": "AC current" },

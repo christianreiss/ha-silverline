@@ -12,6 +12,7 @@ from .devices import LAYOUT_BY_NAME as LAYOUT_BY_NAME
 from .devices import LAYOUT_NANO_5KW as LAYOUT_NANO_5KW
 from .devices import LAYOUT_NANO_FI_3KW as LAYOUT_NANO_FI_3KW
 from .devices import LAYOUT_PC_INV_120 as LAYOUT_PC_INV_120
+from .devices import LAYOUT_SILVERLINE_FI_150 as LAYOUT_SILVERLINE_FI_150
 from .devices import LAYOUT_STANDARD as LAYOUT_STANDARD
 from .devices import LAYOUT_V34_WFZEIYN as LAYOUT_V34_WFZEIYN
 from .devices import DpLayout as DpLayout
@@ -23,6 +24,7 @@ __all__ = [
     "LAYOUT_NANO_5KW",
     "LAYOUT_NANO_FI_3KW",
     "LAYOUT_PC_INV_120",
+    "LAYOUT_SILVERLINE_FI_150",
     "LAYOUT_STANDARD",
     "LAYOUT_V34_WFZEIYN",
     "layout_for_model",

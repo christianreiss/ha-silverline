@@ -109,6 +109,7 @@
       "aux_valve_opening": { "name": "Ouverture de la vanne auxiliaire" },
       "outdoor_coil_temperature": { "name": "Température de l'échangeur extérieur" },
       "indoor_coil_temperature": { "name": "Température de l'échangeur intérieur" },
+      "ipm_temperature": { "name": "Température du module onduleur" },
       "water_pump_rpm": { "name": "Vitesse de la pompe de circulation" },
       "ac_voltage": { "name": "Tension secteur" },
       "ac_current": { "name": "Courant secteur" },

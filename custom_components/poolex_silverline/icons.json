@@ -26,6 +26,7 @@
       "aux_valve_opening": { "default": "mdi:valve" },
       "outdoor_coil_temperature": { "default": "mdi:sun-thermometer-outline" },
       "indoor_coil_temperature": { "default": "mdi:home-thermometer-outline" },
+      "ipm_temperature": { "default": "mdi:chip" },
       "water_pump_rpm": { "default": "mdi:pump" },
       "fan_speed": { "default": "mdi:fan" },
       "fault_code": { "default": "mdi:alert-circle-outline" },

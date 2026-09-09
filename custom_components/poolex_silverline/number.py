@@ -12,7 +12,7 @@ installer-menu block (DP 124-145, issue #19) briefly lived here as ten
 writable numbers on the strength of tuya-local's schema; hardware then
 showed the unit silently declines those writes and re-asserts its own
 value a few seconds later, so they moved to read-only diagnostic sensors
-— see ``NANO_FI_CONFIG_SENSORS`` in ``sensor_descriptions.py``.
+— see ``INSTALLER_CONFIG_SENSORS`` in ``sensor_descriptions.py``.
 """
 
 from __future__ import annotations

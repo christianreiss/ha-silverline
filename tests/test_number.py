@@ -281,7 +281,7 @@ async def test_nano_fi_config_setpoints_are_readonly_sensors_not_numbers(
         DOMAIN,
     )
     from custom_components.poolex_silverline.sensor_descriptions import (
-        NANO_FI_CONFIG_SENSORS,
+        INSTALLER_CONFIG_SENSORS,
     )
 
     device_id = "bf11223344nanoficonf"
@@ -355,7 +355,7 @@ async def test_nano_fi_config_setpoints_are_readonly_sensors_not_numbers(
         for e in er.async_entries_for_config_entry(registry, entry.entry_id)
         if e.domain == "sensor"
     }
-    expected = {d.key: d for d in NANO_FI_CONFIG_SENSORS}
+    expected = {d.key: d for d in INSTALLER_CONFIG_SENSORS}
     assert expected.keys() <= sensor_keys.keys()
     for key, desc in expected.items():
         assert sensor_keys[key].disabled_by is not None, (
@@ -400,7 +400,7 @@ async def test_v34_wfzeiyn_model_does_not_get_nano_fi_config_setpoints(
         DOMAIN,
     )
     from custom_components.poolex_silverline.sensor_descriptions import (
-        NANO_FI_CONFIG_SENSORS,
+        INSTALLER_CONFIG_SENSORS,
     )
 
     device_id = "bf99001122v34collide"
@@ -468,4 +468,4 @@ async def test_v34_wfzeiyn_model_does_not_get_nano_fi_config_setpoints(
     # DP 124/132/142 are in supported_dps here, and they do register — as
     # this firmware's real telemetry, never as the Nano Fi's setpoints.
     assert {"condensing_temperature", "superheat"} <= sensor_keys
-    assert not {d.key for d in NANO_FI_CONFIG_SENSORS} & sensor_keys
+    assert not {d.key for d in INSTALLER_CONFIG_SENSORS} & sensor_keys

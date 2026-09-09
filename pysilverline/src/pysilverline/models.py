@@ -29,6 +29,7 @@ class DeviceState:
     outlet_temp: int | None = None
     outdoor_coil_temp: int | None = None
     indoor_coil_temp: int | None = None
+    ipm_temp: int | None = None
     target_frequency: int | None = None
     actual_frequency: int | None = None
     eev_steps: int | None = None
@@ -90,9 +91,13 @@ class DeviceState:
             return value if isinstance(value, bool) else None
 
         def _pump(dp: int | None) -> bool | None:
-            # Some firmware variants (e.g. FI 150) send DP 111 as an integer
-            # (e.g. 320 = pump running) instead of a bool. Accept both: treat
-            # non-zero int as True, zero as False.
+            # Some firmware variants send the pump DP as an integer rather
+            # than a bool. Accept both: treat non-zero int as True, zero as
+            # False. (This reader was added for an FI 150 dump whose DP 111
+            # read 320 — that DP turned out to be the main EEV opening, not
+            # the pump, and LAYOUT_SILVERLINE_FI_150 no longer maps
+            # water_pump at all. The coercion stays for firmware that does
+            # report an integer pump state.)
             if dp is None:
                 return None
             value = dps.get(str(dp))
@@ -175,6 +180,7 @@ class DeviceState:
             outlet_temp=_int(layout.outlet_temp),
             outdoor_coil_temp=_int(layout.outdoor_coil_temp),
             indoor_coil_temp=_int(layout.indoor_coil_temp),
+            ipm_temp=_int(layout.ipm_temp),
             target_frequency=_int(layout.target_frequency),
             actual_frequency=_int(layout.actual_frequency),
             eev_steps=_int(layout.eev_steps),

@@ -62,6 +62,7 @@ WiFi control board (issue #7).
 |---|---|---|---|---|---|---|
 | Poolex PC-SLP090N (Silverline FI 90; also sold as "PoolStar OPool Premium 90") | v3.3 | ✅ | ✅ | ❌ none (5-DP firmware) | ✅ | 🟢 live-verified |
 | Poolex Silverline FI 120 / 180 / 200 | v3.3 | ✅ | ✅ | ❓ firmware-dependent | ✅ | 🔵 inferred |
+| Poolex Silverline FI 150 | v3.5 | ✅ | ✅ | ✅ own DP map (IPM temperature, main EEV opening, AC voltage/current) — select the **Silverline FI 150** profile | ✅ | 🟢 DP map from a live load-transition test ([issue #20](https://github.com/christianreiss/ha-silverline/issues/20)) |
 | Poolex Silverline FI 120 V2 / PC-INV-120V2 | v3.3 | ✅ | ✅ | ❌ none (5-DP, tenths °C) | ❌ (DP 9, not 13) | 🟢 user-verified |
 | Poolex JetLine Selection FI | v3.3 | ✅ | ✅ | ❓ firmware-dependent (some units 5-DP) | ✅ | 🟢 user-verified |
 | Poolex JetLine FI (new v3.5 WiFi control board) | v3.5 | ✅ | ✅ | ✅ full | ✅ | 🟢 live-verified |
@@ -567,6 +568,13 @@ integration honest — huge thanks to the contributors who ran the tests:
   diagnose the Silverline FI 150's diagnostic DP mapping and a broken
   water-pump sensor, cross-checking readings against live outdoor temperature
   across several rounds (issue #1).
+- **[@squitel](https://github.com/squitel)** — settled the Silverline FI 150's
+  whole DP block by running a controlled load transition on a live unit
+  (setpoint down to stop the compressor, back up to restart it) and logging
+  every poll through it, which is what separated the IPM heatsink temperature
+  from a compressor frequency, the main EEV opening from a circulation pump,
+  and mains voltage from a lifetime hour counter — then wrote the layout up
+  DP-by-DP (issue #20).
 - **[@froggy974](https://github.com/froggy974)** — reported and iteratively
   verified PC-INV-120V2 support end-to-end: the tenths-of-a-degree temperature
   scaling, the full DP-4 mode vocabulary, and a transient write regression,

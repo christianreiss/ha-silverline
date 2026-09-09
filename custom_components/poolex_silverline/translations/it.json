@@ -109,6 +109,7 @@
       "aux_valve_opening": { "name": "Apertura della valvola ausiliaria" },
       "outdoor_coil_temperature": { "name": "Temperatura della batteria esterna" },
       "indoor_coil_temperature": { "name": "Temperatura della batteria interna" },
+      "ipm_temperature": { "name": "Temperatura del modulo inverter" },
       "water_pump_rpm": { "name": "Velocità della pompa di circolazione" },
       "ac_voltage": { "name": "Tensione di rete" },
       "ac_current": { "name": "Corrente di rete" },

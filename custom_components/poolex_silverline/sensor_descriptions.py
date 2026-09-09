@@ -3,9 +3,9 @@
 These descriptions wrap Home Assistant's ``SensorEntityDescription`` and so
 live integration-side — they must NOT move into the pysilverline library.
 
-The standard (legacy), Tuya v3.4 (``silverline_v34``), and Nano Fi 3kW
-(``nano_fi_3kw``) firmwares expose overlapping semantic readings but
-renumber many of their wire DPs. Most descriptions are byte-identical across
+The standard (legacy), Tuya v3.4 (``silverline_v34``), Nano Fi 3kW
+(``nano_fi_3kw``) and Silverline FI 150 (``fi_150``) firmwares expose
+overlapping semantic readings but renumber many of their wire DPs. Most descriptions are byte-identical across
 catalogs; only a handful differ in their ``dp_keys`` gate, and each firmware
 adds or drops a few of its own. To keep the catalogs provably in lock-step
 the shared descriptions are defined once and referenced by all of them, the
@@ -44,7 +44,12 @@ from homeassistant.const import (
     UnitOfTemperature,
     UnitOfTime,
 )
-from pysilverline.devices import MODEL_NANO_5KW, MODEL_NANO_FI_3KW, MODEL_SILVERLINE_V34
+from pysilverline.devices import (
+    MODEL_NANO_5KW,
+    MODEL_NANO_FI_3KW,
+    MODEL_SILVERLINE_FI_150,
+    MODEL_SILVERLINE_V34,
+)
 
 from pysilverline import DeviceState
 from pysilverline import const as tuya_const
@@ -365,7 +370,8 @@ _EEV_STEPS = SilverlineSensorDescription(
 )
 
 
-# ---- v3.4-only descriptions ------------------------------------------------
+# ---- descriptions first needed by the v3.4 catalog -------------------------
+# (the Nano Fi and FI 150 catalogs reuse several of these as-is)
 
 _OUTDOOR_COIL_TEMPERATURE = SilverlineSensorDescription(
     key="outdoor_coil_temperature",
@@ -386,6 +392,23 @@ _INDOOR_COIL_TEMPERATURE = SilverlineSensorDescription(
     native_unit_of_measurement=UnitOfTemperature.CELSIUS,
     entity_category=EntityCategory.DIAGNOSTIC,
     value_fn=lambda d: d.indoor_coil_temp,
+    dp_keys=("108",),
+)
+
+_IPM_TEMPERATURE = SilverlineSensorDescription(
+    # Inverter power-module (heatsink) temperature — "T7 IPM temperature" on
+    # the OEM status panel. Silverline FI 150 only (DP 108, issue #20), where
+    # the standard layout used to read the same DP as the compressor's actual
+    # frequency and reported 43 Hz with the compressor stopped. It is not the
+    # indoor coil: on the Nano Fi, DP 108 genuinely is the coil probe, which is
+    # why this is a separate description rather than a dp_keys override.
+    key="ipm_temperature",
+    translation_key="ipm_temperature",
+    device_class=SensorDeviceClass.TEMPERATURE,
+    state_class=SensorStateClass.MEASUREMENT,
+    native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+    entity_category=EntityCategory.DIAGNOSTIC,
+    value_fn=lambda d: d.ipm_temp,
     dp_keys=("108",),
 )
 
@@ -502,7 +525,7 @@ _ENERGY_CONSUMPTION = SilverlineSensorDescription(
 )
 
 
-# ---- Nano Fi installer setpoints (DP 124-145, issue #19) --------------------
+# ---- installer setpoints (DP 124-145, issue #19) ----------------------------
 #
 # Read-only on purpose. These ten DPs mirror the code-locked installer menu
 # on the physical panel (H0-H3 / P0-P3 in the manual). A reporter enabled the
@@ -520,8 +543,16 @@ _ENERGY_CONSUMPTION = SilverlineSensorDescription(
 #
 # Disabled by default: ten extra entities is a lot to hand every owner
 # unasked, and they are only interesting while commissioning a unit.
+#
+# Shared with the Silverline FI 150 catalog (issue #20): that firmware carries
+# the same block on the same DP numbers, every value sits inside the range
+# tuya-local declares for the Nano Fi pid, and the whole block held its value
+# across a full-load/shutdown/idle transition — which is what a setpoint does
+# and a refrigeration reading does not. Not yet cross-checked against an FI
+# 150's own installer menu, which is the evidence that closed it for the Nano
+# Fi; see devices/fi_150.py.
 
-NANO_FI_CONFIG_SENSORS: tuple[SilverlineSensorDescription, ...] = (
+INSTALLER_CONFIG_SENSORS: tuple[SilverlineSensorDescription, ...] = (
     SilverlineSensorDescription(
         key="heating_time",
         translation_key="heating_time",
@@ -729,7 +760,7 @@ NANO_FI_SENSORS: tuple[SilverlineSensorDescription, ...] = (
     _AC_CURRENT,
     _ELECTRICAL_POWER,
     _ENERGY_CONSUMPTION,
-    *NANO_FI_CONFIG_SENSORS,
+    *INSTALLER_CONFIG_SENSORS,
 )
 
 
@@ -748,12 +779,59 @@ NANO_5KW_SENSORS: tuple[SilverlineSensorDescription, ...] = (
 )
 
 
+#: Diagnostic catalog for the Poolex Silverline FI 150, Tuya pid
+#: b4zr9ugt1q8xn9af (issue #20). Hybrid numbering: the classic family's
+#: temperature DPs (102 ambient, 103 pool, 104 discharge) alongside the Nano
+#: Fi's Full Inverter block (109/110 target/actual frequency, 111 main EEV,
+#: 114 fan, 115 defrosting, 120/121 mains voltage/current) and its
+#: installer-config block. See ``devices/fi_150.py`` for the load-transition
+#: log that settles each DP.
+#:
+#: Three entities the standard catalog would have registered are gone on
+#: purpose, and each was a wrong reading rather than a missing one:
+#: ``actual_frequency`` on DP 108 (that DP is the IPM heatsink temperature —
+#: it rose while the compressor was stopped), ``total_operating_hours`` on DP
+#: 120 (mains voltage — the counter decreased), and the DP 124/132/133/137/
+#: 140/142 refrigeration set (condensing/evaporating temp, superheat,
+#: compressor load, target superheat/condensing), which is the installer
+#: config block held constant across a full load transition. ``eev_steps`` is
+#: likewise absent: DP 111 is published through ``main_valve_opening``, the
+#: same choice the Nano Fi catalog makes, and the legacy DP-109 entity would
+#: collide with target_frequency here.
+FI_150_SENSORS: tuple[SilverlineSensorDescription, ...] = (
+    _TEMPERATURE_DELTA,
+    replace(_OUTLET_TEMPERATURE, dp_keys=("101",)),
+    _RETURN_TEMPERATURE,  # dp_keys=("102",) — reads d.ambient_temp
+    _COIL_TEMPERATURE,  # dp_keys=("103",) — reads d.pool_temp
+    # No distinct inlet probe on this firmware (DP 3 == DP 103), so the inlet
+    # entity aliases the same DP rather than sitting unavailable — the layout
+    # maps inlet_temp=103 for it.
+    replace(_INLET_TEMPERATURE, dp_keys=("103",)),
+    _AMBIENT_TEMPERATURE,  # dp_keys=("104",) — reads d.discharge_temp
+    replace(_EXHAUST_TEMPERATURE, dp_keys=("105",)),  # reads d.suction_temp
+    _OUTDOOR_COIL_TEMPERATURE,  # dp_keys=("106",) — matches this firmware
+    _IPM_TEMPERATURE,  # DP 108 — NOT the actual frequency, see above
+    replace(_TARGET_FREQUENCY, dp_keys=("109",)),
+    replace(_ACTUAL_FREQUENCY, dp_keys=("110",)),
+    replace(_MAIN_VALVE_OPENING, dp_keys=("111",)),
+    replace(_FAN_SPEED, dp_keys=("114",)),
+    _FAULT_CODE_NANO_FI,
+    _RUNTIME_TODAY,
+    _AC_VOLTAGE,
+    _AC_CURRENT,
+    _ELECTRICAL_POWER,
+    _ENERGY_CONSUMPTION,
+    *INSTALLER_CONFIG_SENSORS,
+)
+
+
 def descriptions_for_model(model_key: str) -> tuple[SilverlineSensorDescription, ...]:
     """Return the diagnostic sensor catalog for ``model_key``.
 
-    The v3.4 wfzeiyn firmware, the Nano Fi 3kW, and the Nano 5kW family
-    all renumber or omit DPs relative to the legacy layout, so each gets a
-    dedicated catalog; every other model uses the legacy numbering.
+    The v3.4 wfzeiyn firmware, the Nano Fi 3kW, the Nano 5kW family and the
+    Silverline FI 150 all renumber or omit DPs relative to the legacy layout,
+    so each gets a dedicated catalog; every other model uses the legacy
+    numbering.
     """
     if model_key == MODEL_SILVERLINE_V34:
         return V34_SENSORS
@@ -761,4 +839,6 @@ def descriptions_for_model(model_key: str) -> tuple[SilverlineSensorDescription,
         return NANO_FI_SENSORS
     if model_key == MODEL_NANO_5KW:
         return NANO_5KW_SENSORS
+    if model_key == MODEL_SILVERLINE_FI_150:
+        return FI_150_SENSORS
     return SENSORS

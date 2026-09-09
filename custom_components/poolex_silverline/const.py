@@ -9,6 +9,7 @@ from pysilverline.devices import (
     MODEL_NANO_5KW,
     MODEL_NANO_FI_3KW,
     MODEL_PC_INV_120,
+    MODEL_SILVERLINE_FI_150,
     MODEL_SILVERLINE_V34,
 )
 
@@ -108,9 +109,64 @@ DEVICE_PROFILES: Final[dict[str, DeviceProfile]] = {
         display_name="Nulite",
         known_dps=None,
     ),
-    "fi_150": DeviceProfile(
+    MODEL_SILVERLINE_FI_150: DeviceProfile(
+        # Poolex Silverline FI 150, Tuya pid b4zr9ugt1q8xn9af, protocol v3.5
+        # (issue #20). Hybrid firmware: classic temperature numbering on DP
+        # 102/103/104, the Nano Fi family's Full Inverter block on
+        # 109/110/111/114/115/120/121, and its installer-config block on
+        # 124-145 — see LAYOUT_SILVERLINE_FI_150 for the load-transition test
+        # that settles each one. Until 0.11.14 this key had no layout and fell
+        # back to LAYOUT_STANDARD, which published water inlet 10 °C / outlet
+        # 6 °C on a 28 °C pool, a decreasing "total operating hours", and
+        # 43 Hz of "actual frequency" with the compressor stopped.
+        #
+        # DP-4 mode vocabulary matches the standard family (the dump reads
+        # "Heat"), so no preset/auto overrides are needed.
+        #
+        # known_dps is a FIXED FLOOR, for the same reason as the Nano Fi
+        # below: coordinator.py latches supported_dps from the first poll and
+        # then unions later ones, and the installer-config block is not sent
+        # on every status push. Every DP listed was read off real hardware in
+        # the issue #20 dump. The unmapped ones from that dump (133, 137, 138,
+        # 140, 141) are deliberately absent — pinning a DP no description
+        # reads buys nothing.
         display_name="Poolex Silverline FI 150",
-        known_dps=None,  # live-detect; full DP set TBD once mapping is verified
+        known_dps=frozenset(
+            {
+                # control + fault
+                1,
+                2,
+                3,
+                4,
+                13,
+                # live telemetry
+                101,
+                102,
+                103,
+                104,
+                105,
+                106,
+                108,
+                109,
+                110,
+                111,
+                114,
+                115,
+                120,
+                121,
+                # installer-parameter block (read-only diagnostics)
+                124,
+                125,
+                126,
+                127,
+                128,
+                130,
+                131,
+                132,
+                142,
+                145,
+            }
+        ),
         heat_temp_min=_STD_HEAT_MIN,
         heat_temp_max=_STD_HEAT_MAX,
         cool_temp_min=_STD_COOL_MIN,

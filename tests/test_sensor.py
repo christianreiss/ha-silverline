@@ -9,10 +9,16 @@ from homeassistant.const import STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
-from pysilverline.devices import MODEL_NANO_5KW, MODEL_NANO_FI_3KW, MODEL_STANDARD
+from pysilverline.devices import (
+    MODEL_NANO_5KW,
+    MODEL_NANO_FI_3KW,
+    MODEL_SILVERLINE_FI_150,
+    MODEL_STANDARD,
+)
 from pysilverline.layouts import (
     LAYOUT_NANO_5KW,
     LAYOUT_NANO_FI_3KW,
+    LAYOUT_SILVERLINE_FI_150,
     LAYOUT_STANDARD,
     LAYOUT_V34_WFZEIYN,
 )
@@ -62,11 +68,12 @@ async def test_fault_code_missing_mask_is_unavailable(
 
 
 def test_fault_code_zero_mask_is_ok_for_every_fault_layout() -> None:
-    """Classic, Nano 5kW, and Nano Fi all share the healthy-state contract."""
+    """Classic, Nano 5kW, Nano Fi and FI 150 share the healthy-state contract."""
     cases = (
         (MODEL_STANDARD, LAYOUT_STANDARD),
         (MODEL_NANO_5KW, LAYOUT_NANO_5KW),
         (MODEL_NANO_FI_3KW, LAYOUT_NANO_FI_3KW),
+        (MODEL_SILVERLINE_FI_150, LAYOUT_SILVERLINE_FI_150),
     )
     for model, layout in cases:
         description = next(
