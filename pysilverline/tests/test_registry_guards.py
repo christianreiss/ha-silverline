@@ -42,18 +42,34 @@ def test_every_registered_layout_is_exported_from_the_shim() -> None:
     ``devices/`` but not re-exported here is invisible on that path, and no
     behavioural test notices because nothing imports the new name from the
     shim yet — exactly how ``LAYOUT_SLP070`` (issue #21) shipped asymmetric.
+
+    Derived from the module namespace and ``_REGISTRY``, never from the
+    hand-maintained ``__all__``: a layout left out of *both* lists would
+    otherwise be invisible to its own guard.
     """
     registered = {
         name
-        for name in devices.__all__
-        if name.startswith("LAYOUT_") and name != "LAYOUT_BY_NAME"
+        for name, value in vars(devices).items()
+        if name.startswith("LAYOUT_") and isinstance(value, devices.DpLayout)
     }
+    assert registered, "no LAYOUT_* objects found in pysilverline.devices"
     missing = {name for name in registered if not hasattr(layouts, name)}
     assert not missing, f"layouts.py does not re-export: {sorted(missing)}"
     for name in registered:
         assert getattr(layouts, name) is getattr(devices, name), (
             f"layouts.{name} is not the same object as devices.{name}"
         )
+    # Every layout the registry actually resolves to must be reachable by
+    # name through the shim — catches a layout registered under a key but
+    # never bound to a module-level LAYOUT_* name at all.
+    # DpLayout carries a dict field, so it is unhashable — compare by identity.
+    exported = [id(getattr(layouts, name)) for name in registered]
+    unreachable = [
+        key for key, layout in devices._REGISTRY.items() if id(layout) not in exported
+    ]
+    assert not unreachable, (
+        f"registry keys whose layout is not exported from layouts.py: {unreachable}"
+    )
 
 
 def test_every_model_key_resolves_to_its_own_layout() -> None:
@@ -64,8 +80,12 @@ def test_every_model_key_resolves_to_its_own_layout() -> None:
     layout instead of raising — the failure mode issue #20 hit in the field,
     where an unregistered model silently read its DPs off the wrong map.
     """
-    model_names = [name for name in devices.__all__ if name.startswith("MODEL_")]
-    assert model_names, "no MODEL_* constants exported"
+    model_names = [
+        name
+        for name, value in vars(devices).items()
+        if name.startswith("MODEL_") and isinstance(value, str)
+    ]
+    assert model_names, "no MODEL_* constants defined in pysilverline.devices"
     for name in model_names:
         key = getattr(devices, name)
         if name == "MODEL_STANDARD":

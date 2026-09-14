@@ -68,7 +68,7 @@ WiFi control board (issue #7).
 | Poolex JetLine Selection FI | v3.3 | ✅ | ✅ | ❓ firmware-dependent (some units 5-DP) | ✅ | 🟢 user-verified |
 | Poolex JetLine FI (new v3.5 WiFi control board) | v3.5 | ✅ | ✅ | ✅ full | ✅ | 🟢 live-verified |
 | Brustec BR series | v3.3 / v3.5 | ✅ | ✅ | ✅ full | ✅ | 🔵 inferred |
-| Steinbach Silent Mini | v3.3 | ✅ (DP 4 uses `Heating`/`Cooling`) | ⚠️ boost/eco fall back to the plain mode string (unconfirmed on this firmware) | ✅ full | ✅ | 🟢 user-verified (both directions, [issue #10](https://github.com/christianreiss/ha-silverline/issues/10)) |
+| Steinbach Silent Mini | v3.4 | ✅ (DP 4 uses `Heating`/`Cooling`) | ⚠️ boost/silent fall back to the plain mode string (unconfirmed on this firmware) | ✅ full | ✅ | 🟢 user-verified (both directions, [issue #10](https://github.com/christianreiss/ha-silverline/issues/10)) |
 | Phalén Calidi XP | v3.3 / v3.5 | ✅ | ✅ | ✅ full | ✅ | 🔵 inferred |
 | Nulite | v3.3 / v3.5 | ✅ | ✅ | ✅ full | ✅ | 🔵 inferred |
 | Poolex Silverline (Tuya v3.4 firmware) | v3.4 | ✅ | ✅ | ✅ full (own DP map) | ✅ | 🟢 live-verified |

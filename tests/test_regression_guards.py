@@ -37,6 +37,7 @@ from custom_components.poolex_silverline.const import (
     CONF_MODEL,
     DEVICE_PROFILES,
     DOMAIN,
+    PRESET_NONE,
 )
 from pysilverline import DeviceState
 
@@ -102,6 +103,24 @@ def test_every_profile_is_selectable_and_labelled() -> None:
     """Each ``DeviceProfile`` has a non-empty display name for the selector."""
     for key, profile in DEVICE_PROFILES.items():
         assert profile.display_name, f"{key} has no display_name"
+
+
+def test_every_preset_override_defines_the_none_preset() -> None:
+    """A profile's preset map must always carry ``"none"``.
+
+    ``resolve_heat_map`` / ``resolve_cool_map`` *replace* the default map
+    rather than merging into it, and both write paths fall back to
+    ``table[PRESET_NONE]`` for an unmapped preset. A profile that overrides
+    the map without a ``"none"`` entry would therefore raise ``KeyError`` out
+    of the fallback itself — the same defect this file's preset test pins,
+    relocated one level down.
+    """
+    for key, profile in DEVICE_PROFILES.items():
+        for attr in ("preset_to_heat_dp", "preset_to_cool_dp"):
+            table = getattr(profile, attr)
+            if table is None:
+                continue
+            assert PRESET_NONE in table, f"{key}.{attr} has no {PRESET_NONE!r} entry"
 
 
 # ---------------------------------------------------------------------------
