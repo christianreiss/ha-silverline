@@ -572,6 +572,11 @@ integration honest — huge thanks to the contributors who ran the tests:
   Fi 3kW (PC-NANO-B3N) DP layout and diagnostic sensor catalog, cross-checked
   DP-by-DP against the official Tuya cloud product schema and live hardware
   (issue #11, PRs #12 and #14).
+- **[@TRIAG73](https://github.com/TRIAG73)** — reported the Poolex Silverline
+  FI 70 (PC-SLP070N), confirmed its five-DP set and standard mode vocabulary
+  against the 090N profile, and supplied the DP 13 = 64 / panel-shows-Er10
+  reading that stopped the classic bit table's "inlet sensor (P3)" label from
+  being applied to this firmware (issue #21).
 - **[@trothe](https://github.com/trothe)** — reported the minimal 5-DP JetLine
   Selection FI variant and the compressor-sensor false positive, with an `Er 03`
   no-flow cross-check (issue #6).
