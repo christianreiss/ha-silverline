@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Final
 
 from pysilverline.devices import (
@@ -10,6 +10,7 @@ from pysilverline.devices import (
     MODEL_NANO_FI_3KW,
     MODEL_PC_INV_120,
     MODEL_PC_SLP070N,
+    MODEL_SILVERLINE_FI_120_V35,
     MODEL_SILVERLINE_FI_150,
     MODEL_SILVERLINE_V34,
 )
@@ -425,6 +426,20 @@ DEVICE_PROFILES: Final[dict[str, DeviceProfile]] = {
         known_dps=None,
     ),
 }
+
+# Issue #22: the FI 120 v3.5 field dump and working FI 150 workaround
+# confirm the same telemetry layout and DP floor. Keep the V2 profile separate.
+DEVICE_PROFILES[MODEL_SILVERLINE_FI_120_V35] = replace(
+    DEVICE_PROFILES[MODEL_SILVERLINE_FI_150],
+    display_name="Poolex Silverline FI 120 (Tuya v3.5 / Full Inverter)",
+    # Mode-specific clamps have not been measured on this FI 120 firmware.
+    heat_temp_min=None,
+    heat_temp_max=None,
+    cool_temp_min=None,
+    cool_temp_max=None,
+    auto_temp_min=None,
+    auto_temp_max=None,
+)
 
 DEFAULT_PORT: Final = 6668
 DEFAULT_SCAN_INTERVAL: Final = 30  # seconds; WBR3 reboots if polled <8s

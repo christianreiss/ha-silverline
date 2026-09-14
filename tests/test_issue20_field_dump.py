@@ -24,7 +24,7 @@ from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from pysilverline.devices import MODEL_SILVERLINE_FI_150
-from pysilverline.layouts import LAYOUT_SILVERLINE_FI_150
+from pysilverline.layouts import LAYOUT_SILVERLINE_FI_150, layout_for_model
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.poolex_silverline.const import (
@@ -75,14 +75,21 @@ RAW = {
 }
 
 
-async def _setup(hass: HomeAssistant, device_id: str) -> MockConfigEntry:
-    state = DeviceState.from_dps(RAW, layout=LAYOUT_SILVERLINE_FI_150)
+async def _setup(
+    hass: HomeAssistant,
+    device_id: str,
+    *,
+    model: str = MODEL_SILVERLINE_FI_150,
+    raw: dict | None = None,
+) -> MockConfigEntry:
+    layout = layout_for_model(model)
+    state = DeviceState.from_dps(RAW if raw is None else raw, layout=layout)
 
     client = MagicMock()
     client.host, client.port, client.device_id = "10.0.0.70", 6668, device_id
     client.connected, client.state = True, state
     client.detected_version = "3.5"
-    client.dp_layout = LAYOUT_SILVERLINE_FI_150
+    client.dp_layout = layout
     for method in ("connect", "disconnect", "set_dp", "set_multiple"):
         setattr(client, method, AsyncMock(return_value=None))
     client.get_status = AsyncMock(return_value=state)
@@ -97,7 +104,7 @@ async def _setup(hass: HomeAssistant, device_id: str) -> MockConfigEntry:
             CONF_PORT: 6668,
             CONF_DEVICE_ID: device_id,
             CONF_LOCAL_KEY: "0123456789abcdef",
-            CONF_MODEL: MODEL_SILVERLINE_FI_150,
+            CONF_MODEL: model,
         },
         version=1,
         minor_version=1,
@@ -105,9 +112,10 @@ async def _setup(hass: HomeAssistant, device_id: str) -> MockConfigEntry:
     entry.add_to_hass(hass)
     with patch(
         "custom_components.poolex_silverline.SilverlineClient", return_value=client
-    ):
+    ) as factory:
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
+        assert factory.call_args.kwargs["dp_layout"] is layout
     return entry
 
 

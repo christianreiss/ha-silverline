@@ -57,3 +57,7 @@ DPs 101–111 are firmware-dependent.
 ## License
 
 MIT
+
+The `fi_120_v35` model/layout key selects the FI 150 Full Inverter map for
+Silverline FI 120 Tuya v3.5 units (issue #22). It is distinct from
+`pc_inv_120v2`; no automatic firmware detection is applied.

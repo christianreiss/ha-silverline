@@ -481,3 +481,12 @@ def test_fault_table_travels_with_the_layout_not_the_dp_number() -> None:
     assert set(NANO_FI_FAULT_TABLE.names) == {8, 19}
     assert set(NANO_FI_FAULT_TABLE.codes) == {8}
     assert NANO_FI_FAULT_TABLE.names[19] == "ambient_range"
+
+
+def test_fi_120_v35_reuses_fi_150_without_changing_v2() -> None:
+    """Issue #22 is a firmware sibling, not a replacement for the V2 map."""
+    from pysilverline.devices import MODEL_SILVERLINE_FI_120_V35, get_layout
+
+    assert get_layout(MODEL_SILVERLINE_FI_120_V35) is LAYOUT_SILVERLINE_FI_150
+    assert LAYOUT_BY_NAME["fi_120_v35"] is LAYOUT_SILVERLINE_FI_150
+    assert layout_for_model("pc_inv_120v2") is LAYOUT_PC_INV_120

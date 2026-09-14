@@ -48,6 +48,7 @@ from pysilverline.devices import (
     MODEL_NANO_5KW,
     MODEL_NANO_FI_3KW,
     MODEL_PC_SLP070N,
+    MODEL_SILVERLINE_FI_120_V35,
     MODEL_SILVERLINE_FI_150,
     MODEL_SILVERLINE_V34,
 )
@@ -864,7 +865,7 @@ def descriptions_for_model(model_key: str) -> tuple[SilverlineSensorDescription,
         return NANO_FI_SENSORS
     if model_key == MODEL_NANO_5KW:
         return NANO_5KW_SENSORS
-    if model_key == MODEL_SILVERLINE_FI_150:
+    if model_key in (MODEL_SILVERLINE_FI_120_V35, MODEL_SILVERLINE_FI_150):
         return FI_150_SENSORS
     if model_key == MODEL_PC_SLP070N:
         return SLP070_SENSORS

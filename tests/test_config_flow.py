@@ -876,3 +876,27 @@ def test_every_device_profile_has_a_localized_selector_option() -> None:
             "options"
         ]
         assert options.keys() == DEVICE_PROFILES.keys(), path.name
+
+
+@pytest.mark.parametrize("old_model", ["other", "fi_150"])
+async def test_issue22_reconfigure_to_fi_120_v35(
+    hass: HomeAssistant,
+    mock_client_factory,
+    config_entry: MockConfigEntry,
+    old_model: str,
+) -> None:
+    """Owners can move from the fallback or workaround to the named profile."""
+    config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        config_entry, data={**config_entry.data, CONF_MODEL: old_model}
+    )
+    result = await config_entry.start_reconfigure_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], ENTRY_DATA
+    )
+    assert result["step_id"] == "model"
+    result = await _submit_model_step(hass, result["flow_id"], "fi_120_v35")
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert config_entry.data[CONF_MODEL] == "fi_120_v35"
+    await hass.async_block_till_done()

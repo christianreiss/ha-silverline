@@ -52,6 +52,14 @@ pumps (Tuya v3.3 / v3.4 / v3.5) and OEM siblings. Connects directly over LAN —
 
 ## Supported devices
 
+For the FI 120 **v3.5 Full Inverter** firmware, choose **Poolex Silverline FI 120
+(Tuya v3.5 / Full Inverter)** during setup or **Reconfigure** an existing entry
+and change its model. This profile reuses the FI 150 telemetry mapping; the
+existing FI 150 selection remains a working workaround on older releases.
+The **FI 120 V2 / PC-INV-120V2** profile is a separate firmware with different
+DP numbering, mode strings and temperature scaling. Selection is explicit:
+protocol version or an incomplete DP snapshot alone does not identify a layout.
+
 The Tuya schema is shared across the Poolex Silverline FI family and several
 OEM siblings; the integration is expected to work with all of them. Three
 firmware generations have been verified directly against live hardware: the
@@ -63,6 +71,7 @@ WiFi control board (issue #7).
 | Poolex PC-SLP090N (Silverline FI 90; also sold as "PoolStar OPool Premium 90") | v3.3 | ✅ | ✅ | ❌ none (5-DP firmware) | ✅ | 🟢 live-verified |
 | Poolex Silverline FI 70 / PC-SLP070N | v3.3 | ✅ | ✅ | ❌ none (5-DP firmware) | ✅ (bit 6 undecoded — see below) | 🟢 user-verified |
 | Poolex Silverline FI 120 / 180 / 200 | v3.3 | ✅ | ✅ | ❓ firmware-dependent | ✅ | 🔵 inferred |
+| Poolex Silverline FI 120 (Full Inverter) | v3.5 | Heating reported; other modes unverified | Unverified | ✅ FI 150 DP map — select **Silverline FI 120 (Tuya v3.5 / Full Inverter)** | Full Inverter table (inherited) | 🟢 telemetry confirmed by reporter ([issue #22](https://github.com/christianreiss/ha-silverline/issues/22)) |
 | Poolex Silverline FI 150 | v3.5 | ✅ | ✅ | ✅ own DP map (IPM temperature, main EEV opening, AC voltage/current) — select the **Silverline FI 150** profile | ✅ | 🟢 DP map from a live load-transition test ([issue #20](https://github.com/christianreiss/ha-silverline/issues/20)) |
 | Poolex Silverline FI 120 V2 / PC-INV-120V2 | v3.3 | ✅ | ✅ | ❌ none (5-DP, tenths °C) | ❌ (DP 9, not 13) | 🟢 user-verified |
 | Poolex JetLine Selection FI | v3.3 | ✅ | ✅ | ❓ firmware-dependent (some units 5-DP) | ✅ | 🟢 user-verified |
