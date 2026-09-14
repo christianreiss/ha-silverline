@@ -57,7 +57,9 @@ Bumping a version number in a commit does nothing on its own.
 4. Run `./scripts/release.sh`. It verifies the tree is clean, HEAD is on
    `github/main` (it fetches from the `github` remote to check — so it needs
    network, including with `--dry-run`), and the manifest pins the library
-   version being tagged. It then creates and pushes `vA.B.C` and
+   version being tagged. It also requires successful Tests, HACS and hassfest
+   main-push runs for HEAD (including in dry-run mode), using authenticated `gh`.
+   It then creates and pushes `vA.B.C` and
    `pysilverline-vX.Y.Z` to GitHub and mirrors them to Gitea.
 
 5. Those user-pushed tags trigger `release.yaml` (GitHub Release) and
@@ -67,9 +69,16 @@ Bumping a version number in a commit does nothing on its own.
 
 The integration `manifest.json` pins `pysilverline==X.Y.Z`.
 **PyPI must be live before the HACS release is usable.**
-The tag-based pipelines both fire from the same commit push, so they
-race — in practice PyPI finishes first (~49 s) before anyone installs,
-but be aware of this if something goes wrong.
+Both delivery workflows check the exact checked-out commit against successful
+Tests, HACS and hassfest main-push runs before building or publishing. Missing
+or pending runs wait up to 15 minutes; failures, cancellations, skipped jobs,
+API errors and timeouts block delivery. Green CI at another SHA is insufficient.
+The GitHub release verifies the manifest/project versions without modifying the
+tested files and waits for the pinned PyPI package to be downloadable.
+
+A release is complete only after both delivery workflows succeed and the PyPI
+package plus GitHub ZIP are verified. Record the CI and delivery run links;
+never report tag push alone as successful delivery.
 
 ### Manual recovery
 

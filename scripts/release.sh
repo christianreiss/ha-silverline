@@ -53,6 +53,9 @@ if ! git merge-base --is-ancestor HEAD FETCH_HEAD; then
   exit 1
 fi
 
+# Gate before creating any tags, including during a dry run.
+python3 scripts/check_release_ci.py
+
 created=()
 for pair in "v$integration" "pysilverline-v$library"; do
   if git rev-parse -q --verify "refs/tags/$pair" >/dev/null; then

@@ -16,10 +16,19 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Require green CI for the checked-out release commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/check_release_ci.py --repo "$GITHUB_REPOSITORY"
 
       - uses: actions/setup-python@v5
         with:
@@ -27,15 +36,18 @@ jobs:
 
       - name: Verify tag matches package version
         working-directory: pysilverline
+        env:
+          RELEASE_REF: ${{ github.event.inputs.tag || github.ref }}
         run: |
           python - <<'PY'
+          import os
           import pathlib
           import sys
           import tomllib
 
           version = tomllib.loads(pathlib.Path("pyproject.toml").read_text())["project"]["version"]
           expected = f"refs/tags/pysilverline-v{version}"
-          ref = "${{ github.event.inputs.tag || github.ref }}"
+          ref = os.environ["RELEASE_REF"]
           actual = ref if ref.startswith("refs/tags/") else f"refs/tags/{ref}"
           if actual != expected:
               print(f"tag/package version mismatch: {actual} != {expected}", file=sys.stderr)

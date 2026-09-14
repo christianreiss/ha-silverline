@@ -17,28 +17,57 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: read
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.inputs.tag || github.ref }}
 
+      - name: Require green CI for the checked-out release commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/check_release_ci.py --repo "$GITHUB_REPOSITORY"
+
       - name: Set version from tag
         id: version
+        env:
+          RELEASE_REF: ${{ github.event.inputs.tag || github.ref }}
         run: |
-          ref="${{ github.event.inputs.tag || github.ref }}"
+          ref="$RELEASE_REF"
           tag="${ref#refs/tags/}"
           echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
 
-      - name: Sync manifest version with tag
+      - name: Verify tag matches manifest version
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: |
-          python -c "
-          import json, pathlib
-          path = pathlib.Path('custom_components/poolex_silverline/manifest.json')
-          data = json.loads(path.read_text())
-          data['version'] = '${{ steps.version.outputs.version }}'
-          path.write_text(json.dumps(data, indent=2) + '\n')
-          "
+          python3 - <<'PYTHON'
+          import json, os, pathlib, tomllib
+          manifest = json.loads(pathlib.Path('custom_components/poolex_silverline/manifest.json').read_text())
+          project = tomllib.loads(pathlib.Path('pyproject.toml').read_text())
+          if manifest['version'] != os.environ['RELEASE_VERSION'] or project['project']['version'] != manifest['version']:
+              raise SystemExit('Release tag, manifest and project versions must match')
+          PYTHON
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Wait for the pinned library on PyPI
+        timeout-minutes: 10
+        run: |
+          requirement=$(python3 -c "import json; print(json.load(open('custom_components/poolex_silverline/manifest.json'))['requirements'][0])")
+          for attempt in {1..30}; do
+            echo "Checking PyPI dependency (attempt $attempt/30)"
+            if python3 -m pip download --no-deps --no-cache-dir --index-url https://pypi.org/simple "$requirement" -d "$RUNNER_TEMP/release-dependency"; then
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "Pinned library is not available on PyPI" >&2
+          exit 1
 
       - name: Build release zip
         run: |
