@@ -332,6 +332,94 @@ async def test_nano_5kw_fault_does_not_create_dp13_repair_issue(
     )
 
 
+async def test_fi70_bit6_raises_no_repair_card_and_no_inlet_sensor(
+    hass: HomeAssistant,
+) -> None:
+    """DP 13 = 64 on an FI 70 must raise nothing and name nothing (issue #21).
+
+    The reporter's PC-SLP070N read 64 while its own wired controller printed
+    Er10; the classic family's table calls bit 6 the inlet sensor and prints
+    P3 for it. Wiring the FI 70 to that table would open an "Inlet sensor
+    fault (P3)" Repair card for a fault the hardware disputes — issue #19's
+    failure mode. Bit 6 is left undecoded, so no card and no fault entity.
+
+    Bit 0 still decodes normally: only the disputed bit was dropped.
+    """
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from homeassistant.const import CONF_HOST, CONF_PORT
+    from homeassistant.helpers import entity_registry as er
+    from pysilverline.devices import LAYOUT_SLP070
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    from custom_components.poolex_silverline.const import (
+        CONF_DEVICE_ID,
+        CONF_LOCAL_KEY,
+        CONF_MODEL,
+        DOMAIN,
+    )
+
+    device_id = "bf99887766slp070nfault"
+    state = DeviceState.from_dps(
+        {"1": True, "2": 28, "3": 24, "4": "Heat", "13": 64},
+        layout=LAYOUT_SLP070,
+    )
+
+    client = MagicMock()
+    client.host = "10.0.0.70"
+    client.port = 6668
+    client.device_id = device_id
+    client.connected = True
+    client.state = state
+    client.detected_version = "3.3"
+    client.dp_layout = LAYOUT_SLP070
+    client.connect = AsyncMock(return_value=None)
+    client.disconnect = AsyncMock(return_value=None)
+    client.get_status = AsyncMock(return_value=state)
+    client.set_dp = AsyncMock(return_value=None)
+    client.set_multiple = AsyncMock(return_value=None)
+    client.add_listener = MagicMock(return_value=lambda: None)
+    client.add_connection_listener = MagicMock(return_value=lambda: None)
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=device_id,
+        data={
+            CONF_HOST: "10.0.0.70",
+            CONF_PORT: 6668,
+            CONF_DEVICE_ID: device_id,
+            CONF_LOCAL_KEY: "0123456789abcdef",
+            CONF_MODEL: "pc_slp070n",
+        },
+        version=1,
+        minor_version=1,
+    )
+    entry.add_to_hass(hass)
+    with patch(
+        "custom_components.poolex_silverline.SilverlineClient", return_value=client
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert _issue(hass, "fault_P3") is None
+    all_issues = ir.async_get(hass).issues
+    assert not any(
+        issue_id[0] == DOMAIN and issue_id[1].startswith("fault_")
+        for issue_id in all_issues
+    )
+
+    # ...and no binary sensor claims the bit means an inlet-sensor fault,
+    # while the bits the classic table does get right are still registered.
+    registry = er.async_get(hass)
+    uids = {
+        e.unique_id
+        for e in registry.entities.values()
+        if e.config_entry_id == entry.entry_id and e.domain == "binary_sensor"
+    }
+    assert f"{device_id}_fault_inlet_sensor" not in uids
+    assert f"{device_id}_fault_water_flow" in uids
+
+
 async def test_nano_fi_water_flow_raises_e25_not_p1(hass: HomeAssistant) -> None:
     """On Full Inverter firmware DP 13 = 256 is a water-flow fault, so the
     Repair card must be the FI panel's water-flow code — never P1 defrost

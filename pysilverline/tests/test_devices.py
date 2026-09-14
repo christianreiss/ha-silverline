@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from dataclasses import fields
 
-from pysilverline.devices import get_layout
+from pysilverline.const import FAULT_BIT_NAMES, STANDARD_FAULT_TABLE
+from pysilverline.devices import LAYOUT_SLP070, get_layout
 from pysilverline.layouts import (
     LAYOUT_BY_NAME,
     LAYOUT_NANO_5KW,
@@ -55,6 +56,45 @@ def test_get_layout_canonical_and_default() -> None:
 
 def test_layout_for_model_nano_fi_3kw_key() -> None:
     assert layout_for_model("nano_fi_3kw") is LAYOUT_NANO_FI_3KW
+
+
+def test_layout_for_model_pc_slp070n_key() -> None:
+    assert layout_for_model("pc_slp070n") is LAYOUT_SLP070
+    assert LAYOUT_BY_NAME["pc_slp070n"] is LAYOUT_SLP070
+
+
+def test_slp070_keeps_standard_dp_numbering() -> None:
+    """The FI 70 differs from the standard layout ONLY in its fault table.
+
+    Every wire DP is the same as the PC-SLP090N's — the reporter ran their
+    FI 70 on the pc_slp090n profile successfully (issue #21). If a future
+    edit renumbers a DP here it is a mistake, not a model difference.
+    """
+    for f in fields(LAYOUT_STANDARD):
+        if f.name == "fault_table":
+            continue
+        assert getattr(LAYOUT_SLP070, f.name) == getattr(LAYOUT_STANDARD, f.name), (
+            f.name
+        )
+
+
+def test_slp070_fault_table_leaves_bit6_undecoded() -> None:
+    """Bit 6 must stay unnamed and uncoded on the FI 70.
+
+    The reporter's unit read DP 13 == 64 while its own panel showed Er10,
+    contradicting the classic table's "inlet sensor / P3" (issue #21).
+    Naming it would raise a Repair card for a fault the hardware disputes.
+    Every other bit is carried over from the classic table unchanged.
+    """
+    table = LAYOUT_SLP070.fault_table
+    assert 6 not in table.names
+    assert 6 not in table.codes
+    assert dict(table.names) == {
+        bit: name for bit, name in FAULT_BIT_NAMES.items() if bit != 6
+    }
+    assert dict(table.codes) == {
+        bit: code for bit, code in STANDARD_FAULT_TABLE.codes.items() if bit != 6
+    }
 
 
 def test_v34_wfzeiyn_dp_mapping() -> None:

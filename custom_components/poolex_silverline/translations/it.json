@@ -228,6 +228,7 @@
     "model": {
       "options": {
         "pc_slp090n": "Poolex PC-SLP090N",
+        "pc_slp070n": "Poolex Silverline FI 70 (PC-SLP070N)",
         "jetline_fi": "Poolex JetLine Selection FI",
         "brustec_br80": "Brustec BR-80",
         "phalen_calidi": "Phalén Calidi XP",

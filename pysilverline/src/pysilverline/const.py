@@ -210,6 +210,42 @@ NANO_FI_FAULT_BIT_CODES: Final = {
 }
 
 
+#: Symbolic bit names for DP 13 on the **Poolex Silverline FI 70** /
+#: PC-SLP070N (issue #21, protocol v3.3).
+#:
+#: The classic table minus bit 6, and that one omission is the whole point.
+#: A reporter read DP 13 == 64 (bit 6 alone) off a real FI 70 while the wired
+#: controller printed **Er10** (issue #21, @TRIAG73, 2026-09-13).
+#: ``FAULT_BIT_NAMES`` calls bit 6 the inlet sensor and ``FAULT_BIT_CODES``
+#: prints P3 for it — the device disagrees, so decoding an FI 70 with the
+#: classic table would raise an "Inlet sensor fault (P3)" Repair card for a
+#: fault the owner's own panel calls something else. That is issue #19's
+#: failure mode verbatim, so bit 6 is dropped from both ``names`` and
+#: ``codes``: ``_decode_fault`` surfaces it as ``bit6``, no binary sensor and
+#: no Repair card claim a meaning we have not earned.
+#:
+#: What it is NOT is a re-shift of the family table. One readout cannot move a
+#: table that seven other profiles decode against, and the meaning of Er10 on
+#: this firmware is still unknown — a display code is an observation, not a
+#: decode. Worth recording that ``FAULT_BIT_NAMES``/``FAULT_BIT_CODES`` is the
+#: *unsourced* table ``silverline-fe-specs.md`` carries (see
+#: ``NANO_FI_FAULT_BIT_NAMES``), and this is the first hardware readout from a
+#: classic 5-DP v3.3 unit to contradict it. Every other bit is carried over
+#: unchanged: they are as (un)confirmed as they were for the PC-SLP090N, and
+#: silently unnaming a known water-flow fault would cost the FI 70 its most
+#: useful Repair card to buy nothing.
+SLP070_FAULT_BIT_NAMES: Final = {
+    bit: name for bit, name in FAULT_BIT_NAMES.items() if bit != 6
+}
+
+#: OEM service codes for ``SLP070_FAULT_BIT_NAMES``. Bit 6 is absent here for
+#: the same reason it is absent from the names — P3 is contradicted by the
+#: device's own display.
+SLP070_FAULT_BIT_CODES: Final = {
+    bit: code for bit, code in FAULT_BIT_CODES.items() if bit != 6
+}
+
+
 @dataclass(frozen=True, slots=True)
 class FaultTable:
     """One firmware family's fault-bitmap decode: bit -> name, bit -> OEM code.
@@ -244,4 +280,11 @@ NANO_5KW_FAULT_TABLE: Final = FaultTable(
 #: flow, not the defrost sensor (issue #19).
 NANO_FI_FAULT_TABLE: Final = FaultTable(
     names=NANO_FI_FAULT_BIT_NAMES, codes=NANO_FI_FAULT_BIT_CODES
+)
+
+#: Poolex Silverline FI 70 / PC-SLP070N — the classic bitmap with bit 6 left
+#: undecoded, because the device's own panel contradicts the classic label
+#: (issue #21).
+SLP070_FAULT_TABLE: Final = FaultTable(
+    names=SLP070_FAULT_BIT_NAMES, codes=SLP070_FAULT_BIT_CODES
 )

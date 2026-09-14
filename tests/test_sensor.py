@@ -12,6 +12,7 @@ from homeassistant.util import dt as dt_util
 from pysilverline.devices import (
     MODEL_NANO_5KW,
     MODEL_NANO_FI_3KW,
+    MODEL_PC_SLP070N,
     MODEL_SILVERLINE_FI_150,
     MODEL_STANDARD,
 )
@@ -81,6 +82,23 @@ def test_fault_code_zero_mask_is_ok_for_every_fault_layout() -> None:
         )
         state = DeviceState.from_dps({str(layout.fault): 0}, layout=layout)
         assert description.value_fn(state) == "ok", model
+
+
+def test_fi70_fault_code_leaves_bit6_undecoded() -> None:
+    """DP 13 == 64 on an FI 70 must read "bit6", not "inlet_sensor".
+
+    The reporter's PC-SLP070N showed Er10 on its own panel for that bit,
+    contradicting the classic family's table (issue #21). Bit 0 still
+    decodes normally — only the disputed bit is unnamed.
+    """
+    description = next(
+        item
+        for item in descriptions_for_model(MODEL_PC_SLP070N)
+        if item.key == "fault_code"
+    )
+    assert description.value_fn(DeviceState.from_dps({"13": 64})) == "bit6"
+    assert description.value_fn(DeviceState.from_dps({"13": 1})) == "water_flow"
+    assert description.value_fn(DeviceState.from_dps({"13": 0})) == "ok"
 
 
 async def test_fault_code_single_bit(

@@ -14,6 +14,7 @@ from .fi_150 import LAYOUT_SILVERLINE_FI_150 as LAYOUT_SILVERLINE_FI_150
 from .nano_5kw import LAYOUT_NANO_5KW as LAYOUT_NANO_5KW
 from .nano_fi import LAYOUT_NANO_FI_3KW as LAYOUT_NANO_FI_3KW
 from .pc_inv_120 import LAYOUT_PC_INV_120 as LAYOUT_PC_INV_120
+from .slp070 import LAYOUT_SLP070 as LAYOUT_SLP070
 from .standard import LAYOUT_STANDARD as LAYOUT_STANDARD
 from .v34_wfzeiyn import LAYOUT_V34_WFZEIYN as LAYOUT_V34_WFZEIYN
 
@@ -26,6 +27,7 @@ MODEL_PC_INV_120: Final = "pc_inv_120v2"
 MODEL_NANO_FI_3KW: Final = "nano_fi_3kw"
 MODEL_NANO_5KW: Final = "nano_5kw"
 MODEL_SILVERLINE_FI_150: Final = "fi_150"
+MODEL_PC_SLP070N: Final = "pc_slp070n"
 
 #: Canonical model key -> layout. Keys are the persisted ``CONF_MODEL`` values.
 _REGISTRY: Final[dict[str, DpLayout]] = {
@@ -35,6 +37,7 @@ _REGISTRY: Final[dict[str, DpLayout]] = {
     MODEL_NANO_FI_3KW: LAYOUT_NANO_FI_3KW,
     MODEL_NANO_5KW: LAYOUT_NANO_5KW,
     MODEL_SILVERLINE_FI_150: LAYOUT_SILVERLINE_FI_150,
+    MODEL_PC_SLP070N: LAYOUT_SLP070,
 }
 
 
@@ -55,6 +58,7 @@ LAYOUT_BY_NAME: dict[str, DpLayout] = {
     "nano_fi_3kw": LAYOUT_NANO_FI_3KW,
     "nano_5kw": LAYOUT_NANO_5KW,
     "fi_150": LAYOUT_SILVERLINE_FI_150,
+    "pc_slp070n": LAYOUT_SLP070,
 }
 
 
@@ -69,11 +73,13 @@ __all__ = [
     "LAYOUT_NANO_FI_3KW",
     "LAYOUT_PC_INV_120",
     "LAYOUT_SILVERLINE_FI_150",
+    "LAYOUT_SLP070",
     "LAYOUT_STANDARD",
     "LAYOUT_V34_WFZEIYN",
     "MODEL_NANO_5KW",
     "MODEL_NANO_FI_3KW",
     "MODEL_PC_INV_120",
+    "MODEL_PC_SLP070N",
     "MODEL_SILVERLINE_FI_150",
     "MODEL_SILVERLINE_V34",
     "MODEL_STANDARD",

@@ -61,6 +61,7 @@ WiFi control board (issue #7).
 | Model | Protocol | Climate (off/heat/cool/auto) | Presets (boost/silent) | Diagnostics (DP 101–111) | Fault sensors | Status |
 |---|---|---|---|---|---|---|
 | Poolex PC-SLP090N (Silverline FI 90; also sold as "PoolStar OPool Premium 90") | v3.3 | ✅ | ✅ | ❌ none (5-DP firmware) | ✅ | 🟢 live-verified |
+| Poolex Silverline FI 70 / PC-SLP070N | v3.3 | ✅ | ✅ | ❌ none (5-DP firmware) | ✅ (bit 6 undecoded — see below) | 🟢 user-verified |
 | Poolex Silverline FI 120 / 180 / 200 | v3.3 | ✅ | ✅ | ❓ firmware-dependent | ✅ | 🔵 inferred |
 | Poolex Silverline FI 150 | v3.5 | ✅ | ✅ | ✅ own DP map (IPM temperature, main EEV opening, AC voltage/current) — select the **Silverline FI 150** profile | ✅ | 🟢 DP map from a live load-transition test ([issue #20](https://github.com/christianreiss/ha-silverline/issues/20)) |
 | Poolex Silverline FI 120 V2 / PC-INV-120V2 | v3.3 | ✅ | ✅ | ❌ none (5-DP, tenths °C) | ❌ (DP 9, not 13) | 🟢 user-verified |
@@ -112,6 +113,16 @@ directly) · ⚪ unknown · ✅ present · ❌ absent · ❓ firmware-dependent
   5-DP set (`1, 2, 3, 4, 13`) — no DP 108, so no diagnostics (issue #6). If your
   unit only exposes those five DPs, the behaviour matches the PC-SLP090N
   profile.
+- **The FI 70's fault bit 6 is deliberately left unlabelled.** A reporter read
+  DP 13 = 64 (bit 6 alone) off a real PC-SLP070N while the wired controller
+  displayed **Er10** (issue #21) — the classic family's bit table calls that
+  bit the inlet-water sensor and prints P3 for it. Rather than raise an
+  "Inlet sensor fault (P3)" Repair card the hardware disagrees with, the
+  **Poolex Silverline FI 70** profile decodes every other bit as usual and
+  surfaces bit 6 as the raw `bit6` with no fault sensor and no Repair card.
+  If you own an FI 70 and your manual says what Er10 means, please add it to
+  issue #21 and it will be named.
+
 - **The "Compressor" binary sensor needs the actual-compressor-frequency DP
   (DP 108 on the standard layout).** It is the only authoritative compressor
   telemetry; on firmware that doesn't expose it — including the minimal 5-DP

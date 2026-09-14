@@ -47,6 +47,7 @@ from homeassistant.const import (
 from pysilverline.devices import (
     MODEL_NANO_5KW,
     MODEL_NANO_FI_3KW,
+    MODEL_PC_SLP070N,
     MODEL_SILVERLINE_FI_150,
     MODEL_SILVERLINE_V34,
 )
@@ -165,6 +166,18 @@ _FAULT_CODE_NANO_FI = SilverlineSensorDescription(
     translation_key="fault_code",
     entity_category=EntityCategory.DIAGNOSTIC,
     value_fn=lambda d: _decode_fault(d.fault, names=tuya_const.NANO_FI_FAULT_BIT_NAMES),
+    dp_keys=("13",),
+)
+
+# Poolex Silverline FI 70 / PC-SLP070N (issue #21): the classic DP 13 bitmap
+# with bit 6 left undecoded — the reporter's panel printed Er10 for it while
+# the classic table calls it the inlet sensor. It surfaces as "bit6" rather
+# than as a label the hardware contradicts.
+_FAULT_CODE_SLP070 = SilverlineSensorDescription(
+    key="fault_code",
+    translation_key="fault_code",
+    entity_category=EntityCategory.DIAGNOSTIC,
+    value_fn=lambda d: _decode_fault(d.fault, names=tuya_const.SLP070_FAULT_BIT_NAMES),
     dp_keys=("13",),
 )
 
@@ -825,13 +838,25 @@ FI_150_SENSORS: tuple[SilverlineSensorDescription, ...] = (
 )
 
 
+#: Diagnostic catalog for the Poolex Silverline FI 70 / PC-SLP070N (issue #21).
+#: Identical to the legacy catalog except for the fault-code sensor, which
+#: decodes against this model's own bit table. Built by substitution rather
+#: than by copying the tuple so a future sensor added to SENSORS reaches the
+#: FI 70 too.
+SLP070_SENSORS: tuple[SilverlineSensorDescription, ...] = tuple(
+    _FAULT_CODE_SLP070 if description is _FAULT_CODE else description
+    for description in SENSORS
+)
+
+
 def descriptions_for_model(model_key: str) -> tuple[SilverlineSensorDescription, ...]:
     """Return the diagnostic sensor catalog for ``model_key``.
 
     The v3.4 wfzeiyn firmware, the Nano Fi 3kW, the Nano 5kW family and the
     Silverline FI 150 all renumber or omit DPs relative to the legacy layout,
-    so each gets a dedicated catalog; every other model uses the legacy
-    numbering.
+    so each gets a dedicated catalog. The FI 70 keeps the legacy numbering and
+    differs only in its fault-bit table. Every other model uses the legacy
+    catalog.
     """
     if model_key == MODEL_SILVERLINE_V34:
         return V34_SENSORS
@@ -841,4 +866,6 @@ def descriptions_for_model(model_key: str) -> tuple[SilverlineSensorDescription,
         return NANO_5KW_SENSORS
     if model_key == MODEL_SILVERLINE_FI_150:
         return FI_150_SENSORS
+    if model_key == MODEL_PC_SLP070N:
+        return SLP070_SENSORS
     return SENSORS

@@ -9,6 +9,7 @@ from pysilverline.devices import (
     MODEL_NANO_5KW,
     MODEL_NANO_FI_3KW,
     MODEL_PC_INV_120,
+    MODEL_PC_SLP070N,
     MODEL_SILVERLINE_FI_150,
     MODEL_SILVERLINE_V34,
 )
@@ -62,6 +63,37 @@ DEVICE_PROFILES: Final[dict[str, DeviceProfile]] = {
     "pc_slp090n": DeviceProfile(
         display_name="Poolex PC-SLP090N",
         known_dps=frozenset({1, 2, 3, 4, 13}),  # confirmed live
+        heat_temp_min=_STD_HEAT_MIN,
+        heat_temp_max=_STD_HEAT_MAX,
+        cool_temp_min=_STD_COOL_MIN,
+        cool_temp_max=_STD_COOL_MAX,
+        auto_temp_min=_STD_AUTO_MIN,
+        auto_temp_max=_STD_AUTO_MAX,
+    ),
+    MODEL_PC_SLP070N: DeviceProfile(
+        # Poolex Silverline FI 70 / PC-SLP070N, 2022 build, Tuya v3.3
+        # (issue #21). Same Poolstar OEM platform as the PC-SLP090N above:
+        # the reporter ran their FI 70 on the pc_slp090n profile and all five
+        # DPs stayed available, and the unit's Tuya schema lists the standard
+        # DP-4 vocabulary (Heat/Cool/Auto/BoostHeat/SilentHeat/BoostCool/
+        # SilentCool), so no preset or auto overrides are needed.
+        #
+        # known_dps is FIXED, not live-detect, and the report is the reason:
+        # on "Other / Unknown" a power cycle left only DPs 1, 3 and 4 in the
+        # first poll, so supported_dps latched without DP 2 and the target-
+        # temperature entity never appeared. That is the same latch race
+        # pc_slp090n and nano_5kw pin their sets to defeat.
+        #
+        # The one place this model is NOT the 090N is the fault bitmap — see
+        # SLP070_FAULT_TABLE / LAYOUT_SLP070 in pysilverline, which leave
+        # bit 6 undecoded because this unit's panel prints Er10 where the
+        # classic table claims the inlet sensor (P3).
+        #
+        # Per-mode setpoint clamps are inherited from the PC-SLP090N sweep
+        # (same firmware family) and are unverified on the FI 70 itself; the
+        # unit's raw DP 2 range is 0-40 °C per its schema.
+        display_name="Poolex Silverline FI 70 (PC-SLP070N)",
+        known_dps=frozenset({1, 2, 3, 4, 13}),  # confirmed on the reporter's unit
         heat_temp_min=_STD_HEAT_MIN,
         heat_temp_max=_STD_HEAT_MAX,
         cool_temp_min=_STD_COOL_MIN,

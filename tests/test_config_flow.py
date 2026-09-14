@@ -850,3 +850,29 @@ def test_options_schema_serializes_for_the_frontend() -> None:
     assert number["min"] == MIN_SCAN_INTERVAL
     assert number["max"] == MAX_SCAN_INTERVAL
     assert number["unit_of_measurement"] == "s"
+
+
+def test_every_device_profile_has_a_localized_selector_option() -> None:
+    """Adding a model profile must also add its label to all 8 string files.
+
+    The dropdown is localized through ``translation_key="model"``, so a
+    profile missing from a translation renders as its raw key for those
+    users. hassfest checks key parity in CI only — this catches it locally,
+    at the point where the profile is added.
+    """
+    import json
+    from pathlib import Path
+
+    from custom_components.poolex_silverline.const import DEVICE_PROFILES
+
+    component = Path(__file__).parent.parent / "custom_components" / "poolex_silverline"
+    files = [
+        component / "strings.json",
+        *sorted((component / "translations").glob("*.json")),
+    ]
+    assert len(files) == 8, "7 translations plus strings.json"
+    for path in files:
+        options = json.loads(path.read_text(encoding="utf-8"))["selector"]["model"][
+            "options"
+        ]
+        assert options.keys() == DEVICE_PROFILES.keys(), path.name

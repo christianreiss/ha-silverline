@@ -194,6 +194,47 @@ async def test_known_model_pre_populates_supported_dps(
     assert coordinator.supported_dps >= frozenset(coordinator.data.raw)
 
 
+async def test_fi70_model_pre_populates_dp_2(
+    hass: HomeAssistant,
+    mock_client_factory,
+) -> None:
+    """The FI 70 profile must guarantee DP 2 before the first poll.
+
+    Issue #21's reporter ran the FI 70 on "Other / Unknown" and a power
+    cycle left only DPs 1, 3 and 4 in the first poll, so supported_dps
+    latched without DP 2 and the target-temperature entity never appeared.
+    The profile's fixed known_dps is what defeats that race, so the mock
+    device here reports exactly that impoverished set: with known_dps=None
+    this assertion fails.
+    """
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    from custom_components.poolex_silverline.const import CONF_MODEL, DOMAIN
+
+    from .conftest import DEVICE_ID, ENTRY_DATA, HOST
+
+    # The post-power-cycle poll the reporter saw: no DP 2, no DP 13.
+    starved = DeviceState.from_dps({"1": True, "3": 24, "4": "Heat"})
+    mock_client_factory.state = starved
+    mock_client_factory.get_status = AsyncMock(return_value=starved)
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title=f"Pool Heatpump ({HOST})",
+        unique_id=DEVICE_ID,
+        data={**ENTRY_DATA, CONF_MODEL: "pc_slp070n"},
+        version=1,
+        minor_version=3,
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    coordinator = entry.runtime_data
+    assert frozenset(coordinator.data.raw) == {"1", "3", "4"}, "the starved poll"
+    assert {"1", "2", "3", "4", "13"} <= coordinator.supported_dps
+
+
 async def test_unknown_model_leaves_supported_dps_empty(
     hass: HomeAssistant,
     mock_client_factory,
