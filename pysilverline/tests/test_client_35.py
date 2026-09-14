@@ -641,6 +641,88 @@ async def test_v35_set_multiple_raises_on_nonzero_retcode() -> None:
             await client.disconnect()
 
 
+async def test_v35_telemetry_push_does_not_fake_a_write_ack() -> None:
+    """Periodic telemetry arriving mid-write must not pre-empt the real ack.
+
+    v3.4 firmware commonly acks a CONTROL_NEW by echoing the written DPs in a
+    STATUS push, and the client honours that on v3.5 too (see
+    ``test_v34_set_multiple_acked_via_status_push``). But these pumps also push
+    plain telemetry every few seconds (issue #8's log: one every 4-9 s). If any
+    such frame resolved the in-flight write with a synthetic retcode 0, the
+    device's genuine rejection ack would arrive to no waiting future and be
+    dropped — the phantom optimistic ON that
+    ``test_v35_set_multiple_raises_on_nonzero_retcode`` exists to prevent.
+
+    Here the device emits a telemetry push touching none of the written DPs,
+    immediately followed by a rejecting ack. The write must still raise.
+    """
+
+    def handler(seq: int, body: dict[str, Any], session_key: bytes) -> bytes:
+        telemetry = _encode_35(
+            0xABCD,
+            const.CMD_STATUS,
+            json.dumps({"dps": {"3": 27, "13": 0}}).encode(),
+            session_key,
+        )
+        reject = _encode_35(
+            seq, const.CMD_CONTROL_NEW, b"\x01\x00\x00\x00", session_key
+        )
+        return telemetry + reject
+
+    async with FakeTuya35Server() as server:
+        server.handlers[const.CMD_CONTROL_NEW] = handler
+        client = SilverlineClient(
+            host="127.0.0.1",
+            port=server.port,
+            device_id=DEVICE_ID,
+            local_key=KEY,
+            protocol_version="3.5",
+            request_timeout=2.0,
+        )
+        await client.connect()
+        try:
+            with pytest.raises(SilverlineError):
+                await client.set_multiple({const.DP_POWER: True})
+            assert client.state.power is not True
+        finally:
+            await client.disconnect()
+
+
+async def test_v35_status_push_echoing_the_write_still_acks_it() -> None:
+    """The v3.4-style push ack still works when the push echoes the write.
+
+    The gate added for the telemetry race above narrows this path; it must not
+    delete it. A device that acks only by echoing ``data.dps`` — no dedicated
+    0x0d frame at all — must still resolve the write rather than time out.
+    """
+
+    def handler(seq: int, body: dict[str, Any], session_key: bytes) -> bytes:
+        dps = body.get("data", {}).get("dps", {})
+        return _encode_35(
+            0xABCD,
+            const.CMD_STATUS,
+            json.dumps({"data": {"dps": dps}}).encode(),
+            session_key,
+        )
+
+    async with FakeTuya35Server() as server:
+        server.handlers[const.CMD_CONTROL_NEW] = handler
+        client = SilverlineClient(
+            host="127.0.0.1",
+            port=server.port,
+            device_id=DEVICE_ID,
+            local_key=KEY,
+            protocol_version="3.5",
+            request_timeout=2.0,
+        )
+        await client.connect()
+        try:
+            await client.set_multiple({const.DP_TEMP_SET: 29})
+            assert client.state.temp_set == 29
+        finally:
+            await client.disconnect()
+
+
 async def test_v35_push_is_dispatched_to_listener() -> None:
     """A spontaneous device push over v3.5 reaches registered listeners."""
     async with FakeTuya35Server() as server:

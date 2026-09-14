@@ -145,6 +145,11 @@ class SilverlineClient:
         # which do NOT echo our seqno, can be correlated by cmd (see
         # ``_take_pending``).
         self._pending: dict[int, tuple[int, asyncio.Future[Frame]]] = {}
+        # DP keys of every write currently awaiting an ack, one frozenset per
+        # in-flight ``set_multiple``. The STATUS-push ack path consults this so
+        # an unrelated telemetry push cannot be mistaken for a write ack — see
+        # ``_status_push_acks_write``.
+        self._inflight_writes: list[frozenset[str]] = []
         self._listeners: list[PushListener] = []
         self._connection_listeners: list[ConnectionListener] = []
         self._state = DeviceState()
@@ -450,7 +455,15 @@ class SilverlineClient:
                 "dps": dps,
             }
             cmd = const.CMD_CONTROL
-        frame = await self._request(cmd, body)
+        inflight = frozenset(dps)
+        self._inflight_writes.append(inflight)
+        try:
+            frame = await self._request(cmd, body)
+        finally:
+            # Remove one matching entry, not every equal one: two concurrent
+            # writes of the same DP set must not clear each other's marker.
+            # Nothing else mutates this list, so the entry is always present.
+            self._inflight_writes.remove(inflight)
         retcode, _ = self._codec.split_response_payload(frame.cmd, frame.payload)
         if is_invalid_auth_retcode(retcode):
             raise InvalidAuth(f"device rejected CONTROL retcode={retcode}")
@@ -604,6 +617,19 @@ class SilverlineClient:
             else:
                 self._on_connection_dropped()
 
+    def _status_push_acks_write(self, dps: dict[str, Any]) -> bool:
+        """Does this STATUS push echo a DP an in-flight write is waiting on?
+
+        v3.4 firmware commonly acks a CONTROL_NEW by echoing the written DPs
+        in a STATUS push rather than sending a dedicated ack frame. A push
+        that carries none of the written DPs is ordinary telemetry and must
+        not resolve the write.
+        """
+        if not dps or not self._inflight_writes:
+            return False
+        keys = dps.keys()
+        return any(keys & written for written in self._inflight_writes)
+
     def _take_pending(self, cmd: int, seq: int) -> asyncio.Future[Frame] | None:
         """Pop the request future a response with ``(cmd, seq)`` belongs to.
 
@@ -716,7 +742,18 @@ class SilverlineClient:
             # acks the same way, the dedicated-frame path in _dispatch never
             # fires and the write would otherwise time out; if it sends a real
             # 0x0d ACK instead, that path wins and this never matches.
-            if self._detected_version in ("3.4", "3.5"):
+            #
+            # Only a push that actually echoes a DP we just wrote counts as an
+            # ack. These pumps also emit periodic telemetry every few seconds
+            # (issue #8's log shows one every 4-9s); without this gate any such
+            # frame resolves the in-flight write with a synthetic retcode 0, and
+            # the device's real rejection ack then arrives to no waiting future
+            # and is dropped — resurrecting exactly the phantom optimistic ON
+            # that the strict non-zero-retcode check was added to remove.
+            if self._detected_version in (
+                "3.4",
+                "3.5",
+            ) and self._status_push_acks_write(dps):
                 fut = self._take_pending(const.CMD_CONTROL_NEW, frame.seq)
                 if fut is not None and not fut.done():
                     fut.set_result(

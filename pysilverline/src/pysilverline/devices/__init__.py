@@ -44,10 +44,19 @@ _REGISTRY: Final[dict[str, DpLayout]] = {
 def get_layout(model_key: str) -> DpLayout:
     """Return the DP layout for ``model_key`` (default: the standard layout).
 
+    Legacy layout aliases resolve too (see :data:`LAYOUT_BY_NAME`): every
+    alias but ``"v34_wfzeiyn"`` already equals its registry key, and that one
+    resolved to ``LAYOUT_STANDARD`` here while ``LAYOUT_BY_NAME`` returned the
+    v3.4 map — the two public lookups disagreeing on the same documented name.
+    No config entry has ever persisted it, so this only closes the trap.
+
     Unknown keys (including ``""`` and ``"pc_slp090n"``) fall back to
     :data:`LAYOUT_STANDARD`, so identity is preserved.
     """
-    return _REGISTRY.get(model_key, LAYOUT_STANDARD)
+    layout = _REGISTRY.get(model_key)
+    if layout is not None:
+        return layout
+    return LAYOUT_BY_NAME.get(model_key, LAYOUT_STANDARD)
 
 
 #: Legacy-alias mapping. Old keys preserved, pointing at the same layout objects.

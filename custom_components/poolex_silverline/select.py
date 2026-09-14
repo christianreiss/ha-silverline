@@ -126,10 +126,16 @@ class SilverlinePresetSelect(SilverlineEntity, SelectEntity):
                 translation_domain=DOMAIN,
                 translation_key="preset_not_available_in_auto",
             )
+        # Fall back to the plain mode string like climate._mode_string_for:
+        # a profile may override only "none" when its firmware's boost/eco
+        # DP-4 vocabulary is unconfirmed (steinbach_silent_mini, nano_5kw).
+        # Indexing directly would raise KeyError on boost/eco there.
         if current_mode in HEAT_PREFIX_TO_PRESET:
-            mode_string = resolve_heat_map(self.coordinator.profile)[option]
+            table = resolve_heat_map(self.coordinator.profile)
+            mode_string = table.get(option, table[PRESET_NONE])
         elif current_mode in COOL_PREFIX_TO_PRESET:
-            mode_string = resolve_cool_map(self.coordinator.profile)[option]
+            table = resolve_cool_map(self.coordinator.profile)
+            mode_string = table.get(option, table[PRESET_NONE])
         else:
             # Unknown DP-4 string — refuse rather than guess heat/cool.
             return

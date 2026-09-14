@@ -83,6 +83,7 @@ _KNOWN_POOLEX_PRODUCT_KEYS: frozenset[str] = frozenset(
         "am4nomaadnhwvekq",  # Poolex Nano Fi 3kW / PC-NANO-B3N (issue #11)
         "yk3bytlujz2xshuy",  # Poolex Nano 5kW WiFi (issue #16)
         "yzcbhasasaeljgvn",  # Poolex Silverline Pro FI 70, 2026 (issue #17)
+        "b4zr9ugt1q8xn9af",  # Poolex Silverline FI 150 / JetLine FI new control board (issues #7, #20)
     }
 )
 

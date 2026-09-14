@@ -144,8 +144,9 @@ BINARY_SENSORS: tuple[SilverlineBinarySensorDescription, ...] = (
         translation_key="defrosting",
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda d: d.defrosting,
-        # Nano Fi 3kW/5kW only (DP 115, issue #19) — no other layout maps
-        # this field yet, so dp_keys alone is a safe gate.
+        # Nano Fi 3kW/5kW (issue #19) and the Silverline FI 150 (issue #20)
+        # map DP 115; every other layout leaves ``defrosting`` unset, so
+        # dp_keys alone is a safe gate.
         dp_keys=("115",),
     ),
 )

@@ -104,9 +104,18 @@ DEVICE_PROFILES: Final[dict[str, DeviceProfile]] = {
     "jetline_fi": DeviceProfile(
         display_name="Poolex JetLine Selection FI",
         # Some JetLine units expose only {1,2,3,4,13} (5-DP firmware) while
-        # others ship the full 101-111 diagnostic set. Live-detect on first
-        # poll so entities match what the actual firmware reports.
-        known_dps=None,
+        # others ship the full 101-111 diagnostic set.
+        #
+        # This is a FLOOR, not a replacement: the coordinator unions later
+        # polls into supported_dps, so a full-diagnostic JetLine still gains
+        # 101-111 on its first successful poll. Pinning the five control DPs
+        # defeats the first-poll latch race the FI 70 report (issue #21)
+        # proved on this same Poolstar OEM platform: after a power cycle the
+        # first poll came back with only DPs 1, 3 and 4, supported_dps
+        # latched without DP 2, and the target-temperature entity never
+        # appeared. Platforms register once, so that loss is permanent until
+        # a reload.
+        known_dps=frozenset({1, 2, 3, 4, 13}),
         heat_temp_min=_STD_HEAT_MIN,
         heat_temp_max=_STD_HEAT_MAX,
         cool_temp_min=_STD_COOL_MIN,
@@ -212,9 +221,12 @@ DEVICE_PROFILES: Final[dict[str, DeviceProfile]] = {
         # 106 outlet, 107/108 target/actual frequency — matches LAYOUT_STANDARD),
         # but DP 4 uses full-word mode strings ("Heating"/"Cooling") instead of
         # the standard family's "Heat"/"Cool". Writing "Cool" left the device
-        # stuck reporting Heating regardless of the requested mode. Boost/eco
-        # variants unconfirmed on this firmware; falls back to the plain
-        # Heating/Cooling string for those presets too.
+        # stuck reporting Heating regardless of the requested mode. Both
+        # spellings are hardware-confirmed from the reporter's diagnostic
+        # dumps (raw DP 4 read back "Cooling" in cool mode, 2026-07-07).
+        # Boost/eco variants remain unconfirmed on this firmware; they fall
+        # back to the plain Heating/Cooling string — honoured on every write
+        # path, climate and select alike (see select.async_select_option).
         display_name="Steinbach Silent Mini",
         known_dps=frozenset({1, 2, 3, 4, 101, 102, 103, 104, 106, 107, 108}),
         preset_to_heat_dp={"none": "Heating"},

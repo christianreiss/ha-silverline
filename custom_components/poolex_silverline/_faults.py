@@ -1,8 +1,14 @@
 """Fault-bitmap decoding and Repair-issue reconciliation.
 
-The unified fault module: decodes DP 13's bitmap into human-readable
-names (``_decode_fault``) and owns the fault → Repair-issue
+The unified fault module: decodes the firmware's status/fault bitmap into
+human-readable names (``_decode_fault``) and owns the fault → Repair-issue
 reconciliation state and logic (``FaultReconciler``).
+
+Which DP carries that bitmap, and how its bits decode, both travel with the
+layout (``DpLayout.fault`` / ``DpLayout.fault_table``): most models use
+DP 13, the Nano 5kW family uses DP 21, and the FI 70 drops bit 6 from the
+classic table. This module only ever sees the decoded integer plus the table
+to read it with, so it never assumes a DP number.
 """
 
 from __future__ import annotations

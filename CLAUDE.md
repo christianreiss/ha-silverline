@@ -34,6 +34,16 @@ Bumping a version number in a commit does nothing on its own.
    - `pysilverline/pyproject.toml` → `version = "X.Y.Z"`
    - `pysilverline/src/pysilverline/__init__.py` → `__version__ = "X.Y.Z"`
    - `custom_components/poolex_silverline/manifest.json` → `"version": "A.B.C"` and `"requirements": ["pysilverline==X.Y.Z"]`
+   - `pyproject.toml` (repo root) → `version = "A.B.C"` — tracks the
+     *integration* version, not the library's. Easy to miss: `release.sh`
+     does not check it and no test pins it, so it silently drifts.
+
+   A library-version bump is only needed when something under `pysilverline/`
+   actually changed. If the release is integration-only, leave
+   `pysilverline/pyproject.toml`, `__init__.py` and the manifest's
+   `requirements` pin alone — `release.sh` requires the manifest pin to equal
+   the library version being tagged, so bumping one without the other fails
+   the release.
 
 2. Commit the version bump (one commit, both bumps together).
 
