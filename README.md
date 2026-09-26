@@ -23,21 +23,28 @@ pumps (Tuya v3.3 / v3.4 / v3.5) and OEM siblings. Connects directly over LAN —
 ## Features
 
 - One `climate` entity (`off / heat / cool / heat_cool`) with three presets
-  (`inverter`, `boost`, `silent`) covering all seven device modes including
+  (`none`, `boost`, `eco` — shown as Inverter / Boost / Silent) covering all seven device modes including
   Boost-Cool and Silent-Cool, which the official HA Tuya integration cannot
   reach (see [home-assistant/core#117566][issue-117566]).
-- Up to 25 firmware-dependent diagnostic sensors (13 of them disabled by
+- Up to 30 firmware-dependent diagnostic sensors (15 of them disabled by
   default): water/ambient/coil/refrigerant temperatures, target/actual
   compressor frequency and load, EEV/valve steps, fan and pump rpm,
-  runtime counters, and a decoded fault-code enum. The integration only
+  runtime counters, and a decoded fault-code sensor (a comma-separated list of the active
+  faults, or `ok`). The integration only
   registers entities for the DPs your firmware actually exposes — the
   minimal Poolex PC-SLP090N firmware ships five DPs and gets none of the
-  101–111 diagnostics, while the Brustec / Steinbach variants ship the
-  full set.
-- 12 binary sensors: compressor running, water pump, and all ten fault
-  bits — the five most common (water flow, antifreeze, high/low pressure,
-  communication) enabled by default, the other five (inverter comms and
-  the four temperature-sensor faults) disabled by default.
+  101–111 diagnostics, while the Brustec variant ships the full set (the
+  Steinbach Silent Mini was observed reporting 101–104 and 106–108).
+- Binary sensors for compressor running and water pump (each only where
+  the firmware reports it), plus one per fault bit the firmware's fault
+  table decodes. Classic DP 13 firmware gets all ten fault bits (nine on
+  the FI 70, which leaves bit 6 undecoded) — the five most common (water
+  flow, antifreeze, high/low pressure, communication) enabled by default,
+  the other five (inverter comms and the four temperature-sensor faults)
+  disabled by default. Full Inverter firmware (Nano Fi, FI 150, FI 120
+  v3.5) decodes water flow (bit 8) and ambient-range protection (bit 19),
+  both enabled by default, and adds a defrosting sensor (DP 115). The
+  Nano 5kW decodes only water flow (DP 21 bit 8).
 - A power `switch`, a target-temperature `number`, and two `select`
   entities (preset, operating mode) expose the climate controls
   individually for automations.
@@ -77,7 +84,7 @@ WiFi control board (issue #7).
 | Poolex JetLine Selection FI | v3.3 | ✅ | ✅ | ❓ firmware-dependent (some units 5-DP) | ✅ | 🟢 user-verified |
 | Poolex JetLine FI (new v3.5 WiFi control board) | v3.5 | ✅ | ✅ | ✅ full | ✅ | 🟢 live-verified |
 | Brustec BR series | v3.3 / v3.5 | ✅ | ✅ | ✅ full | ✅ | 🔵 inferred |
-| Steinbach Silent Mini | v3.4 | ✅ (DP 4 uses `Heating`/`Cooling`) | ⚠️ boost/silent fall back to the plain mode string (unconfirmed on this firmware) | ✅ full | ✅ | 🟢 user-verified (both directions, [issue #10](https://github.com/christianreiss/ha-silverline/issues/10)) |
+| Steinbach Silent Mini | v3.4 | ✅ (DP 4 uses `Heating`/`Cooling`) | ⚠️ boost/silent fall back to the plain mode string (unconfirmed on this firmware) | ⚠️ partial (DP 101–104, 106–108) | ❌ (no DP 13 reported by the verified unit) | 🟢 user-verified (both directions, [issue #10](https://github.com/christianreiss/ha-silverline/issues/10)) |
 | Phalén Calidi XP | v3.3 / v3.5 | ✅ | ✅ | ✅ full | ✅ | 🔵 inferred |
 | Nulite | v3.3 / v3.5 | ✅ | ✅ | ✅ full | ✅ | 🔵 inferred |
 | Poolex Silverline (Tuya v3.4 firmware) | v3.4 | ✅ | ✅ | ✅ full (own DP map) | ✅ | 🟢 live-verified |
@@ -111,10 +118,13 @@ directly) · ⚪ unknown · ✅ present · ❌ absent · ❓ firmware-dependent
   ([@olomouckyorel](https://github.com/olomouckyorel), PR #3). That firmware
   renumbers its DPs (fan on DP 114, swapped suction/outlet) and uses
   request-scoped sockets (closes TCP after each query, no heartbeat); both are
-  handled when the **`Poolex Silverline (Tuya v3.4)`** model is selected.
+  handled: the socket behaviour automatically on any v3.4 connection, and the
+  DP renumbering when the **`Poolex Silverline (Tuya v3.4 / wfzeiyn1ed3axxde)`**
+  model is selected.
 - **Diagnostic DPs (101–111) are firmware-dependent, not model-dependent:**
   the same SKU can ship full or bare depending on its firmware. The
-  integration only registers the DPs the first `DP_QUERY` returns, so missing
+  integration only registers the DPs the device has reported by setup (plus
+  any DPs the selected model pins), so missing
   diagnostics never show up as `unavailable` clutter.
 - **The same product key spans full and minimal firmware.** Product key
   `3bhylhz5zhogklel` is shared across the PC-SLP090N and the JetLine Selection
@@ -142,7 +152,7 @@ directly) · ⚪ unknown · ✅ present · ❌ absent · ❓ firmware-dependent
   reflects demand.
 - **PC-INV-120V2 / Silverline FI 120 V2 reports water temperature in tenths
   of a degree.** This OEM Poolstar variant sends DP 3 as e.g. `277` for 27.7 °C
-  (issue #5). Select the **`Poolex Silverline FI 120 V2 / PC-INV-120V2`** model
+  (issue #5). Select the **`Poolex Silverline FI 120 V2 / PC-INV-120V2 (tenths °C)`** model
   during setup (or via *Reconfigure*) to apply the ÷10 scaling; the setpoint
   (DP 2) stays whole °C and is unaffected. Note this firmware uses a different
   DP-4 mode vocabulary (e.g. `h_powerful`); full mode mapping for it is still
@@ -175,8 +185,8 @@ directly) · ⚪ unknown · ✅ present · ❌ absent · ❓ firmware-dependent
   unsupported write. Which of those DPs the device actually *reports* has
   been observed to vary on the v3.4 rebrand — see the cloud-session note
   under [Known limitations](#known-limitations).
-- Presets `boost` / `eco` do not apply in `heat_cool` (Auto) — a device
-  limitation.
+- Presets `boost` / `eco` do not apply in `heat_cool` (Auto) — see
+  [Known limitations](#known-limitations).
 
 ## Installation
 
@@ -214,8 +224,10 @@ Then in HA: **Settings → Devices & Services → "Add integration" → search f
 
 The integration validates the credentials and confirms it can reach the
 device before creating the config entry. A failure surfaces as
-`cannot_connect` (network/host) or `invalid_auth` (wrong local key) right
-in the form.
+`cannot_connect` (network/host), `invalid_key_format` (the local key is not
+exactly 16 characters, checked before contacting the device),
+`invalid_auth` (wrong local key) or `unknown` (unexpected error) right in
+the form.
 
 After the credentials validate, a second step asks for your **device model**
 in a dropdown. The choice sets the device's model name in Home Assistant and
@@ -237,13 +249,14 @@ entry, not the device):
 
 | Option | Default | Range | Meaning |
 |---|---|---|---|
-| Fallback polling interval | 30 s | 8–300 s | How often to issue a full `DP_QUERY` when no push has arrived |
+| Fallback polling interval | 30 s | 8–300 s | How often to issue a full `DP_QUERY`; it runs on this schedule even while pushes are arriving |
 
 The lower bound is a hardware limit rather than a preference: WiFi modules of
 the WBR3 family reboot when polled faster than ~8 s, so shorter intervals are
-rejected. Because the integration is `local_push`, polling only backstops
-pushes that go missing — raising the interval costs very little, and lowering
-it gains very little.
+rejected. Pushes deliver changes instantly, but some firmware pushes only one
+DP at a time, so the poll is what keeps the full DP set fresh — raise the
+interval only if you can live with slower recovery of DPs the device never
+pushes.
 
 Changing the option reloads the entry, which briefly reconnects the socket.
 
@@ -260,7 +273,7 @@ Changing the option reloads the entry, which briefly reconnects the socket.
 ## Known limitations
 
 - **Diagnostic sensors are firmware-dependent.** DPs 101–111 are populated
-  on the Brustec / Steinbach firmware variants; some Poolex Silverline FI
+  on the Brustec firmware variants (Steinbach Silent Mini: 101–104 and 106–108); some Poolex Silverline FI
   firmwares (verified live: PC-SLP090N) only expose DPs 1, 2, 3, 4, and 13.
   Unsupported diagnostic DPs are not registered as entities at all — they
   do not appear in your device page, so they cannot show up as `unavailable`
@@ -311,8 +324,10 @@ Changing the option reloads the entry, which briefly reconnects the socket.
 - **°F mode is not supported.** Lock the wired remote to °C — on °F some
   firmwares move the fault bitmap from DP 13 to DP 21 and reuse DP 13 for
   the unit-conversion enum, which the integration does not yet handle.
-- **Auto mode has no Boost or Silent variant** — this is a device
-  limitation. Selecting `boost` or `eco` while in `heat_cool` raises a
+- **Auto mode has no Boost or Silent preset.** Most firmwares have no Auto
+  variant, and the integration does not offer one on any model. That
+  includes the PC-INV-120V2, whose firmware vocabulary lists
+  `a_powerful`/`a_silent`: those are read as `heat_cool` but never written. Selecting `boost` or `eco` while in `heat_cool` raises a
   service-validation error with a translated message.
 - **Reported water temperature drifts toward ambient after the filter pump
   has been off for a while, then snaps back within seconds once circulation
@@ -375,9 +390,11 @@ the mode change is applied first so your target lands under the new mode.
   unavailable.
 
 **Capturing a live DP dump for a bug report**
-- The repository ships `scripts/probe.py`, which reads credentials
-  from an `access.yaml` at the repo root and dumps every DP the device
-  exposes. `access.yaml` holds your Tuya local_key, so after creating
+- The repository ships `scripts/probe.py`, which reads the device id and
+  local_key from an `access.yaml` at the repo root (pass your device's
+  address with `--host <ip>`; the default host is the maintainer's own),
+  and dumps every DP the device exposes. It also writes DP 2 (the setpoint)
+  back with its current value to make the device echo its full state. `access.yaml` holds your Tuya local_key, so after creating
   it run `chmod 600 access.yaml` to keep it readable only by your user.
 
 **Boost or Silent doesn't apply when in Auto**
@@ -405,7 +422,7 @@ Scanning for devices (6s)…
 Devices found on your network:
   [1] 192.168.1.42  (productKey 3bhylhz5zhogklel, v3.3, id bf90…)
 Pick a number, or press Enter to type the details manually: 1
-Local key (16 characters): ••••••••••••••••
+Local key (16 characters): 0123456789abcdef
 Protocol version (auto / 3.3 / 3.4 / 3.5) [auto]:
 Also test the control path? … [y/N]: n
 ```
@@ -632,7 +649,7 @@ After cloning, install the git hooks once:
 This points `core.hooksPath` at the tracked `.githooks/` directory. The
 `pre-commit` hook runs the `pysilverline` protocol/client API test suite
 (Tuya **v3.3**, **v3.4** and **v3.5**) before every commit, so a change that
-breaks any wire protocol can't land. It's the library suite only (fast, ~1–2 s);
+breaks any wire protocol can't land. It's the library suite only (fast, a few seconds);
 linting, type-checking, and the Home Assistant integration tests are left to
 CI and `scripts/platinum-gate.sh`. CI and the gate both use Ruff 0.16.1 with
 the explicit rule set in the two `pyproject.toml` files, so lint behavior does
