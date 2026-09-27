@@ -1,8 +1,9 @@
 # pysilverline
 
-Async client for **Poolex Silverline / Tuya v3.3** pool heat pumps. Speaks the
-local Tuya protocol (TCP/6668, AES-128-ECB) directly — no cloud, no Smart Life
-account at runtime.
+Async client for **Poolex Silverline / Tuya v3.3, v3.4 and v3.5** pool heat
+pumps (protocol version auto-detected). Speaks the local Tuya protocol
+(TCP/6668; AES-128-ECB for v3.3/v3.4, AES-128-GCM for v3.5) directly — no
+cloud, no Smart Life account at runtime. Requires Python 3.12+.
 
 This package is the I/O layer underneath the
 [`poolex_silverline`](https://github.com/christianreiss/ha-silverline) Home
@@ -51,13 +52,15 @@ unsub()
 
 The Tuya schema is shared across the Poolex Silverline FI family and several
 OEM siblings: Poolex JetLine Selection FI, Steinbach Silent Mini, Brustec BR
-series, Phalén Calidi XP. DPs 1, 2, 3, 4, 13 are confirmed across the family;
-DPs 101–111 are firmware-dependent.
-
-## License
-
-MIT
+series, Phalén Calidi XP. DPs 1–4 are shared across the family, but DP 4's
+mode strings vary (the Steinbach Silent Mini uses `Heating`/`Cooling`, the
+PC-INV-120V2 `h_powerful` and friends); the fault bitmap is usually DP 13, and
+diagnostic DPs from 101 upward are firmware-dependent.
 
 The `fi_120_v35` model/layout key selects the FI 150 Full Inverter map for
 Silverline FI 120 Tuya v3.5 units (issue #22). It is distinct from
 `pc_inv_120v2`; no automatic firmware detection is applied.
+
+## License
+
+MIT

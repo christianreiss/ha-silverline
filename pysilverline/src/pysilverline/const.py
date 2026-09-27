@@ -166,7 +166,7 @@ NANO_5KW_FAULT_BIT_CODES: Final = {
 #:
 #: Hardware-confirmed: a reporter cut the filtration pump under BoostHeat, the
 #: Poolex app displayed "Fault of Water Flow Switch", and DP 13 read 256 — bit
-#: 8 alone (issue #19, @patrickpetos, 2026-08-22). ``silverline-fe-specs.md``
+#: 8 alone (issue #19, @patrickpetos, 2026-08-22). ``docs/silverline-fe-specs.md``
 #: already carried this with a source, annotating bit 8 as "flow protection
 #: (vendor reuses on FI firmware)" per tuya-local #2402, the JetLine Selection
 #: FI schema; the implementation had followed that file's other, unsourced
@@ -228,7 +228,7 @@ NANO_FI_FAULT_BIT_CODES: Final = {
 #: table that seven other profiles decode against, and the meaning of Er10 on
 #: this firmware is still unknown — a display code is an observation, not a
 #: decode. Worth recording that ``FAULT_BIT_NAMES``/``FAULT_BIT_CODES`` is the
-#: *unsourced* table ``silverline-fe-specs.md`` carries (see
+#: *unsourced* table ``docs/silverline-fe-specs.md`` carries (see
 #: ``NANO_FI_FAULT_BIT_NAMES``), and this is the first hardware readout from a
 #: classic 5-DP v3.3 unit to contradict it. Every other bit is carried over
 #: unchanged: they are as (un)confirmed as they were for the PC-SLP090N, and

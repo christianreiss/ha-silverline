@@ -57,7 +57,7 @@ _LOGGER = logging.getLogger(__name__)
 _DISCOVERY_VERIFY_TIMEOUT = 3.0
 
 # Tuya productKeys confirmed to correspond to Poolex / Silverline heat
-# pumps (from silverline-fe-specs.md plus a live capture from a PC-SLP090N
+# pumps (from docs/silverline-fe-specs.md plus a live capture from a PC-SLP090N
 # on 2026-05-24). The productKey identifies the OEM hardware family, not
 # the marketing SKU — the PC-SLP090N broadcasts the same
 # `3bhylhz5zhogklel` as the JetLine Selection FI.

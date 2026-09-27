@@ -49,7 +49,7 @@ class DeviceProfile:
 
 
 # Setpoint clamp bounds confirmed live on PC-SLP090N by 21-value sweep (see
-# silverline-fe-specs.md §11).  All other models in the same Poolstar OEM
+# docs/silverline-fe-specs.md §11).  All other models in the same Poolstar OEM
 # family share this firmware and are assumed to have identical per-mode
 # bounds.  Models with unverified bounds (Nulite, Other) leave these None so
 # they fall back to the global constants.

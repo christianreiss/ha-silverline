@@ -11,7 +11,7 @@ done/exempt with a comment); you prove *substance*. You do not edit code.
 
 For **every** rule in `quality_scale.yaml` (all 52, Bronze→Platinum), open the
 code that is supposed to satisfy it and verify it with a `file:line` or a passing
-test name. Use `GUIDELINES.md §16` for the rule meanings; fetch the canonical
+test name. Use `docs/GUIDELINES.md §16` for the rule meanings; fetch the canonical
 rule doc if a meaning is unclear — do not guess.
 
 Treat these as guilty until proven innocent:

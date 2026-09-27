@@ -36,7 +36,9 @@ Bumping a version number in a commit does nothing on its own.
    - `custom_components/poolex_silverline/manifest.json` → `"version": "A.B.C"` and `"requirements": ["pysilverline==X.Y.Z"]`
    - `pyproject.toml` (repo root) → `version = "A.B.C"` — tracks the
      *integration* version, not the library's. Easy to miss: `release.sh`
-     does not check it and no test pins it, so it silently drifts.
+     does not check it and no pytest pins it. `scripts/platinum-gate.sh`
+     catches a mismatch; otherwise `release.yaml` fails the GitHub Release
+     only after the tags are already pushed.
 
    A library-version bump is only needed when something under `pysilverline/`
    actually changed. If the release is integration-only, leave
@@ -45,7 +47,7 @@ Bumping a version number in a commit does nothing on its own.
    the library version being tagged, so bumping one without the other fails
    the release.
 
-2. Commit the version bump (one commit, both bumps together).
+2. Commit the version bump (one commit containing every version change).
 
 3. Push the version-bump commit to **both** remotes:
 
@@ -59,8 +61,9 @@ Bumping a version number in a commit does nothing on its own.
    network, including with `--dry-run`), and the manifest pins the library
    version being tagged. It also requires successful Tests, HACS and hassfest
    main-push runs for HEAD (including in dry-run mode), using authenticated `gh`.
-   It then creates and pushes `vA.B.C` and
-   `pysilverline-vX.Y.Z` to GitHub and mirrors them to Gitea.
+   It then creates and pushes whichever of `vA.B.C` / `pysilverline-vX.Y.Z`
+   don't already exist to GitHub, and mirrors them to Gitea (best-effort; a
+   failed mirror only warns).
 
 5. Those user-pushed tags trigger `release.yaml` (GitHub Release) and
    `pysilverline-pypi.yaml` (PyPI).
@@ -99,7 +102,9 @@ Both workflows have `workflow_dispatch` enabled for exactly this scenario.
 
 The repo uses a custom hooks path (`git config core.hooksPath`).
 The pre-commit hook runs the full pysilverline test suite (v3.3 + v3.4 + v3.5 API tests).
-**Never use `--no-verify`** — the hook catches protocol-level regressions.
+**AI assistants: never bypass the hook** (`--no-verify` or `SKIP_HOOK_TESTS=1`),
+even though `docs/development.md` documents both for humans — the hook catches
+protocol-level regressions.
 
 ---
 
@@ -112,4 +117,4 @@ The pre-commit hook runs the full pysilverline test suite (v3.3 + v3.4 + v3.5 AP
 | `scripts/release.sh` | validates, creates, and pushes both release tags |
 | `.github/workflows/release.yaml` | builds GitHub Release from `v*` tag |
 | `.github/workflows/pysilverline-pypi.yaml` | publishes library to PyPI |
-| `GUIDELINES.md` | HA integration idioms and quality-scale rules |
+| `docs/` | user docs linked from the README; `docs/GUIDELINES.md` holds HA integration idioms and quality-scale rules |

@@ -43,7 +43,7 @@ _FAULT_SEVERITY: Final[dict[str, ir.IssueSeverity]] = {
     "P7": ir.IssueSeverity.WARNING,
 }
 _LEARN_MORE_URL: Final = (
-    "https://github.com/christianreiss/ha-silverline#troubleshooting"
+    "https://github.com/christianreiss/ha-silverline/blob/main/docs/troubleshooting.md"
 )
 
 

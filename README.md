@@ -26,25 +26,14 @@ pumps (Tuya v3.3 / v3.4 / v3.5) and OEM siblings. Connects directly over LAN —
   (`none`, `boost`, `eco` — shown as Inverter / Boost / Silent) covering all seven device modes including
   Boost-Cool and Silent-Cool, which the official HA Tuya integration cannot
   reach (see [home-assistant/core#117566][issue-117566]).
-- Up to 30 firmware-dependent diagnostic sensors (15 of them disabled by
-  default): water/ambient/coil/refrigerant temperatures, target/actual
-  compressor frequency and load, EEV/valve steps, fan and pump rpm,
-  runtime counters, and a decoded fault-code sensor (a comma-separated list of the active
-  faults, or `ok`). The integration only
-  registers entities for the DPs your firmware actually exposes — the
-  minimal Poolex PC-SLP090N firmware ships five DPs and gets none of the
-  101–111 diagnostics, while the Brustec variant ships the full set (the
-  Steinbach Silent Mini was observed reporting 101–104 and 106–108).
-- Binary sensors for compressor running and water pump (each only where
-  the firmware reports it), plus one per fault bit the firmware's fault
-  table decodes. Classic DP 13 firmware gets all ten fault bits (nine on
-  the FI 70, which leaves bit 6 undecoded) — the five most common (water
-  flow, antifreeze, high/low pressure, communication) enabled by default,
-  the other five (inverter comms and the four temperature-sensor faults)
-  disabled by default. Full Inverter firmware (Nano Fi, FI 150, FI 120
-  v3.5) decodes water flow (bit 8) and ambient-range protection (bit 19),
-  both enabled by default, and adds a defrosting sensor (DP 115). The
-  Nano 5kW decodes only water flow (DP 21 bit 8).
+- Up to 30 firmware-dependent diagnostic sensors — water/ambient/coil/refrigerant
+  temperatures, compressor frequency and load, EEV/valve steps, fan and pump
+  rpm, runtime counters — plus a decoded fault-code sensor. Only the DPs your
+  firmware actually exposes become entities, so there is no `unavailable`
+  clutter ([sensors by firmware](https://github.com/christianreiss/ha-silverline/blob/main/docs/supported-devices.md#sensors-by-firmware)).
+- Binary sensors for compressor running and water pump (each only where the
+  firmware reports it), plus one per decoded fault bit; active faults also
+  raise self-clearing Repair issues.
 - A power `switch`, a target-temperature `number`, and two `select`
   entities (preset, operating mode) expose the climate controls
   individually for automations.
@@ -59,14 +48,6 @@ pumps (Tuya v3.3 / v3.4 / v3.5) and OEM siblings. Connects directly over LAN —
 
 ## Supported devices
 
-For the FI 120 **v3.5 Full Inverter** firmware, choose **Poolex Silverline FI 120
-(Tuya v3.5 / Full Inverter)** during setup or **Reconfigure** an existing entry
-and change its model. This profile reuses the FI 150 telemetry mapping; the
-existing FI 150 selection remains a working workaround on older releases.
-The **FI 120 V2 / PC-INV-120V2** profile is a separate firmware with different
-DP numbering, mode strings and temperature scaling. Selection is explicit:
-protocol version or an incomplete DP snapshot alone does not identify a layout.
-
 The Tuya schema is shared across the Poolex Silverline FI family and several
 OEM siblings; the integration is expected to work with all of them. Three
 firmware generations have been verified directly against live hardware: the
@@ -76,7 +57,7 @@ WiFi control board (issue #7).
 | Model | Protocol | Climate (off/heat/cool/auto) | Presets (boost/silent) | Diagnostics (DP 101–111) | Fault sensors | Status |
 |---|---|---|---|---|---|---|
 | Poolex PC-SLP090N (Silverline FI 90; also sold as "PoolStar OPool Premium 90") | v3.3 | ✅ | ✅ | ❌ none (5-DP firmware) | ✅ | 🟢 live-verified |
-| Poolex Silverline FI 70 / PC-SLP070N | v3.3 | ✅ | ✅ | ❌ none (5-DP firmware) | ✅ (bit 6 undecoded — see below) | 🟢 user-verified |
+| Poolex Silverline FI 70 / PC-SLP070N | v3.3 | ✅ | ✅ | ❌ none (5-DP firmware) | ✅ (bit 6 undecoded — [why](https://github.com/christianreiss/ha-silverline/blob/main/docs/supported-devices.md#model-and-firmware-notes)) | 🟢 user-verified |
 | Poolex Silverline FI 120 / 180 / 200 | v3.3 | ✅ | ✅ | ❓ firmware-dependent | ✅ | 🔵 inferred |
 | Poolex Silverline FI 120 (Full Inverter) | v3.5 | Heating reported; other modes unverified | Unverified | ✅ FI 150 DP map — select **Silverline FI 120 (Tuya v3.5 / Full Inverter)** | Full Inverter table (inherited) | 🟢 telemetry confirmed by reporter ([issue #22](https://github.com/christianreiss/ha-silverline/issues/22)) |
 | Poolex Silverline FI 150 | v3.5 | ✅ | ✅ | ✅ own DP map (IPM temperature, main EEV opening, AC voltage/current) — select the **Silverline FI 150** profile | ✅ | 🟢 DP map from a live load-transition test ([issue #20](https://github.com/christianreiss/ha-silverline/issues/20)) |
@@ -97,102 +78,15 @@ WiFi control board (issue #7).
 reporter's device) · 🔵 high confidence (same OEM platform, not tested
 directly) · ⚪ unknown · ✅ present · ❌ absent · ❓ firmware-dependent
 
-- **The protocol version is auto-detected** (probed in order v3.5 → v3.4 →
-  v3.3) and can be pinned on the config entry. v3.5 — including local control
-  writes — is now **live-verified against real v3.5 hardware** (see below);
-  v3.4 is likewise validated against real hardware. The v3.4 probe is also
-  field-tested as benign against the live v3.3 device (it falls back cleanly
-  without disturbing the pump).
-- **v3.5 local control is live-verified, and needs integration 0.9.14 or
-  later.** Confirmed on a real Poolex JetLine FI with the new WiFi control
-  board (productKey `b4zr9ugt1q8xn9af`), contributed by
-  [@Paulus385](https://github.com/Paulus385) (issue #7). These newer boards
-  require a 15-byte Tuya version header inside the encrypted payload on control
-  writes (reads and the handshake are header-less); pysilverline < 0.4.9 /
-  integration < 0.9.14 omitted it, so the board accepted local *reads* but
-  silently rejected every local *write* with `retcode=0x01000000` — the symptom
-  was "turns on from HA, then reverts to OFF after a few seconds." Update to
-  0.9.14+ if you see that on a v3.5 unit.
-- **v3.4 support is live-verified** on a real Poolex Silverline (productKey
-  `wfzeiyn1ed3axxde`, 2026 firmware), contributed by Martin Čarek
-  ([@olomouckyorel](https://github.com/olomouckyorel), PR #3). That firmware
-  renumbers its DPs (fan on DP 114, swapped suction/outlet) and uses
-  request-scoped sockets (closes TCP after each query, no heartbeat); both are
-  handled: the socket behaviour automatically on any v3.4 connection, and the
-  DP renumbering when the **`Poolex Silverline (Tuya v3.4 / wfzeiyn1ed3axxde)`**
-  model is selected.
-- **Diagnostic DPs (101–111) are firmware-dependent, not model-dependent:**
-  the same SKU can ship full or bare depending on its firmware. The
-  integration only registers the DPs the device has reported by setup (plus
-  any DPs the selected model pins), so missing
-  diagnostics never show up as `unavailable` clutter.
-- **The same product key spans full and minimal firmware.** Product key
-  `3bhylhz5zhogklel` is shared across the PC-SLP090N and the JetLine Selection
-  FI family, and some JetLine Selection FI 95 units report only the minimal
-  5-DP set (`1, 2, 3, 4, 13`) — no DP 108, so no diagnostics (issue #6). If your
-  unit only exposes those five DPs, the behaviour matches the PC-SLP090N
-  profile.
-- **The FI 70's fault bit 6 is deliberately left unlabelled.** A reporter read
-  DP 13 = 64 (bit 6 alone) off a real PC-SLP070N while the wired controller
-  displayed **Er10** (issue #21) — the classic family's bit table calls that
-  bit the inlet-water sensor and prints P3 for it. Rather than raise an
-  "Inlet sensor fault (P3)" Repair card the hardware disagrees with, the
-  **Poolex Silverline FI 70** profile decodes every other bit as usual and
-  surfaces bit 6 as the raw `bit6` with no fault sensor and no Repair card.
-  If you own an FI 70 and your manual says what Er10 means, please add it to
-  issue #21 and it will be named.
-
-- **The "Compressor" binary sensor needs the actual-compressor-frequency DP
-  (DP 108 on the standard layout).** It is the only authoritative compressor
-  telemetry; on firmware that doesn't expose it — including the minimal 5-DP
-  units (issue #6) and the v3.4 `wfzeiyn1ed3axxde` firmware, where DP 108 is
-  the indoor coil temperature instead — the sensor is not created at all (it
-  would otherwise echo heating *demand* during the startup delay rather than
-  real running state). The climate card's heating/cooling colour still
-  reflects demand.
-- **PC-INV-120V2 / Silverline FI 120 V2 reports water temperature in tenths
-  of a degree.** This OEM Poolstar variant sends DP 3 as e.g. `277` for 27.7 °C
-  (issue #5). Select the **`Poolex Silverline FI 120 V2 / PC-INV-120V2 (tenths °C)`** model
-  during setup (or via *Reconfigure*) to apply the ÷10 scaling; the setpoint
-  (DP 2) stays whole °C and is unaffected. Note this firmware uses a different
-  DP-4 mode vocabulary (e.g. `h_powerful`); full mode mapping for it is still
-  being collected.
-- **°C only.** °F shifts the fault bitmap and is not supported (see
-  [Known limitations](#known-limitations)).
-- **Poolex Nano 5kW WiFi has a genuinely minimal DP schema — there is no
-  richer telemetry hidden behind the Tuya cloud on this hardware tier.**
-  Reported with only `{1, 2, 3, 4, 21}` available (issue #16, productKey
-  `yk3bytlujz2xshuy`; also seen rebranded as the "Poolex Spawler o'spa Flow
-  5kW" on protocol v3.4, issue #18). Cross-referenced against the public
-  tuya-local project, which catalogues this exact productKey under a
-  different OEM brand name ("Varpoolfaye Pool Mini") with the same 5-DP
-  schema — confirming there is no inlet/outlet/suction/discharge temp,
-  frequency, fan, pump, or voltage/current telemetry to expose on this
-  hardware tier at all, unlike the richer Nano Fi 3kW. Some units also
-  expose a DP 101 that is a boolean, not a temperature — the integration
-  no longer maps it as one (issue #18), so it won't show a permanently
-  "unavailable" suction-temperature sensor. DP 21 is a status/fault
-  bitfield rather than a runtime counter on this firmware; bit 8 (raw
-  value 256) is hardware-confirmed as the E6 / insufficient-water-flow
-  fault (a reporter captured DP21 = 0 normally and 256 with the physical
-  controller showing E6, self-clearing once flow was restored) and
-  surfaces as the `fault_water_flow` binary sensor and the `fault_code`
-  sensor. Other bits on this DP are not yet identified and surface as
-  generic `bitN` placeholders rather than a guessed label. Boost/eco
-  preset support is unconfirmed (the cross-referenced schema only models
-  Heat/Cool/Auto, and doesn't cover presets either way), so selecting them
-  degrades to the plain heat/cool string rather than risking an
-  unsupported write. Which of those DPs the device actually *reports* has
-  been observed to vary on the v3.4 rebrand — see the cloud-session note
-  under [Known limitations](#known-limitations).
-- Presets `boost` / `eco` do not apply in `heat_cool` (Auto) — see
-  [Known limitations](#known-limitations).
+The protocol version (v3.3 / v3.4 / v3.5) is auto-detected during setup and
+pinned on the config entry. Which profile to pick, per-firmware sensor coverage and
+model quirks are in the [model notes](https://github.com/christianreiss/ha-silverline/blob/main/docs/supported-devices.md).
 
 ## Installation
 
 ### Via HACS (recommended)
 
-1. In HACS, open the integrations tab → "⋮" menu → "Custom repositories".
+1. In HACS, open the "⋮" menu (top right) → "Custom repositories".
 2. Add `https://github.com/christianreiss/ha-silverline` as type
    "Integration".
 3. Install **Poolex Silverline** from the new entry, restart Home Assistant.
@@ -226,332 +120,45 @@ The integration validates the credentials and confirms it can reach the
 device before creating the config entry. A failure surfaces as
 `cannot_connect` (network/host), `invalid_key_format` (the local key is not
 exactly 16 characters, checked before contacting the device),
-`invalid_auth` (wrong local key) or `unknown` (unexpected error) right in
+`invalid_auth` (local key rejected — usually a wrong key) or `unknown` (unexpected error) right in
 the form.
 
 After the credentials validate, a second step asks for your **device model**
 in a dropdown. The choice sets the device's model name in Home Assistant and
 pre-configures which sensors are available for that model. If your model is
-not listed (or you are unsure), pick **Other / Unknown** — the integration
-then detects the supported sensors automatically from the device's first
-status report.
+not listed, pick **Other / Unknown** — the integration then detects the
+supported sensors automatically from the device's first status report, read
+with the standard DP layout. Pick your listed model whenever there is one:
+models with their own DP map (Nano Fi, FI 150, FI 120 v3.5, the v3.4
+Silverline) get mislabelled sensors under **Other / Unknown**.
 
-## Configuration parameters
+## Configuration
 
-Connection settings — host, port, device ID, local key, device model — are set
-during setup and changed with the **Reconfigure** action: click the three-dot
-menu on the device in **Settings → Devices** and choose **Reconfigure**. It
-re-validates the connection details and then shows the same model dropdown,
-pre-selected with the current choice.
+Connection settings are changed with **Reconfigure** on the device; the
+fallback polling interval (default 30 s, minimum 8 s) lives under
+**Configure** on the integration entry. v3.3 and v3.5 devices push changes
+within ~200 ms, and the poll keeps the full DP set fresh. Details, including
+per-mode setpoint ranges: [configuration](https://github.com/christianreiss/ha-silverline/blob/main/docs/configuration.md).
 
-One runtime setting lives in **Configure** (the button on the integration
-entry, not the device):
+## Documentation
 
-| Option | Default | Range | Meaning |
-|---|---|---|---|
-| Fallback polling interval | 30 s | 8–300 s | How often to issue a full `DP_QUERY`; it runs on this schedule even while pushes are arriving |
-
-The lower bound is a hardware limit rather than a preference: WiFi modules of
-the WBR3 family reboot when polled faster than ~8 s, so shorter intervals are
-rejected. Pushes deliver changes instantly, but some firmware pushes only one
-DP at a time, so the poll is what keeps the full DP set fresh — raise the
-interval only if you can live with slower recovery of DPs the device never
-pushes.
-
-Changing the option reloads the entry, which briefly reconnects the socket.
-
-## Data update model
-
-- **Polling**: every 30 seconds by default (configurable, see above) the
-  integration issues a Tuya `DP_QUERY` to refresh the full state. Polling
-  faster than ~8 s causes the WBR3 WiFi module to reboot — the option will
-  not let you go below that.
-- **Push**: the device pushes spontaneous state changes within ~200 ms of
-  any DP changing. The integration listens for those on the persistent
-  socket and applies them immediately, so most updates feel instant.
-
-## Known limitations
-
-- **Diagnostic sensors are firmware-dependent.** DPs 101–111 are populated
-  on the Brustec firmware variants (Steinbach Silent Mini: 101–104 and 106–108); some Poolex Silverline FI
-  firmwares (verified live: PC-SLP090N) only expose DPs 1, 2, 3, 4, and 13.
-  Unsupported diagnostic DPs are not registered as entities at all — they
-  do not appear in your device page, so they cannot show up as `unavailable`
-  and clutter dashboards.
-- **On the standard WBR3-module devices, measurement DPs (temps, frequency,
-  pressures — DP 101+) go stale if the device loses its Tuya cloud session —
-  a module limitation, not an integration bug, and not confirmed universal
-  across every supported model.** Confirmed on a Poolex Silverline FI 120
-  (protocol 3.5, issue #15): the WiFi module only serves a live MCU sensor
-  reading over the local socket while it holds an active session with
-  Tuya's cloud MQTT broker on **TCP 8886**. Block that (even with DNS/NTP
-  still reachable) and the local socket keeps answering, but with a frozen
-  snapshot — no local command forces a fresh read, including `updatedps`,
-  alternate query opcodes, a control write, or even a full power-cycle.
-  Control DPs (power/mode/setpoint) are unaffected and always read/write
-  live regardless of cloud state. Not confirmed on the newer v3.5 JetLine FI
-  WiFi control board (issue #7) — that may behave differently. If you want a
-  WBR3-module device fully air-gapped, only control is guaranteed to stay
-  current — sensor readings will freeze at their last cloud-synced values.
-- **Confirmed: a v3.4 Nano 5kW-family unit drops measurement DPs entirely
-  (not just freezes them) if it restarts without Tuya cloud access** — a
-  different, harder failure mode than the WBR3 freeze-in-place behaviour
-  above. A reporter running the "Spawler o'spa Flow 5kW" rebrand isolated
-  this with a same-power-state A/B (issue #18): re-enabling a firewall rule
-  on a device that was already running, with an already-populated DP cache,
-  changed nothing — DPs 1, 2, 3 (current temp), 4 (mode) and 21 (fault
-  bitmap) kept reporting. Power-cycling the unit while still firewalled did:
-  the next `DP_QUERY` returned only DP 1 (bare power state), everything
-  else gone. So the trigger is a restart without cloud reachability, not
-  merely being firewalled while already running. Control is partly
-  recoverable without the cloud — writing to the device locally (e.g.
-  toggling power or changing the setpoint from Home Assistant) brought DP 2
-  (setpoint) and DP 4 (mode) back into the reported set, because the local
-  socket echoes back whatever was just written — but DP 3 (current
-  temperature) and DP 21 (fault bitmap) stayed missing regardless, since
-  nothing writes those locally; the module apparently only populates
-  read-only measurement DPs via an actual cloud session, same underlying
-  cause as the WBR3 behaviour, just manifesting as absence instead of a
-  frozen value. If you keep this hardware firewalled, avoid power-cycling
-  it (including brief power outages); if it does restart while blocked,
-  Home Assistant can restore control but not current temperature or fault
-  reporting until connectivity comes back. Confirmed stable, not decaying:
-  a follow-up capture taken 24+ hours into the same firewall rule showed
-  no further change beyond what the restart already caused. One loose end:
-  an early capture from the same unit also showed a DP 101 that has never
-  reappeared since, including after using the device's own physical
-  buttons — unrelated to the mechanism above and still unexplained.
-- **°F mode is not supported.** Lock the wired remote to °C — on °F some
-  firmwares move the fault bitmap from DP 13 to DP 21 and reuse DP 13 for
-  the unit-conversion enum, which the integration does not yet handle.
-- **Auto mode has no Boost or Silent preset.** Most firmwares have no Auto
-  variant, and the integration does not offer one on any model. That
-  includes the PC-INV-120V2, whose firmware vocabulary lists
-  `a_powerful`/`a_silent`: those are read as `heat_cool` but never written. Selecting `boost` or `eco` while in `heat_cool` raises a
-  service-validation error with a translated message.
-- **Reported water temperature drifts toward ambient after the filter pump
-  has been off for a while, then snaps back within seconds once circulation
-  resumes** (observed on a Poolex Nano 5kW WiFi, issue #16, and expected to
-  apply to any model — it's a sensor-placement characteristic, not
-  firmware-specific). The temp sensor reads the water sitting in the heat
-  exchanger, not the bulk pool, so without flow it settles toward the
-  surrounding air temperature instead of the pool's. If `current_temperature`
-  looks implausible, check whether circulation had been stopped.
-
-## Per-mode setpoints
-
-The device keeps a separate stored setpoint per mode-family (Heat, Cool,
-Auto) and restores that mode's last value when you switch into it. For a
-pool heat pump this is usually what you want — Heat is for warming the
-pool (typically 26–30 °C), Cool is for chilling it during a heat wave
-(typically 18–24 °C), and Auto holds a band in the middle. The setpoint
-slider also adapts its min/max to the active mode (Heat 15–40 °C, Cool
-8–28 °C, Auto 8–40 °C). If you change mode and target in one HA service
-call (`climate.set_temperature` with both `hvac_mode` and `temperature`),
-the mode change is applied first so your target lands under the new mode.
+- [Model notes](https://github.com/christianreiss/ha-silverline/blob/main/docs/supported-devices.md) — profile selection, sensors by firmware, per-model quirks
+- [Configuration](https://github.com/christianreiss/ha-silverline/blob/main/docs/configuration.md) — options, data update model, per-mode setpoints
+- [Known limitations](https://github.com/christianreiss/ha-silverline/blob/main/docs/known-limitations.md) — cloud-gated telemetry, °F, Auto presets
+- [Troubleshooting](https://github.com/christianreiss/ha-silverline/blob/main/docs/troubleshooting.md) — setup errors, missing sensors, reporting a problem
+- [Use cases and example automations](https://github.com/christianreiss/ha-silverline/blob/main/docs/automations.md)
+- [Development and releases](https://github.com/christianreiss/ha-silverline/blob/main/docs/development.md)
 
 ## Troubleshooting
 
-**"cannot_connect" during setup**
-- Verify the IP is reachable: `nc -vz <host> 6668`.
-- Ensure the device is not already connected to the Smart Life app on the
-  same network — the WBR3 only accepts one local TCP client at a time. The
-  cleanest fix is to firewall the device from outbound 443/8886 so it stays
-  LAN-only. Trade-off on WBR3-module devices: blocking 8886 also freezes
-  measurement DPs (temps, frequency, etc.) at their last cloud-synced value
-  — see [Known limitations](#known-limitations). Control still works fine.
-
-**"invalid_auth" during setup**
-- The local key is regenerated whenever the device is re-paired in Smart
-  Life. Re-fetch it from the Tuya IoT Platform after any Smart Life touch.
-
-**A diagnostic sensor I expected is missing**
-- Your firmware variant likely doesn't expose that DP, in which case
-  the integration omits the entity on purpose (the alternative — a
-  permanently `unavailable` sensor — confuses dashboards and template
-  sensors). Compare with the supported DPs in the device's diagnostics
-  download to confirm.
-
-**Current temperature (or mode, or the fault sensor) stopped updating**
-- If the device is firewalled from the internet, try lifting the block and
-  see whether the missing values return — on some firmware the DPs stop
-  being reported entirely without a Tuya cloud session (issue #18) or
-  freeze at their last cloud-synced value (issue #15). See
-  [Known limitations](#known-limitations).
-- If the reading is present but implausible, check whether the filter pump
-  has been off: the sensor sits in the heat exchanger, not the bulk pool.
-
-**The `fault_code` sensor shows `ok` or `unavailable`**
-- `ok` means the device explicitly reported a zero fault bitmap: no active
-  fault.
-- `unavailable` means Home Assistant cannot currently read the fault bitmap,
-  either because that DP is missing from the latest device state or because
-  the connection is unavailable. A healthy reading is never reported as
-  unavailable.
-
-**Capturing a live DP dump for a bug report**
-- The repository ships `scripts/probe.py`, which reads the device id and
-  local_key from an `access.yaml` at the repo root (pass your device's
-  address with `--host <ip>`; the default host is the maintainer's own),
-  and dumps every DP the device exposes. It also writes DP 2 (the setpoint)
-  back with its current value to make the device echo its full state. `access.yaml` holds your Tuya local_key, so after creating
-  it run `chmod 600 access.yaml` to keep it readable only by your user.
-
-**Boost or Silent doesn't apply when in Auto**
-- This is a device limitation, not an integration bug. Switch to
-  Heat or Cool first; the preset will then apply.
-
-## Reporting a problem
-
-`pysilverline` ships a diagnostic tool that gathers everything a maintainer
-needs — the protocol probe ladder, the full DP map, and (optionally) the
-control-write result — into one paste-ready report, with your device id, local
-key and host/IP redacted. It runs without Home Assistant, so it also helps when
-the integration won't connect at all.
-
-Run it with **no arguments** and it walks you through everything — scanning your
-network, letting you pick the heat pump, and asking for the local key:
+See the [troubleshooting guide](https://github.com/christianreiss/ha-silverline/blob/main/docs/troubleshooting.md). To report a problem,
+run the bundled diagnostic tool — it redacts your device id, local key and IP —
+and paste its output into a
+[bug report](https://github.com/christianreiss/ha-silverline/issues/new/choose):
 
 ```bash
 pip install pysilverline
 pysilverline diagnose
-```
-
-```text
-Scanning for devices (6s)…
-Devices found on your network:
-  [1] 192.168.1.42  (productKey 3bhylhz5zhogklel, v3.3, id bf90…)
-Pick a number, or press Enter to type the details manually: 1
-Local key (16 characters): 0123456789abcdef
-Protocol version (auto / 3.3 / 3.4 / 3.5) [auto]:
-Also test the control path? … [y/N]: n
-```
-
-It then prints the report and offers to save it. Paste the output into a
-[bug report](https://github.com/christianreiss/ha-silverline/issues/new/choose).
-
-- Your **local key** comes from `python -m tinytuya wizard` or the Tuya IoT
-  Platform (Cloud → Devices) — the same place you found it during setup. Home
-  Assistant's diagnostics download redacts it deliberately, so don't look there.
-- Say **yes** to the control-path test only if you want it: it writes the
-  setpoint (DP 2) back to its *current* value, so it changes nothing, but it
-  reveals whether local writes are accepted (the signal behind issue #7).
-- Already running Home Assistant? *Download diagnostics* on the device page
-  carries the same information.
-
-<details>
-<summary>Scripted / non-interactive use</summary>
-
-Pass all three connection details (plus any options) as flags to skip the
-prompts — handy for scripts, or when you already know them:
-
-```bash
-pysilverline diagnose --host <device-ip> --device-id <id> --local-key <key> \
-    [--probe-write] [--version 3.5] [--output report.md] [--no-redact]
-```
-</details>
-
-## Use cases
-
-- **Seasonal pool warmup.** Set `hvac_mode: heat` with the `boost`
-  preset and a 28 °C target in spring; the heat pump runs at maximum
-  inverter speed until the pool reaches setpoint, then naturally
-  modulates down.
-- **Overnight quiet operation.** Use the `eco` preset (mapped to the
-  Silent DP variant) during sleeping hours — the compressor caps its
-  frequency to a quieter rpm at the cost of slower heating.
-- **PV-surplus heating.** Trigger `climate.set_temperature` from a
-  template sensor watching your solar surplus: setpoint moves up by a
-  few degrees when there's free electricity, back down when there
-  isn't.
-- **Frost protection in the off-season.** Park the unit at a low
-  target with the `eco` preset; the inverter pulses only when water
-  temperature drops near the antifreeze threshold.
-
-## Examples
-
-### Prevent dry-running by sequencing the filter pump first
-
-The unit hard-faults to E03 (water flow) within ~30 s of running dry.
-Always start the filter pump before turning the heat pump on:
-
-```yaml
-automation:
-  - alias: "Pool: pump before heat"
-    triggers:
-      - platform: state
-        entity_id: climate.pool_heatpump
-        from: "off"
-    actions:
-      - action: switch.turn_on
-        target:
-          entity_id: switch.pool_filter_pump
-      - delay: "00:00:15"
-```
-
-### Heat only during low-tariff hours
-
-Drop the setpoint to a frost-protection floor at peak-rate times; raise
-it during the cheap window so the inverter runs when electricity is
-cheapest. Pair with a tariff sensor or a static time schedule.
-
-```yaml
-automation:
-  - alias: "Pool: warm during off-peak"
-    triggers:
-      - platform: time
-        at: "22:00:00"
-    actions:
-      - action: climate.set_temperature
-        target:
-          entity_id: climate.pool_heatpump
-        data:
-          temperature: 28
-      - action: climate.set_preset_mode
-        target:
-          entity_id: climate.pool_heatpump
-        data:
-          preset_mode: boost
-
-  - alias: "Pool: idle during peak"
-    triggers:
-      - platform: time
-        at: "06:00:00"
-    actions:
-      - action: climate.set_temperature
-        target:
-          entity_id: climate.pool_heatpump
-        data:
-          temperature: 18
-      - action: climate.set_preset_mode
-        target:
-          entity_id: climate.pool_heatpump
-        data:
-          preset_mode: eco
-```
-
-### Notify when a fault appears (with self-clearing)
-
-The integration also surfaces fault bits as Home Assistant **Repair
-issues** (Settings → Repairs) that auto-clear when the device clears
-the fault. For an active push notification on top of that, watch the
-fault binary sensors directly:
-
-```yaml
-automation:
-  - alias: "Pool: notify on water-flow fault"
-    triggers:
-      - platform: state
-        entity_id: binary_sensor.pool_heatpump_water_flow_fault
-        from: "off"
-        to: "on"
-    actions:
-      - action: notify.mobile_app
-        data:
-          title: "Pool heat pump: E03 water flow"
-          message: >
-            The heat pump can't detect water flow. Check the filter
-            pump. The unit stops heating until flow is restored.
 ```
 
 ## Removal
@@ -585,108 +192,8 @@ suffix becomes heat/cool. All seven modes are accessible.
 ## Acknowledgments
 
 Hardware verification on devices the maintainer doesn't own is what keeps this
-integration honest — huge thanks to the contributors who ran the tests:
-
-- **[@Paulus385](https://github.com/Paulus385)** — verified v3.5 local control
-  on a JetLine FI with the new WiFi control board, and whose Wireshark capture
-  and tinytuya cross-check root-caused the missing-version-header write bug
-  (issue #7).
-- **Martin Čarek ([@olomouckyorel](https://github.com/olomouckyorel))** —
-  contributed and live-verified v3.4 support on real Poolex Silverline hardware
-  (PR #3).
-- **[@lepatou](https://github.com/lepatou)** — contributed the dedicated Nano
-  Fi 3kW (PC-NANO-B3N) DP layout and diagnostic sensor catalog, cross-checked
-  DP-by-DP against the official Tuya cloud product schema and live hardware
-  (issue #11, PRs #12 and #14).
-- **[@TRIAG73](https://github.com/TRIAG73)** — reported the Poolex Silverline
-  FI 70 (PC-SLP070N), confirmed its five-DP set and standard mode vocabulary
-  against the 090N profile, and supplied the DP 13 = 64 / panel-shows-Er10
-  reading that stopped the classic bit table's "inlet sensor (P3)" label from
-  being applied to this firmware (issue #21).
-- **[@trothe](https://github.com/trothe)** — reported the minimal 5-DP JetLine
-  Selection FI variant and the compressor-sensor false positive, with an `Er 03`
-  no-flow cross-check (issue #6).
-- **[@nickfr](https://github.com/nickfr)** — reported and patiently helped
-  diagnose the Silverline FI 150's diagnostic DP mapping and a broken
-  water-pump sensor, cross-checking readings against live outdoor temperature
-  across several rounds (issue #1).
-- **[@squitel](https://github.com/squitel)** — settled the Silverline FI 150's
-  whole DP block by running a controlled load transition on a live unit
-  (setpoint down to stop the compressor, back up to restart it) and logging
-  every poll through it, which is what separated the IPM heatsink temperature
-  from a compressor frequency, the main EEV opening from a circulation pump,
-  and mains voltage from a lifetime hour counter — then wrote the layout up
-  DP-by-DP (issue #20).
-- **[@froggy974](https://github.com/froggy974)** — reported and iteratively
-  verified PC-INV-120V2 support end-to-end: the tenths-of-a-degree temperature
-  scaling, the full DP-4 mode vocabulary, and a transient write regression,
-  across five release rounds (issue #5).
-- **[@darkm00nch](https://github.com/darkm00nch)** — reported the reconnect
-  logic giving up after a fixed backoff window and confirmed the fix that
-  made it retry indefinitely (issue #9), and confirmed the v3.5 write fix on
-  a JetLine FI (issue #8).
-- **[@martin0675](https://github.com/martin0675)** — diagnosed the Steinbach
-  Silent Mini's full-word DP-4 mode vocabulary (`"Heating"`/`"Cooling"`) that
-  left the climate entity stuck on "unknown" (issue #10).
-- **[@chmielot](https://github.com/chmielot)** — hardware-confirmed that the
-  WBR3 WiFi module only serves live measurement telemetry while it holds a
-  Tuya cloud MQTT session, pinning the cloud-gated staleness down to
-  port-level isolation (issue #15).
-- **Andre Gross** — found on real Silverline Top 9 hardware that the v3.4
-  firmware's DP 120/121 are line voltage and current, not the lifetime
-  runtime counter the layout assumed, and built the derived power and energy
-  sensors on top. Ported back here from the
-  [ha-poolex-heatpump](https://github.com/cococheaf/ha-poolex-heatpump) fork.
-
-## Development
-
-After cloning, install the git hooks once:
-
-```bash
-./scripts/install-hooks.sh
-```
-
-This points `core.hooksPath` at the tracked `.githooks/` directory. The
-`pre-commit` hook runs the `pysilverline` protocol/client API test suite
-(Tuya **v3.3**, **v3.4** and **v3.5**) before every commit, so a change that
-breaks any wire protocol can't land. It's the library suite only (fast, a few seconds);
-linting, type-checking, and the Home Assistant integration tests are left to
-CI and `scripts/platinum-gate.sh`. CI and the gate both use Ruff 0.16.1 with
-the explicit rule set in the two `pyproject.toml` files, so lint behavior does
-not drift when Ruff changes its defaults.
-
-Bypass the hook for a single commit with `git commit --no-verify`, or set
-`SKIP_HOOK_TESTS=1` in the environment.
-
-## Release notes
-
-The Home Assistant integration pins `pysilverline` in `manifest.json`.
-Release delivery requires green **Tests** (both Python versions, integration
-coverage, mypy and Ruff), **HACS validation**, and **hassfest** main-push runs
-for the **exact tagged commit**. `scripts/check_release_ci.py` checks the
-[GitHub workflow runs API](https://docs.github.com/en/rest/actions/workflow-runs)
-and every job result; failed, cancelled, skipped or missing checks block delivery.
-It waits up to 15 minutes for pending/missing runs and fails closed on API errors.
-The successful run links and commit SHA appear in the delivery job summary.
-
-1. Configure the PyPI Trusted Publisher for project `pysilverline`, repository
-   `christianreiss/ha-silverline`, workflow `pysilverline-pypi.yaml`, environment `pypi`.
-2. Set matching versions in the integration manifest and root `pyproject.toml`;
-   if changing the library, update its version and the manifest requirement too.
-3. Commit and push to **both** `github/main` and `origin/main`.
-4. Run `./scripts/release.sh` (requires authenticated `gh`); even `--dry-run`
-   verifies green CI before creating tags. Both tag workflows independently
-   enforce the same gate, including manual recovery runs.
-5. The GitHub Release workflow verifies versions without rewriting tested files
-   and waits for the pinned library to be downloadable from PyPI before publishing.
-   Verify **both delivery workflows**, the PyPI package and GitHub release asset
-   before announcing success; pushing tags alone is not completed delivery.
-
-If CI fails, fix and push the commit before tagging. Rerun failed checks for a
-transient failure on the same SHA; a newer successful run at another SHA does
-not qualify. Manual recovery must use an exact existing version tag whose commit
-has passed all three main-push workflows. Older tags without the gate script fail
-closed; do not retag published versions to bypass this requirement.
+integration honest — thanks to everyone who ran the tests; see
+[acknowledgments](https://github.com/christianreiss/ha-silverline/blob/main/docs/acknowledgments.md).
 
 ## License
 

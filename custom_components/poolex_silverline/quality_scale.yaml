@@ -45,7 +45,7 @@ rules:
     comment: No custom service actions registered.
   config-entry-unloading: done
   # No longer exempt: an options flow exposes the fallback polling interval.
-  # README "Configuration parameters" documents it with default and bounds.
+  # docs/configuration.md "Configuration parameters" documents it with default and bounds.
   docs-configuration-parameters: done
   docs-installation-parameters: done
   entity-unavailable: done

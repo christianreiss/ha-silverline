@@ -50,7 +50,7 @@ _REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 
 def test_every_documented_product_key_is_allowlisted() -> None:
-    """Every productKey README names must pass the discovery filter.
+    """Every productKey the user docs (README + docs/) name must pass discovery.
 
     ``config_flow.async_step_integration_discovery`` aborts with
     ``unsupported_product`` for any productKey outside
@@ -60,12 +60,13 @@ def test_every_documented_product_key_is_allowlisted() -> None:
     documented, profiled, sensor-mapped and tested for three releases while
     still missing from this list, because nothing tied the two together.
     """
-    readme = (_REPO_ROOT / "README.md").read_text()
-    documented = set(re.findall(r"productKey\s+`?([A-Za-z0-9]{16,22})`?", readme))
-    assert documented, "README no longer names any productKey — update this guard"
+    docs = [_REPO_ROOT / "README.md", *sorted((_REPO_ROOT / "docs").glob("*.md"))]
+    text = "\n".join(path.read_text() for path in docs)
+    documented = set(re.findall(r"productKey\s+`?([A-Za-z0-9]{16,22})`?", text))
+    assert documented, "docs no longer name any productKey — update this guard"
     missing = documented - _KNOWN_POOLEX_PRODUCT_KEYS
     assert not missing, (
-        f"productKeys documented in README but not allow-listed: {sorted(missing)}"
+        f"productKeys documented in docs but not allow-listed: {sorted(missing)}"
     )
 
 
