@@ -1,7 +1,7 @@
 # Poolex Silverline — Home Assistant integration
 
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-Custom%20Integration-41BDF5?logo=homeassistant&logoColor=white)](https://www.home-assistant.io/)
-[![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange)](https://hacs.xyz/)
+[![HACS Default](https://img.shields.io/badge/HACS-Default-41BDF5)](https://hacs.xyz/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![Tests](https://github.com/christianreiss/ha-silverline/actions/workflows/tests.yaml/badge.svg)](https://github.com/christianreiss/ha-silverline/actions/workflows/tests.yaml)
 [![hassfest](https://github.com/christianreiss/ha-silverline/actions/workflows/hassfest.yaml/badge.svg)](https://github.com/christianreiss/ha-silverline/actions/workflows/hassfest.yaml)
@@ -86,16 +86,14 @@ model quirks are in the [model notes](https://github.com/christianreiss/ha-silve
 
 ### Via HACS (recommended)
 
-1. In HACS, open the "⋮" menu (top right) → "Custom repositories".
-2. Add `https://github.com/christianreiss/ha-silverline` as type
-   "Integration".
-3. Install **Poolex Silverline** from the new entry, restart Home Assistant.
+1. In HACS, search for **Poolex Silverline** and download it.
+2. Restart Home Assistant.
 
-> **Why the custom-repository step?** This integration has been submitted to
-> the HACS *default* store, but that queue is measured in months. Until it is
-> merged, adding the repository by hand is the supported install path — the
-> steps above are not a workaround and nothing changes for you when the
-> listing lands, beyond being able to skip step 1 and 2.
+> **Not listed yet?** The integration was added to the HACS default store on
+> 2026-10-22, and it can take up to 8 hours to show up. Until then (or if you
+> prefer), open the "⋮" menu → "Custom repositories", add
+> `https://github.com/christianreiss/ha-silverline` as type "Integration",
+> and install from there.
 
 ### Manual
 
